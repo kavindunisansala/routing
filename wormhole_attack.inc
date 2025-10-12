@@ -80,10 +80,10 @@ void WormholeEndpointApp::StartApplication(void) {
         std::cout << "DEBUG: Setting promiscuous callback on device " << i 
                   << " type=" << dev->GetInstanceTypeId().GetName() << std::endl;
         // Set promiscuous receive callback to intercept all packets
-        bool success = dev->SetPromiscReceiveCallback(
+        dev->SetPromiscReceiveCallback(
             MakeCallback(&WormholeEndpointApp::ReceivePacket, this)
         );
-        std::cout << "DEBUG: SetPromiscReceiveCallback returned: " << success << std::endl;
+        std::cout << "DEBUG: SetPromiscReceiveCallback completed on device " << i << std::endl;
     }
     
     // Create socket for tunneling if peer is set
