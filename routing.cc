@@ -115,7 +115,7 @@ double link_lifetime_threshold = 0.400;
 int mobility_scenario = 0;// 0 - urban, 1 - non-urban, 2 - highway
 int architecture = 0; // 0 - centralized, 1 - distributed, 2 - hybrid
 int attack_number = 2; //1 - blackhole, 2 - wormhole, 3 - sybil, 4 - reply, 5 - routing-table-poisioning
-double attack_percentage=0.1; //percentage of attackers
+double attack_percentage=0.2; //percentage of attackers (20%)
 
 // Attack presence flags
 bool present_blackhole_attack_nodes = false;
@@ -140870,10 +140870,22 @@ int main(int argc, char *argv[])
         if (malicious_count < 2 && total_size >= 2) {
             std::cout << "Warning: Only " << malicious_count << " malicious node(s) selected. ";
             std::cout << "Forcing minimum of 2 nodes for wormhole tunnels..." << std::endl;
-            // Force first 2 nodes to be malicious
-            wormhole_malicious_nodes[0] = true;
-            wormhole_malicious_nodes[1] = true;
+            // Force nodes in middle of network (more likely to be in paths)
+            int node1 = total_size / 3;     // 1/3 position
+            int node2 = 2 * total_size / 3; // 2/3 position
+            wormhole_malicious_nodes[node1] = true;
+            wormhole_malicious_nodes[node2] = true;
             malicious_count = 2;
+        }
+        
+        // Or force more nodes for better coverage (optional - increase if needed)
+        if (malicious_count < 6 && total_size >= 10) {
+            std::cout << "Info: Increasing malicious nodes to 6 for better coverage..." << std::endl;
+            for (int i = 0; i < 6 && i < (int)wormhole_malicious_nodes.size(); i++) {
+                int node_id = (i * total_size) / 10; // Spread across network
+                wormhole_malicious_nodes[node_id] = true;
+            }
+            malicious_count = 6;
         }
         
         std::cout << "\n=== Enhanced Wormhole Attack Configuration ===" << std::endl;
