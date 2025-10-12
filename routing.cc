@@ -115523,7 +115523,7 @@ void update_stable(uint32_t flow_id, uint32_t current_hop)
 			
 			else
 			{
-				if((proposed_algo2_output_inst[flow_id].met[i] = false)||(proposed_algo2_output_inst[flow_id].Y[i] >= ((proposed_algo2_output_inst[flow_id].Y[current_hop] + 1))))
+				if((proposed_algo2_output_inst[flow_id].met[i] == false)||(proposed_algo2_output_inst[flow_id].Y[i] >= ((proposed_algo2_output_inst[flow_id].Y[current_hop] + 1))))
 				{
 					proposed_algo2_output_inst[flow_id].Y[i] = proposed_algo2_output_inst[flow_id].Y[current_hop] + 1;
 					proposed_algo2_output_inst[flow_id].conn[i] = 1;
@@ -115611,7 +115611,7 @@ void update_unstable(uint32_t flow_id, uint32_t current_hop)
 			else
 			{
 				double value = distance_algo2_output_inst[flow_id].D[current_hop] + adjacencyMatrix[current_hop][i];
-				if((distance_algo2_output_inst[flow_id].met[i] = false)||(distance_algo2_output_inst[flow_id].D[i] > value))
+				if((distance_algo2_output_inst[flow_id].met[i] == false)||(distance_algo2_output_inst[flow_id].D[i] > value))
 				{
 					distance_algo2_output_inst[flow_id].Y[i] = distance_algo2_output_inst[flow_id].Y[current_hop] + 1;
 					distance_algo2_output_inst[flow_id].D[i] = value;
