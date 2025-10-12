@@ -140860,7 +140860,25 @@ int main(int argc, char *argv[])
     
     // Enhanced Wormhole Attack Implementation
     if (present_wormhole_attack_nodes && use_enhanced_wormhole) {
+        // Count malicious nodes
+        int malicious_count = 0;
+        for (size_t i = 0; i < wormhole_malicious_nodes.size(); ++i) {
+            if (wormhole_malicious_nodes[i]) malicious_count++;
+        }
+        
+        // Ensure minimum of 2 malicious nodes for wormhole tunnels
+        if (malicious_count < 2 && total_size >= 2) {
+            std::cout << "Warning: Only " << malicious_count << " malicious node(s) selected. ";
+            std::cout << "Forcing minimum of 2 nodes for wormhole tunnels..." << std::endl;
+            // Force first 2 nodes to be malicious
+            wormhole_malicious_nodes[0] = true;
+            wormhole_malicious_nodes[1] = true;
+            malicious_count = 2;
+        }
+        
         std::cout << "\n=== Enhanced Wormhole Attack Configuration ===" << std::endl;
+        std::cout << "Total Nodes: " << total_size << std::endl;
+        std::cout << "Malicious Nodes Selected: " << malicious_count << std::endl;
         std::cout << "Attack Percentage: " << (attack_percentage * 100) << "%" << std::endl;
         std::cout << "Tunnel Bandwidth: " << wormhole_tunnel_bandwidth << std::endl;
         std::cout << "Tunnel Delay: " << wormhole_tunnel_delay_us << " microseconds" << std::endl;
