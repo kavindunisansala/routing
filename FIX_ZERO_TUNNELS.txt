@@ -1,0 +1,120 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║   🔧 FIX: No Wormhole Tunnels + Crash [2025-10-12 16:30]                    ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMS FOUND:
+═══════════════
+1. ✅ Wormhole attack code IS running
+2. ❌ Created 0 wormhole tunnels (need at least 2 malicious nodes)
+3. ❌ Simulation crashes with null pointer error after ~1 second
+
+FIXES APPLIED:
+══════════════
+1. Added minimum 2 malicious nodes check
+2. Added debug output to show malicious node count
+3. Fixed on GitHub - need to update Linux
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 UPDATE ROUTING.CC ON LINUX:
+═══════════════════════════════
+
+cd ~/Downloads/ns-allinone-3.35/ns-3.35/scratch
+cp routing.cc routing.cc.backup_$(date +%Y%m%d_%H%M%S)
+wget -O routing.cc https://raw.githubusercontent.com/kavindunisansala/routing/master/routing.cc
+cd ~/Downloads/ns-allinone-3.35/ns-3.35
+./waf build
+
+═══════════════════════════════════════════════════════════════════════════════
+
+WHAT WAS FIXED:
+═══════════════
+
+BEFORE:
+  - Random selection might pick 0 or 1 malicious nodes
+  - No tunnels created if < 2 malicious nodes
+  - No visibility into selection process
+
+AFTER:
+  - Ensures minimum 2 malicious nodes
+  - Shows "Total Nodes" and "Malicious Nodes Selected"
+  - Forces nodes 0 and 1 to be malicious if needed
+
+═══════════════════════════════════════════════════════════════════════════════
+
+ABOUT THE CRASH:
+════════════════
+
+The crash (null pointer at ptr.h:649) is SEPARATE from the wormhole issue.
+It happens at line 1.0348s in path-finding code:
+
+  assert failed. cond="m_ptr", msg="Attempted to dereference zero pointer"
+  file=./ns3/ptr.h, line=649
+
+This is in YOUR ORIGINAL routing code (not wormhole-related).
+The crash happens during "updating flows - path finding".
+
+POSSIBLE CAUSES:
+  - Node pointer is null during path finding
+  - Controller node not properly initialized
+  - Flow table entry references deleted node
+
+═══════════════════════════════════════════════════════════════════════════════
+
+WORKAROUNDS FOR TESTING WORMHOLE:
+══════════════════════════════════
+
+1. Run shorter simulation (crash happens at ~1s):
+   ./waf --run "routing --use_enhanced_wormhole=true --simTime=0.5"
+
+2. Increase number of nodes (might avoid crash):
+   ./waf --run "routing --use_enhanced_wormhole=true --simTime=10 --nWifis=50"
+
+3. Disable path-finding optimization if there's a flag
+
+4. Check if crash happens WITHOUT wormhole:
+   ./waf --run "routing --use_enhanced_wormhole=false --simTime=10"
+
+═══════════════════════════════════════════════════════════════════════════════
+
+EXPECTED OUTPUT AFTER FIX:
+═══════════════════════════
+
+=== Enhanced Wormhole Attack Configuration ===
+Total Nodes: 12                          ← NEW
+Malicious Nodes Selected: 2              ← NEW (minimum enforced)
+Attack Percentage: 10%
+Tunnel Bandwidth: 1000Mbps
+Tunnel Delay: 1 microseconds
+Random Pairing: Yes
+Drop Packets: No
+Tunnel Routing Packets: Yes
+Tunnel Data Packets: Yes
+Created 1 wormhole tunnels               ← Should be > 0 now!
+Attack active from 0s to 10s
+============================================
+
+═══════════════════════════════════════════════════════════════════════════════
+
+TO FIX THE CRASH (Separate Issue):
+═══════════════════════════════════
+
+The crash is in the original routing code around line 1.0348s during:
+  "updating flows - path finding"
+
+You need to add null pointer check in your path-finding code.
+Look for code around these lines that was in your original code:
+
+  link lifetime optimization
+  finished writing link lifetime status
+  reading lifetime from csv
+  Solution not found
+  link lifetime conversion finished
+  updating flows - path finding ← CRASH HERE
+
+Add checks like:
+  if (node_ptr != nullptr) {
+      // use node_ptr
+  }
+
+═══════════════════════════════════════════════════════════════════════════════
