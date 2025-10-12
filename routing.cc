@@ -115317,28 +115317,96 @@ vector<double> calculate_distance_to_each_node(uint32_t source_node)
 	*/
 	Ptr <Node> reference_node;
 	Ptr <Node> other_node;
+	
+	// Validate source_node bounds
+	if (source_node < 2) {
+		std::cerr << "ERROR: Invalid source_node " << source_node << " (must be >= 2)" << std::endl;
+		// Return empty vector with large distances
+		for (uint32_t i = 0; i < total_size; i++) {
+			x.push_back(1e9);
+		}
+		return x;
+	}
+	
 	if ((source_node-2) < N_Vehicles)
 	{	
+		if ((source_node-2) >= Vehicle_Nodes.GetN()) {
+			std::cerr << "ERROR: source_node-2=" << (source_node-2) << " exceeds Vehicle_Nodes count=" << Vehicle_Nodes.GetN() << std::endl;
+			for (uint32_t i = 0; i < total_size; i++) {
+				x.push_back(1e9);
+			}
+			return x;
+		}
 		reference_node = DynamicCast <Node> (Vehicle_Nodes.Get(source_node-2));
 	}
 	else
 	{
-		reference_node = DynamicCast <Node> (RSU_Nodes.Get(source_node-N_Vehicles-2));
+		uint32_t rsu_index = source_node-N_Vehicles-2;
+		if (rsu_index >= RSU_Nodes.GetN()) {
+			std::cerr << "ERROR: RSU index=" << rsu_index << " exceeds RSU_Nodes count=" << RSU_Nodes.GetN() << std::endl;
+			for (uint32_t i = 0; i < total_size; i++) {
+				x.push_back(1e9);
+			}
+			return x;
+		}
+		reference_node = DynamicCast <Node> (RSU_Nodes.Get(rsu_index));
+	}
+	
+	// Check if reference_node is valid
+	if (!reference_node) {
+		std::cerr << "ERROR: reference_node is NULL for source_node=" << source_node << std::endl;
+		for (uint32_t i = 0; i < total_size; i++) {
+			x.push_back(1e9);
+		}
+		return x;
 	}
 	
 	Ptr<ConstantVelocityMobilityModel> mdl1 = DynamicCast <ConstantVelocityMobilityModel> (reference_node->GetObject<MobilityModel>());
-        Vector posi_reference = mdl1->GetPosition();
+	
+	// Check if mobility model is valid
+	if (!mdl1) {
+		std::cerr << "ERROR: Could not get MobilityModel for source_node=" << source_node << std::endl;
+		for (uint32_t i = 0; i < total_size; i++) {
+			x.push_back(1e9);
+		}
+		return x;
+	}
+	
+	Vector posi_reference = mdl1->GetPosition();
         for (uint32_t index = 2; index < (total_size + 2); index++)
 	{
 		if ((index-2) < N_Vehicles)
 		{	
+			if ((index-2) >= Vehicle_Nodes.GetN()) {
+				x.push_back(1e9);
+				continue;
+			}
 			other_node = DynamicCast <Node> (Vehicle_Nodes.Get(index-2));
 		}
 		else
 		{
-			other_node = DynamicCast <Node> (RSU_Nodes.Get(index-N_Vehicles-2));
+			uint32_t rsu_index = index-N_Vehicles-2;
+			if (rsu_index >= RSU_Nodes.GetN()) {
+				x.push_back(1e9);
+				continue;
+			}
+			other_node = DynamicCast <Node> (RSU_Nodes.Get(rsu_index));
 		}
+		
+		// Check if other_node is valid
+		if (!other_node) {
+			x.push_back(1e9);
+			continue;
+		}
+		
 		Ptr<ConstantVelocityMobilityModel> mdl2 = DynamicCast <ConstantVelocityMobilityModel> (other_node->GetObject<MobilityModel>());
+		
+		// Check if mobility model is valid
+		if (!mdl2) {
+			x.push_back(1e9);
+			continue;
+		}
+		
         	Vector posi_other = mdl2->GetPosition();	
 		double dis = get_length(posi_reference, posi_other);
 		x.push_back(dis);
