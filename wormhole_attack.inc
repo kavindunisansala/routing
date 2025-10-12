@@ -112,6 +112,16 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
                                         const Address &from,
                                         const Address &to,
                                         NetDevice::PacketType packetType) {
+    // Debug: Print when callback is triggered
+    static bool firstCall = true;
+    if (firstCall) {
+        std::cout << "DEBUG: WormholeEndpointApp::ReceivePacket called on node " 
+                  << GetNode()->GetId() << " at time " << Simulator::Now().GetSeconds() 
+                  << " protocol=0x" << std::hex << protocol << std::dec 
+                  << " size=" << packet->GetSize() << std::endl;
+        firstCall = false;
+    }
+    
     // // NS_LOG_FUNCTION(this << device << packet << protocol);  // Disabled  // Disabled when included in routing.cc
     
     // Only intercept packets not destined for this node in normal routing
