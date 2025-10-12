@@ -69,21 +69,14 @@ void WormholeEndpointApp::SetSelectiveTunneling(bool routing, bool data) {
 void WormholeEndpointApp::StartApplication(void) {
     // // NS_LOG_FUNCTION(this);  // Disabled  // Disabled when included in routing.cc
     
-    std::cout << "DEBUG: WormholeEndpointApp::StartApplication on node " 
-              << GetNode()->GetId() << " at time " << Simulator::Now().GetSeconds() 
-              << " devices=" << GetNode()->GetNDevices() << std::endl;
-    
     // Hook into all network devices to intercept packets
     Ptr<Node> node = GetNode();
     for (uint32_t i = 0; i < node->GetNDevices(); ++i) {
         Ptr<NetDevice> dev = node->GetDevice(i);
-        std::cout << "DEBUG: Setting promiscuous callback on device " << i 
-                  << " type=" << dev->GetInstanceTypeId().GetName() << std::endl;
         // Set promiscuous receive callback to intercept all packets
         dev->SetPromiscReceiveCallback(
             MakeCallback(&WormholeEndpointApp::ReceivePacket, this)
         );
-        std::cout << "DEBUG: SetPromiscReceiveCallback completed on device " << i << std::endl;
     }
     
     // Create socket for tunneling if peer is set
@@ -119,16 +112,6 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
                                         const Address &from,
                                         const Address &to,
                                         NetDevice::PacketType packetType) {
-    // Debug: Print when callback is triggered
-    static bool firstCall = true;
-    if (firstCall) {
-        std::cout << "DEBUG: WormholeEndpointApp::ReceivePacket called on node " 
-                  << GetNode()->GetId() << " at time " << Simulator::Now().GetSeconds() 
-                  << " protocol=0x" << std::hex << protocol << std::dec 
-                  << " size=" << packet->GetSize() << std::endl;
-        firstCall = false;
-    }
-    
     // // NS_LOG_FUNCTION(this << device << packet << protocol);  // Disabled  // Disabled when included in routing.cc
     
     // Only intercept packets not destined for this node in normal routing
