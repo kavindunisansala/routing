@@ -115475,19 +115475,29 @@ void update_stable(uint32_t flow_id, uint32_t current_hop)
 
 void run_stable_path_finding(uint32_t flow_id)
 {
-	// Safety checks to prevent crashes
-	if (flow_id >= 2*flows) {
-		std::cerr << "ERROR: Invalid flow_id " << flow_id << " (max: " << 2*flows-1 << ")" << std::endl;
+	cout << "DEBUG run_stable_path_finding: Entered with flow_id=" << flow_id << ", flows=" << flows << ", 2*flows=" << 2*flows << endl;
+	
+	// Safety checks to prevent crashes - CHECK FLOW_ID FIRST before pointer access
+	if (flow_id >= (uint32_t)(2*flows)) {
+		std::cerr << "ERROR: Invalid flow_id " << flow_id << " (max: " << 2*flows-1 << "), cannot access demanding_flow_struct_controller_inst" << std::endl;
 		return;
 	}
+	
+	// Check if matrices are ready
 	if (linklifetimeMatrix_dsrc.size() == 0 || linklifetimeMatrix_dsrc.size() < (size_t)total_size) {
 		std::cerr << "WARNING: linklifetimeMatrix_dsrc not ready yet (size=" << linklifetimeMatrix_dsrc.size() << ", need " << total_size << "), skipping path finding for flow " << flow_id << std::endl;
 		return;
 	}
 	
+	cout << "DEBUG run_stable_path_finding: About to access demanding_flow_struct_controller_inst[" << flow_id << "]" << endl;
+	
+	// NOW safe to access pointer - flow_id is validated
 	uint32_t source = (demanding_flow_struct_controller_inst+flow_id)->source;
 	uint32_t destination =	(demanding_flow_struct_controller_inst+flow_id)->destination;
 	
+	cout << "DEBUG run_stable_path_finding: source=" << source << ", destination=" << destination << endl;
+	
+	// Validate source/destination
 	if (source >= (uint32_t)total_size || destination >= (uint32_t)total_size) {
 		std::cerr << "ERROR: Invalid source/destination (src=" << source << ", dst=" << destination << ", max=" << total_size-1 << ")" << std::endl;
 		return;
@@ -115550,11 +115560,15 @@ void update_unstable(uint32_t flow_id, uint32_t current_hop)
 
 void run_distance_path_finding(uint32_t flow_id)
 {
-	// Safety checks to prevent crashes
-	if (flow_id >= 2*flows) {
-		std::cerr << "ERROR: Invalid flow_id " << flow_id << " (max: " << 2*flows-1 << ")" << std::endl;
+	cout << "DEBUG run_distance_path_finding: Entered with flow_id=" << flow_id << ", flows=" << flows << ", 2*flows=" << 2*flows << endl;
+	
+	// Safety checks to prevent crashes - CHECK FLOW_ID FIRST before pointer access
+	if (flow_id >= (uint32_t)(2*flows)) {
+		std::cerr << "ERROR: Invalid flow_id " << flow_id << " (max: " << 2*flows-1 << "), cannot access demanding_flow_struct_controller_inst" << std::endl;
 		return;
 	}
+	
+	// Check if matrices are ready
 	if (linklifetimeMatrix_dsrc.size() == 0 || linklifetimeMatrix_dsrc.size() < (size_t)total_size) {
 		std::cerr << "WARNING: linklifetimeMatrix_dsrc not ready yet (size=" << linklifetimeMatrix_dsrc.size() << ", need " << total_size << "), skipping path finding for flow " << flow_id << std::endl;
 		return;
@@ -115564,9 +115578,15 @@ void run_distance_path_finding(uint32_t flow_id)
 		return;
 	}
 	
+	cout << "DEBUG run_distance_path_finding: About to access demanding_flow_struct_controller_inst[" << flow_id << "]" << endl;
+	
+	// NOW safe to access pointer - flow_id is validated
 	uint32_t source = (demanding_flow_struct_controller_inst+flow_id)->source;
 	uint32_t destination =	(demanding_flow_struct_controller_inst+flow_id)->destination;
 	
+	cout << "DEBUG run_distance_path_finding: source=" << source << ", destination=" << destination << endl;
+	
+	// Validate source/destination
 	if (source >= (uint32_t)total_size || destination >= (uint32_t)total_size) {
 		std::cerr << "ERROR: Invalid source/destination (src=" << source << ", dst=" << destination << ", max=" << total_size-1 << ")" << std::endl;
 		return;
@@ -115591,10 +115611,12 @@ void run_distance_path_finding(uint32_t flow_id)
 void update_flows()
 {
 	  cout<<"updating flows - path finding at"<<Now().GetSeconds()<<endl;
+	  cout<<"DEBUG: flows=" << flows << ", total_size=" << total_size << ", 2*flows=" << 2*flows << endl;
 	  if(routing_algorithm == 4)
 	  {	
 	  	for(uint32_t i=0;i<2*flows;i++)
 	  	{
+	  		cout<<"DEBUG: Scheduling run_stable_path_finding for flow_id=" << i << endl;
 	  		Simulator::Schedule(Seconds(0.000005*(i+1)), run_stable_path_finding, i);
 	  	}
 	  }
@@ -115603,6 +115625,7 @@ void update_flows()
 	  	generate_adjacency_matrix();
 	  	for(uint32_t i=0;i<2*flows;i++)
 	  	{
+	  		cout<<"DEBUG: Scheduling run_distance_path_finding for flow_id=" << i << endl;
 	  		Simulator::Schedule(Seconds(0.000005*(i+1)), run_distance_path_finding, i);
 	  	}
 	  	
