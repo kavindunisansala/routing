@@ -54,7 +54,7 @@
 
 // Enhanced Wormhole Attack Module
 #include "wormhole_attack.h"
-#include "wormhole_attack_impl.cc"  // Include implementation for scratch build
+#include "wormhole_attack.inc"  // Include implementation (not compiled separately)
 
 #define max 40
 

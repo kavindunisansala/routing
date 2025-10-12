@@ -1,149 +1,104 @@
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║   🔧 FIX LINKER ERROR - NS-3 Trying to Build wormhole_attack.cc Standalone  ║
-║                         [2025-10-12 15:45 UTC]                               ║
+║   🔧 FIX LINKER ERROR - NS-3 Trying to Build wormhole_attack as Standalone  ║
+║                    [2025-10-12 16:00 UTC - UPDATED]                          ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 ERROR YOU SAW:
 ══════════════
-[2491/2539] Linking build/scratch/wormhole_attack
+[2491/2539] Linking build/scratch/wormhole_attack_impl
 /usr/bin/ld: undefined reference to `main'
 collect2: error: ld returned 1 exit status
 
 PROBLEM:
 ════════
 NS-3 WAF build system automatically tries to build ALL .cc files in scratch/ 
-as standalone executables. But wormhole_attack.cc doesn't have a main() function
-- it's meant to be INCLUDED in routing.cc, not compiled separately.
+as standalone executables, regardless of filename. Even wormhole_attack_impl.cc
+gets compiled! The file has no main() function - it's meant to be INCLUDED 
+in routing.cc, not compiled separately.
 
-SOLUTION: RENAME THE FILE
-══════════════════════════
-Rename wormhole_attack.cc to wormhole_attack_impl.cc (or any name not ending 
-in .cc that matches a header). This prevents NS-3 from auto-compiling it.
+SOLUTION: USE .inc EXTENSION
+═════════════════════════════
+Rename to wormhole_attack.inc - NS-3 NEVER compiles .inc files automatically.
+This is the standard way to include implementation files in NS-3 scratch/.
 
 ═══════════════════════════════════════════════════════════════════════════════
 
-QUICK FIX (RUN ON LINUX):
-═════════════════════════
+🚀 QUICK FIX (COPY & PASTE ON LINUX):
+══════════════════════════════════════
 
 cd ~/Downloads/ns-allinone-3.35/ns-3.35/scratch
 
-# Step 1: Rename the file
-mv wormhole_attack.cc wormhole_attack_impl.cc
+# Rename to .inc (try both possible old names)
+mv wormhole_attack.cc wormhole_attack.inc 2>/dev/null || \
+mv wormhole_attack_impl.cc wormhole_attack.inc
 
-# Step 2: Update routing.cc to include the new filename
-sed -i 's/#include "wormhole_attack.cc"/#include "wormhole_attack_impl.cc"/' routing.cc
+# Update routing.cc to include the .inc file
+sed -i 's/#include "wormhole_attack.*\.cc"/#include "wormhole_attack.inc"/' routing.cc
+sed -i 's/#include "wormhole_attack_impl\.cc"/#include "wormhole_attack.inc"/' routing.cc
 
-# Step 3: Verify the change
-grep "wormhole_attack_impl.cc" routing.cc
-# Should show: #include "wormhole_attack_impl.cc"
+# Verify
+grep "#include.*wormhole" routing.cc
 
-# Step 4: Clean and rebuild
+# Build
 cd ~/Downloads/ns-allinone-3.35/ns-3.35
 ./waf clean
 ./waf build
+
+═══════════════════════════════════════════════════════════════════════════════
 
 EXPECTED OUTPUT:
 ════════════════
 [2539/2539] Linking build/scratch/routing
 'build' finished successfully
 
+NO MORE wormhole_attack or wormhole_attack_impl linking attempts!
+
 ═══════════════════════════════════════════════════════════════════════════════
 
-ALTERNATIVE FIX (Manual):
+WHY .inc EXTENSION WORKS:
 ═════════════════════════
-
-If you prefer to edit manually:
-
-1. Open routing.cc:
-   nano ~/Downloads/ns-allinone-3.35/ns-3.35/scratch/routing.cc
-
-2. Find line 57-58:
-   #include "wormhole_attack.h"
-   #include "wormhole_attack.cc"  // Include implementation for scratch build
-
-3. Change to:
-   #include "wormhole_attack.h"
-   #include "wormhole_attack_impl.cc"  // Include implementation for scratch build
-
-4. Save (Ctrl+O, Enter, Ctrl+X)
-
-5. Rename file:
-   cd ~/Downloads/ns-allinone-3.35/ns-3.35/scratch
-   mv wormhole_attack.cc wormhole_attack_impl.cc
-
-6. Rebuild:
-   cd ~/Downloads/ns-allinone-3.35/ns-3.35
-   ./waf clean
-   ./waf build
-
-═══════════════════════════════════════════════════════════════════════════════
-
-WHY THIS WORKS:
-═══════════════
 
 NS-3 WAF Build Rules:
-  ✅ Files matching pattern: <name>.cc → Build as executable (needs main())
-  ✅ Files matching pattern: <name>_impl.cc → Ignored by auto-build
-  ✅ Files matching pattern: <name>-impl.cc → Ignored by auto-build
-  
-Our Implementation:
+  ❌ *.cc files → Always compiled as executables (need main())
+  ❌ *_impl.cc → Still ends in .cc, so STILL compiled!
+  ✅ *.inc files → NEVER compiled, safe to include
+  ✅ *.hpp files → NEVER compiled, safe to include
+
+Our Final Structure:
   - wormhole_attack.h → Header declarations
-  - wormhole_attack_impl.cc → Implementation (included in routing.cc)
-  - routing.cc → Main executable (has main() function)
+  - wormhole_attack.inc → Implementation (included, not compiled)
+  - routing.cc → Main executable (has main(), includes .inc)
 
 ═══════════════════════════════════════════════════════════════════════════════
 
-VERIFICATION AFTER BUILD:
-═════════════════════════
+VERIFICATION:
+═════════════
 
-# Check build output shows only routing executable:
-ls -la build/scratch/routing
-# Should exist: build/scratch/routing (executable)
-# Should NOT exist: build/scratch/wormhole_attack (no longer built)
+After build, check that only routing executable exists:
 
-# Run simulation:
-./waf --run "routing --use_enhanced_wormhole=true --simTime=10"
+ls -la build/scratch/
 
-# Check output:
-ls -la wormhole-attack-results.csv
-# Should be created with tunnel statistics
+Should see:
+  ✅ routing (executable)
 
-═══════════════════════════════════════════════════════════════════════════════
-
-FILES TO SYNC FROM WINDOWS:
-════════════════════════════
-
-After running the rename on Linux, these files should match:
-
-FROM: d:\routing\
-TO:   ~/Downloads/ns-allinone-3.35/ns-3.35/scratch/
-
-Files:
-  ✅ routing.cc (updated to include wormhole_attack_impl.cc)
-  ✅ wormhole_attack.h (unchanged)
-  ✅ wormhole_attack_impl.cc (renamed from wormhole_attack.cc)
-
-OR just do the rename + sed command on Linux (easier!)
+Should NOT see:
+  ❌ wormhole_attack
+  ❌ wormhole_attack_impl
 
 ═══════════════════════════════════════════════════════════════════════════════
 
-TROUBLESHOOTING:
-════════════════
+ALTERNATIVE: Pull Latest from GitHub
+═════════════════════════════════════
 
-If build still fails:
+The fix is already in the GitHub repo! You can:
 
-1. Make sure NO file named wormhole_attack.cc exists:
-   ls ~/Downloads/ns-allinone-3.35/ns-3.35/scratch/wormhole_attack.cc
-   # Should show: No such file or directory
+cd ~/Downloads/ns-allinone-3.35/ns-3.35/scratch
+git clone https://github.com/kavindunisansala/routing.git temp
+cp temp/routing.cc temp/wormhole_attack.h temp/wormhole_attack.inc .
+rm -rf temp
 
-2. Check routing.cc includes the right file:
-   grep "#include.*wormhole" ~/Downloads/ns-allinone-3.35/ns-3.35/scratch/routing.cc
-   # Should show: #include "wormhole_attack_impl.cc"
-
-3. Clean build directory completely:
-   cd ~/Downloads/ns-allinone-3.35/ns-3.35
-   ./waf distclean
-   ./waf configure
-   ./waf build
+cd ~/Downloads/ns-allinone-3.35/ns-3.35
+./waf clean
+./waf build
 
 ═══════════════════════════════════════════════════════════════════════════════
