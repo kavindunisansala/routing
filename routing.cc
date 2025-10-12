@@ -89,7 +89,7 @@ int lambda = 30;
 const int Flow_size = 55;
 uint32_t flow_size = 55;
 
-const int total_size = 28;  // Match actual network nodes (30 total - 2 special = 28)
+int total_size = 28;  // Will be updated after parsing command line arguments
 uint32_t N_RSUs = 10;
 uint32_t N_Vehicles = 18;
 
@@ -116678,6 +116678,13 @@ void transmit_solution()
 		{
 			uint32_t index = u - N_Vehicles;
 			//cout<<"index is "<<index;
+			// Safety check: ensure index is within RSU_Nodes bounds
+			if (index >= N_RSUs) {
+				std::cerr << "ERROR: transmit_metadata - index " << index 
+				          << " exceeds N_RSUs " << N_RSUs << " (u=" << u 
+				          << ", N_Vehicles=" << N_Vehicles << ")" << std::endl;
+				continue;
+			}
 			Ptr <Node> nu = DynamicCast <Node> (RSU_Nodes.Get(index));	
 	  		Ptr <SimpleUdpApplication> udp_app = DynamicCast <SimpleUdpApplication> (apps.Get(0));
 			Simulator::Schedule(Seconds(0.002 + 0.000015*u),RSU_metadata_downlink_unicast, udp_app, controller_Node.Get(0), nu);
@@ -116701,6 +116708,13 @@ void transmit_delta_values()
 		{
 			uint32_t index = u - N_Vehicles;
 			//cout<<"index is "<<index;
+			// Safety check: ensure index is within RSU_Nodes bounds
+			if (index >= N_RSUs) {
+				std::cerr << "ERROR: transmit_delta_values - index " << index 
+				          << " exceeds N_RSUs " << N_RSUs << " (u=" << u 
+				          << ", N_Vehicles=" << N_Vehicles << ")" << std::endl;
+				continue;
+			}
 			Ptr <Node> nu = DynamicCast <Node> (RSU_Nodes.Get(index));	
 	  		Ptr <SimpleUdpApplication> udp_app = DynamicCast <SimpleUdpApplication> (apps.Get(0));
 			Simulator::Schedule(Seconds(0.000 + (0.000015*u)),RSU_deltavalues_downlink_unicast, udp_app, controller_Node.Get(0), nu);
@@ -139197,6 +139211,11 @@ int main(int argc, char *argv[])
      	//flows = 1;
     }
 	
+    // Update total_size based on actual node counts
+    total_size = N_Vehicles + N_RSUs;
+    std::cout << "Network configuration: N_Vehicles=" << N_Vehicles 
+              << ", N_RSUs=" << N_RSUs 
+              << ", total_size=" << total_size << std::endl;
     
     routing_frequency = data_transmission_frequency;
     N_eNodeBs = 1 + N_Vehicles/320;
