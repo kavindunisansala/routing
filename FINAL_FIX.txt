@@ -1,0 +1,104 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    🎯 FINAL SOLUTION - LINKER ERROR FIXED
+                           [2025-10-12 16:00 UTC]
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEM SUMMARY:
+════════════════
+NS-3 WAF tries to compile EVERY .cc file in scratch/ as a standalone program.
+Even "_impl.cc" filenames still get compiled because they end in ".cc"!
+
+Since wormhole_attack code has no main() function, linking fails.
+
+FINAL SOLUTION:
+═══════════════
+✅ Use .inc extension (NS-3 NEVER compiles .inc files)
+✅ Files: routing.cc includes wormhole_attack.inc
+✅ Only routing.cc gets compiled as executable
+
+═══════════════════════════════════════════════════════════════════════════════
+
+                    📋 COPY THESE COMMANDS ON LINUX:
+
+cd ~/Downloads/ns-allinone-3.35/ns-3.35/scratch
+
+# Step 1: Rename to .inc (handles any old name)
+mv wormhole_attack.cc wormhole_attack.inc 2>/dev/null || \
+mv wormhole_attack_impl.cc wormhole_attack.inc 2>/dev/null || \
+echo "File already renamed"
+
+# Step 2: Update routing.cc
+sed -i 's/#include "wormhole_attack.*\.cc"/#include "wormhole_attack.inc"/' routing.cc
+sed -i 's/#include "wormhole_attack_impl\.cc"/#include "wormhole_attack.inc"/' routing.cc
+
+# Step 3: Verify
+echo "Checking routing.cc:"
+grep "#include.*wormhole" routing.cc
+echo ""
+echo "Files in scratch/:"
+ls -1 | grep wormhole
+
+# Step 4: Clean build
+cd ~/Downloads/ns-allinone-3.35/ns-3.35
+./waf distclean
+./waf configure
+./waf build
+
+═══════════════════════════════════════════════════════════════════════════════
+
+EXPECTED OUTPUT:
+════════════════
+
+grep output should show:
+  #include "wormhole_attack.h"
+  #include "wormhole_attack.inc"
+
+ls output should show:
+  wormhole_attack.h
+  wormhole_attack.inc
+  routing.cc
+
+Build output should show:
+  [2539/2539] Linking build/scratch/routing
+  'build' finished successfully
+
+═══════════════════════════════════════════════════════════════════════════════
+
+THEN TEST:
+══════════
+
+./waf --run "routing --use_enhanced_wormhole=true --simTime=10"
+
+Should create:
+  ✅ wormhole-attack-results.csv
+  ✅ VanetRoutingCompare.csv
+
+═══════════════════════════════════════════════════════════════════════════════
+
+TROUBLESHOOTING:
+════════════════
+
+If still getting linker errors:
+
+1. Make sure NO .cc file exists except routing.cc:
+   cd ~/Downloads/ns-allinone-3.35/ns-3.35/scratch
+   ls -la *.cc
+   # Should ONLY show routing.cc
+
+2. Delete any wormhole_attack*.cc files:
+   rm -f wormhole_attack.cc wormhole_attack_impl.cc
+
+3. Re-download from GitHub if needed:
+   cd ~/Downloads/ns-allinone-3.35/ns-3.35/scratch
+   rm -f routing.cc wormhole_attack.*
+   git clone https://github.com/kavindunisansala/routing.git temp
+   cp temp/routing.cc temp/wormhole_attack.h temp/wormhole_attack.inc .
+   rm -rf temp
+
+4. Clean rebuild:
+   cd ~/Downloads/ns-allinone-3.35/ns-3.35
+   ./waf distclean
+   ./waf configure
+   ./waf build
+
+═══════════════════════════════════════════════════════════════════════════════
