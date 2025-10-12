@@ -89,9 +89,9 @@ int lambda = 30;
 const int Flow_size = 55;
 uint32_t flow_size = 55;
 
-const int total_size = 115;  // Adjusted to match N_Vehicles + N_RSUs (75+40=115)
-uint32_t N_RSUs = 40;
-uint32_t N_Vehicles = 75;
+const int total_size = 28;  // Match actual network nodes (30 total - 2 special = 28)
+uint32_t N_RSUs = 10;
+uint32_t N_Vehicles = 18;
 
 const int flows = 2;
 
