@@ -140860,6 +140860,14 @@ int main(int argc, char *argv[])
     
     // Enhanced Wormhole Attack Implementation
     if (present_wormhole_attack_nodes && use_enhanced_wormhole) {
+        // Get actual node count from NS-3 (IMPORTANT: use actual count, not hardcoded value)
+        uint32_t actual_node_count = ns3::NodeList::GetNNodes();
+        
+        // Resize wormhole_malicious_nodes vector if needed to match actual node count
+        if (wormhole_malicious_nodes.size() < actual_node_count) {
+            wormhole_malicious_nodes.resize(actual_node_count, false);
+        }
+        
         // Count malicious nodes
         int malicious_count = 0;
         for (size_t i = 0; i < wormhole_malicious_nodes.size(); ++i) {
@@ -140867,29 +140875,29 @@ int main(int argc, char *argv[])
         }
         
         // Ensure minimum of 2 malicious nodes for wormhole tunnels
-        if (malicious_count < 2 && total_size >= 2) {
+        if (malicious_count < 2 && actual_node_count >= 2) {
             std::cout << "Warning: Only " << malicious_count << " malicious node(s) selected. ";
             std::cout << "Forcing minimum of 2 nodes for wormhole tunnels..." << std::endl;
             // Force nodes in middle of network (more likely to be in paths)
-            int node1 = total_size / 3;     // 1/3 position
-            int node2 = 2 * total_size / 3; // 2/3 position
+            int node1 = actual_node_count / 3;     // 1/3 position
+            int node2 = 2 * actual_node_count / 3; // 2/3 position
             wormhole_malicious_nodes[node1] = true;
             wormhole_malicious_nodes[node2] = true;
             malicious_count = 2;
         }
         
         // Or force more nodes for better coverage (optional - increase if needed)
-        if (malicious_count < 6 && total_size >= 10) {
+        if (malicious_count < 6 && actual_node_count >= 10) {
             std::cout << "Info: Increasing malicious nodes to 6 for better coverage..." << std::endl;
             for (int i = 0; i < 6 && i < (int)wormhole_malicious_nodes.size(); i++) {
-                int node_id = (i * total_size) / 10; // Spread across network
+                int node_id = (i * actual_node_count) / 10; // Spread across network using ACTUAL count
                 wormhole_malicious_nodes[node_id] = true;
             }
             malicious_count = 6;
         }
         
         std::cout << "\n=== Enhanced Wormhole Attack Configuration ===" << std::endl;
-        std::cout << "Total Nodes: " << total_size << std::endl;
+        std::cout << "Total Nodes (actual): " << actual_node_count << std::endl;
         std::cout << "Malicious Nodes Selected: " << malicious_count << std::endl;
         std::cout << "Attack Percentage: " << (attack_percentage * 100) << "%" << std::endl;
         std::cout << "Tunnel Bandwidth: " << wormhole_tunnel_bandwidth << std::endl;
@@ -140902,8 +140910,8 @@ int main(int argc, char *argv[])
         // Create wormhole manager
         g_wormholeManager = new ns3::WormholeAttackManager();
         
-        // Initialize with malicious nodes
-        g_wormholeManager->Initialize(wormhole_malicious_nodes, attack_percentage, total_size);
+        // Initialize with malicious nodes (use actual_node_count instead of total_size)
+        g_wormholeManager->Initialize(wormhole_malicious_nodes, attack_percentage, actual_node_count);
         
         // Set wormhole behavior
         g_wormholeManager->SetWormholeBehavior(wormhole_drop_packets, 
