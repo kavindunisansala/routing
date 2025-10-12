@@ -152,16 +152,34 @@ bool WormholeEndpointApp::ShouldTunnelPacket(Ptr<const Packet> packet,
     // For IPv4 packets
     if (protocol == 0x0800) {
         Ptr<Packet> copy = packet->Copy();
+        
+        // Check if packet is large enough for IPv4 header
+        if (copy->GetSize() < 20) {
+            return false;
+        }
+        
         Ipv4Header ipHeader;
-        copy->RemoveHeader(ipHeader);
+        uint32_t bytesRead = copy->RemoveHeader(ipHeader);
+        
+        // Verify header was read successfully
+        if (bytesRead == 0) {
+            return false;
+        }
         
         uint8_t ipProtocol = ipHeader.GetProtocol();
         
         // Check if it's a routing protocol packet (typically UDP with specific ports)
         // AODV uses UDP port 654
         if (ipProtocol == 17) { // UDP
+            // Check if there's enough data for UDP header
+            if (copy->GetSize() < 8) {
+                return false;
+            }
             UdpHeader udpHeader;
-            copy->PeekHeader(udpHeader);
+            uint32_t udpBytes = copy->PeekHeader(udpHeader);
+            if (udpBytes == 0) {
+                return false;
+            }
             uint16_t port = udpHeader.GetDestinationPort();
             
             if (port == 654 || port == 520) { // AODV or RIP
