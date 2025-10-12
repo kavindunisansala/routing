@@ -115436,6 +115436,12 @@ double average(double x, double y)
 
 void update_stable(uint32_t flow_id, uint32_t current_hop)
 {
+	// Safety checks
+	if (flow_id >= 2*flows) return;
+	if (current_hop >= (uint32_t)total_size) return;
+	if (linklifetimeMatrix_dsrc.size() <= (size_t)current_hop) return;
+	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)total_size) return;
+	
 	proposed_algo2_output_inst[flow_id].met[current_hop] = true;
 	for(uint32_t i=0;i<total_size;i++)
 	{
@@ -115469,8 +115475,24 @@ void update_stable(uint32_t flow_id, uint32_t current_hop)
 
 void run_stable_path_finding(uint32_t flow_id)
 {
+	// Safety checks to prevent crashes
+	if (flow_id >= 2*flows) {
+		std::cerr << "ERROR: Invalid flow_id " << flow_id << " (max: " << 2*flows-1 << ")" << std::endl;
+		return;
+	}
+	if (linklifetimeMatrix_dsrc.size() == 0 || linklifetimeMatrix_dsrc.size() < (size_t)total_size) {
+		std::cerr << "WARNING: linklifetimeMatrix_dsrc not ready yet (size=" << linklifetimeMatrix_dsrc.size() << ", need " << total_size << "), skipping path finding for flow " << flow_id << std::endl;
+		return;
+	}
+	
 	uint32_t source = (demanding_flow_struct_controller_inst+flow_id)->source;
 	uint32_t destination =	(demanding_flow_struct_controller_inst+flow_id)->destination;
+	
+	if (source >= (uint32_t)total_size || destination >= (uint32_t)total_size) {
+		std::cerr << "ERROR: Invalid source/destination (src=" << source << ", dst=" << destination << ", max=" << total_size-1 << ")" << std::endl;
+		return;
+	}
+	
 	for(uint32_t i=0; i<total_size; i++)
 	{
 		proposed_algo2_output_inst[flow_id].met[i] = false;
@@ -115489,6 +115511,14 @@ void run_stable_path_finding(uint32_t flow_id)
 
 void update_unstable(uint32_t flow_id, uint32_t current_hop)
 {
+	// Safety checks
+	if (flow_id >= 2*flows) return;
+	if (current_hop >= (uint32_t)total_size) return;
+	if (linklifetimeMatrix_dsrc.size() <= (size_t)current_hop) return;
+	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)total_size) return;
+	if (adjacencyMatrix.size() <= (size_t)current_hop) return;
+	if (adjacencyMatrix[current_hop].size() < (size_t)total_size) return;
+	
 	distance_algo2_output_inst[flow_id].met[current_hop] = true;
 	for(uint32_t i=0;i<total_size;i++)
 	{
@@ -115520,8 +115550,28 @@ void update_unstable(uint32_t flow_id, uint32_t current_hop)
 
 void run_distance_path_finding(uint32_t flow_id)
 {
+	// Safety checks to prevent crashes
+	if (flow_id >= 2*flows) {
+		std::cerr << "ERROR: Invalid flow_id " << flow_id << " (max: " << 2*flows-1 << ")" << std::endl;
+		return;
+	}
+	if (linklifetimeMatrix_dsrc.size() == 0 || linklifetimeMatrix_dsrc.size() < (size_t)total_size) {
+		std::cerr << "WARNING: linklifetimeMatrix_dsrc not ready yet (size=" << linklifetimeMatrix_dsrc.size() << ", need " << total_size << "), skipping path finding for flow " << flow_id << std::endl;
+		return;
+	}
+	if (adjacencyMatrix.size() == 0 || adjacencyMatrix.size() < (size_t)total_size) {
+		std::cerr << "WARNING: adjacencyMatrix not ready yet (size=" << adjacencyMatrix.size() << ", need " << total_size << "), skipping path finding for flow " << flow_id << std::endl;
+		return;
+	}
+	
 	uint32_t source = (demanding_flow_struct_controller_inst+flow_id)->source;
 	uint32_t destination =	(demanding_flow_struct_controller_inst+flow_id)->destination;
+	
+	if (source >= (uint32_t)total_size || destination >= (uint32_t)total_size) {
+		std::cerr << "ERROR: Invalid source/destination (src=" << source << ", dst=" << destination << ", max=" << total_size-1 << ")" << std::endl;
+		return;
+	}
+	
 	for(uint32_t i=0; i<total_size; i++)
 	{
 		distance_algo2_output_inst[flow_id].met[i] = false;
@@ -116735,6 +116785,13 @@ void read_lifetime_from_csv()
     	default:
     		fin.open("/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/scratch/link_lifetime_solution.csv", ios::in);
     		break;
+    }
+    
+    // Check if file opened successfully
+    if (!fin.is_open()) {
+        std::cerr << "ERROR: Cannot open lifetime CSV file for routing_algorithm " << routing_algorithm << std::endl;
+        std::cerr << "Matrices will remain uninitialized - path finding may fail!" << std::endl;
+        return;
     }
     
     vector<string> row;
