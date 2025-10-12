@@ -117986,7 +117986,9 @@ void run_proposed_RL()
 							(Q_at_controller_inst+fid)->Q_fi_inst[nid].Q_values[cid] = 0.0;
 						}
 						*/
-						if((f_card_inst[fid].cardinality[cid]>2)&&(f_card_inst[fid].cardinality[nid]==2)&&(((proposed_algo2_output_inst[fid].Y[nid]/(proposed_algo2_output_inst[fid].U[nid])) <= (proposed_algo2_output_inst[fid].Y[cid]/proposed_algo2_output_inst[fid].U[cid]))))
+						if((f_card_inst[fid].cardinality[cid]>2)&&(f_card_inst[fid].cardinality[nid]==2)&&
+						   (proposed_algo2_output_inst[fid].U[nid] > 0.0) && (proposed_algo2_output_inst[fid].U[cid] > 0.0) &&
+						   (((proposed_algo2_output_inst[fid].Y[nid]/(proposed_algo2_output_inst[fid].U[nid])) <= (proposed_algo2_output_inst[fid].Y[cid]/proposed_algo2_output_inst[fid].U[cid]))))
 						{
 							(Q_at_controller_inst+fid)->Q_fi_inst[nid].Q_values[cid] = 0.0;
 						}
@@ -117995,7 +117997,9 @@ void run_proposed_RL()
 							(Q_at_controller_inst+fid)->Q_fi_inst[nid].Q_values[cid] = 0.0;
 						}
 						
-						else if((f_card_inst[fid].cardinality[cid]==2)&&(f_card_inst[fid].cardinality[nid]>2)&&(((proposed_algo2_output_inst[fid].Y[nid]/(proposed_algo2_output_inst[fid].U[nid])) >= (proposed_algo2_output_inst[fid].Y[cid]/proposed_algo2_output_inst[fid].U[cid]))))
+						else if((f_card_inst[fid].cardinality[cid]==2)&&(f_card_inst[fid].cardinality[nid]>2)&&
+						        (proposed_algo2_output_inst[fid].U[nid] > 0.0) && (proposed_algo2_output_inst[fid].U[cid] > 0.0) &&
+						        (((proposed_algo2_output_inst[fid].Y[nid]/(proposed_algo2_output_inst[fid].U[nid])) >= (proposed_algo2_output_inst[fid].Y[cid]/proposed_algo2_output_inst[fid].U[cid]))))
 						{
 							(Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] = 0.0;
 						}
@@ -118014,12 +118018,16 @@ void run_proposed_RL()
 							(Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] = 0.0;
 						}
 						
-						else if (((proposed_algo2_output_inst[fid].Y[nid]/1.0) == proposed_algo2_output_inst[fid].Y[cid]) && (((1.0/proposed_algo2_output_inst[fid].U[cid]) > (1.0/proposed_algo2_output_inst[fid].U[nid]))))
+						else if ((proposed_algo2_output_inst[fid].U[cid] > 0.0) && (proposed_algo2_output_inst[fid].U[nid] > 0.0) &&
+						         ((proposed_algo2_output_inst[fid].Y[nid]/1.0) == proposed_algo2_output_inst[fid].Y[cid]) && 
+						         (((1.0/proposed_algo2_output_inst[fid].U[cid]) > (1.0/proposed_algo2_output_inst[fid].U[nid]))))
 						{
 							(Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] = 0.0;
 						}
 						
-						else if (((proposed_algo2_output_inst[fid].Y[nid]/1.0) == proposed_algo2_output_inst[fid].Y[cid]) && (((1.0/proposed_algo2_output_inst[fid].U[cid]) <= (1.0/proposed_algo2_output_inst[fid].U[nid]))))
+						else if ((proposed_algo2_output_inst[fid].U[cid] > 0.0) && (proposed_algo2_output_inst[fid].U[nid] > 0.0) &&
+						         ((proposed_algo2_output_inst[fid].Y[nid]/1.0) == proposed_algo2_output_inst[fid].Y[cid]) && 
+						         (((1.0/proposed_algo2_output_inst[fid].U[cid]) <= (1.0/proposed_algo2_output_inst[fid].U[nid]))))
 						{
 							(Q_at_controller_inst+fid)->Q_fi_inst[nid].Q_values[cid] = 0.0;
 						}
