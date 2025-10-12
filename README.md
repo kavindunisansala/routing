@@ -437,6 +437,35 @@ This simulation is suitable for:
 
 ### 📅 Build History
 
+#### [2025-10-12 16:00] CRITICAL FIX: ✅ Node Index Out of Range Error
+**Fixed crash that prevented simulation from completing**
+
+**Problem:** Simulation crashed with "Node index 61 is out of range (only have 30 nodes)"
+- Root cause: Hardcoded `total_size = 100` used for node calculations
+- Actual simulation creates 117+ nodes (1 controller + 1 management + 75 vehicles + 40 RSUs + others)
+- Malicious node selection tried to access non-existent node indices
+
+**Solution:**
+- Replaced hardcoded `total_size` with dynamic `NodeList::GetNNodes()`
+- Added vector resizing to match actual node count
+- Updated all node ID calculations to use actual count
+- Modified WormholeManager initialization to use actual count
+
+**Impact:**
+- ✅ No more crashes - simulation runs to completion
+- ✅ CSV file `wormhole-attack-results.csv` now created successfully
+- ✅ Works with any number of nodes in simulation
+- ✅ Proper distribution of malicious nodes across actual network
+
+**Files Modified:**
+- routing.cc (lines 140860-140906, 16 insertions, 8 deletions)
+
+**Commit:** 3df3751
+
+**See FIX_NODE_INDEX_ERROR.md and TESTING_GUIDE.md for details**
+
+---
+
 #### [2025-10-12 14:30] Build Status: ✅ READY
 **All compilation errors resolved - 10 total fixes applied**
 
