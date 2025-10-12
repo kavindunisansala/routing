@@ -69,14 +69,21 @@ void WormholeEndpointApp::SetSelectiveTunneling(bool routing, bool data) {
 void WormholeEndpointApp::StartApplication(void) {
     // // NS_LOG_FUNCTION(this);  // Disabled  // Disabled when included in routing.cc
     
+    std::cout << "DEBUG: WormholeEndpointApp::StartApplication on node " 
+              << GetNode()->GetId() << " at time " << Simulator::Now().GetSeconds() 
+              << " devices=" << GetNode()->GetNDevices() << std::endl;
+    
     // Hook into all network devices to intercept packets
     Ptr<Node> node = GetNode();
     for (uint32_t i = 0; i < node->GetNDevices(); ++i) {
         Ptr<NetDevice> dev = node->GetDevice(i);
+        std::cout << "DEBUG: Setting promiscuous callback on device " << i 
+                  << " type=" << dev->GetInstanceTypeId().GetName() << std::endl;
         // Set promiscuous receive callback to intercept all packets
-        dev->SetPromiscReceiveCallback(
+        bool success = dev->SetPromiscReceiveCallback(
             MakeCallback(&WormholeEndpointApp::ReceivePacket, this)
         );
+        std::cout << "DEBUG: SetPromiscReceiveCallback returned: " << success << std::endl;
     }
     
     // Create socket for tunneling if peer is set
