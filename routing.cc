@@ -115502,13 +115502,39 @@ double average(double x, double y)
 
 }
 
+// Recursion depth tracking to prevent stack overflow
+static uint32_t update_stable_depth = 0;
+static uint32_t update_unstable_depth = 0;
+const uint32_t MAX_RECURSION_DEPTH = 100;  // Safety limit
+
 void update_stable(uint32_t flow_id, uint32_t current_hop)
 {
+	// Recursion depth protection
+	update_stable_depth++;
+	if (update_stable_depth > MAX_RECURSION_DEPTH) {
+		std::cerr << "ERROR: update_stable recursion depth exceeded " << MAX_RECURSION_DEPTH 
+		          << " (flow_id=" << flow_id << ", current_hop=" << current_hop << ")" << std::endl;
+		update_stable_depth--;
+		return;
+	}
+	
 	// Safety checks
-	if (flow_id >= 2*flows) return;
-	if (current_hop >= (uint32_t)total_size) return;
-	if (linklifetimeMatrix_dsrc.size() <= (size_t)current_hop) return;
-	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)total_size) return;
+	if (flow_id >= 2*flows) {
+		update_stable_depth--;
+		return;
+	}
+	if (current_hop >= (uint32_t)total_size) {
+		update_stable_depth--;
+		return;
+	}
+	if (linklifetimeMatrix_dsrc.size() <= (size_t)current_hop) {
+		update_stable_depth--;
+		return;
+	}
+	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)total_size) {
+		update_stable_depth--;
+		return;
+	}
 	
 	proposed_algo2_output_inst[flow_id].met[current_hop] = true;
 	for(uint32_t i=0;i<total_size;i++)
@@ -115539,6 +115565,9 @@ void update_stable(uint32_t flow_id, uint32_t current_hop)
 		
 		}
 	}
+	
+	// Decrement recursion depth before returning
+	update_stable_depth--;
 }
 
 void run_stable_path_finding(uint32_t flow_id)
@@ -115589,13 +115618,40 @@ void run_stable_path_finding(uint32_t flow_id)
 
 void update_unstable(uint32_t flow_id, uint32_t current_hop)
 {
+	// Recursion depth protection
+	update_unstable_depth++;
+	if (update_unstable_depth > MAX_RECURSION_DEPTH) {
+		std::cerr << "ERROR: update_unstable recursion depth exceeded " << MAX_RECURSION_DEPTH 
+		          << " (flow_id=" << flow_id << ", current_hop=" << current_hop << ")" << std::endl;
+		update_unstable_depth--;
+		return;
+	}
+	
 	// Safety checks
-	if (flow_id >= 2*flows) return;
-	if (current_hop >= (uint32_t)total_size) return;
-	if (linklifetimeMatrix_dsrc.size() <= (size_t)current_hop) return;
-	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)total_size) return;
-	if (adjacencyMatrix.size() <= (size_t)current_hop) return;
-	if (adjacencyMatrix[current_hop].size() < (size_t)total_size) return;
+	if (flow_id >= 2*flows) {
+		update_unstable_depth--;
+		return;
+	}
+	if (current_hop >= (uint32_t)total_size) {
+		update_unstable_depth--;
+		return;
+	}
+	if (linklifetimeMatrix_dsrc.size() <= (size_t)current_hop) {
+		update_unstable_depth--;
+		return;
+	}
+	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)total_size) {
+		update_unstable_depth--;
+		return;
+	}
+	if (adjacencyMatrix.size() <= (size_t)current_hop) {
+		update_unstable_depth--;
+		return;
+	}
+	if (adjacencyMatrix[current_hop].size() < (size_t)total_size) {
+		update_unstable_depth--;
+		return;
+	}
 	
 	distance_algo2_output_inst[flow_id].met[current_hop] = true;
 	for(uint32_t i=0;i<total_size;i++)
@@ -115624,6 +115680,9 @@ void update_unstable(uint32_t flow_id, uint32_t current_hop)
 		
 		}
 	}
+	
+	// Decrement recursion depth before returning
+	update_unstable_depth--;
 }
 
 void run_distance_path_finding(uint32_t flow_id)
