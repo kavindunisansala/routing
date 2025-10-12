@@ -1,0 +1,31 @@
+# NS-3 Build Artifacts
+*.o
+*.pyc
+*.log
+*.pcap
+*.xml
+*.csv
+*.dat
+
+# IDE Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# NS-3 Specific
+build/
+.lock-waf*
+.waf-*
+.waf3-*
+
+# Output Files (keep examples, ignore actual runs)
+wormhole-attack-results.csv
+VanetRoutingCompare.csv
+wormhole_run.log
+*.tr
