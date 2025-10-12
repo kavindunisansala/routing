@@ -117,15 +117,16 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
     // Only intercept packets not destined for this node in normal routing
     // (We want to intercept packets in transit)
     
-    m_stats.packetsIntercepted++;
-    
-    if (m_stats.packetsIntercepted == 1) {
-        m_stats.firstPacketTime = Simulator::Now();
-    }
-    m_stats.lastPacketTime = Simulator::Now();
-    
     // Check if we should tunnel this packet
     if (ShouldTunnelPacket(packet, protocol)) {
+        // Count as intercepted only if we process it
+        m_stats.packetsIntercepted++;
+        
+        if (m_stats.packetsIntercepted == 1) {
+            m_stats.firstPacketTime = Simulator::Now();
+        }
+        m_stats.lastPacketTime = Simulator::Now();
+        
         if (m_dropPackets) {
             // Drop the packet (don't forward it normally or through tunnel)
             m_stats.packetsDropped++;
@@ -149,13 +150,16 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
 
 bool WormholeEndpointApp::ShouldTunnelPacket(Ptr<const Packet> packet, 
                                               uint16_t protocol) {
-    // For IPv4 packets
+    // Accept all packets by default if both routing and data tunneling are enabled
+    bool tunnelByDefault = (m_tunnelRoutingPackets && m_tunnelDataPackets);
+    
+    // For IPv4 packets, try to classify them
     if (protocol == 0x0800) {
         Ptr<Packet> copy = packet->Copy();
         
         // Check if packet is large enough for IPv4 header
         if (copy->GetSize() < 20) {
-            return false;
+            return tunnelByDefault;
         }
         
         Ipv4Header ipHeader;
@@ -163,7 +167,7 @@ bool WormholeEndpointApp::ShouldTunnelPacket(Ptr<const Packet> packet,
         
         // Verify header was read successfully
         if (bytesRead == 0) {
-            return false;
+            return tunnelByDefault;
         }
         
         uint8_t ipProtocol = ipHeader.GetProtocol();
@@ -173,12 +177,14 @@ bool WormholeEndpointApp::ShouldTunnelPacket(Ptr<const Packet> packet,
         if (ipProtocol == 17) { // UDP
             // Check if there's enough data for UDP header
             if (copy->GetSize() < 8) {
-                return false;
+                m_stats.dataPacketsAffected++;
+                return m_tunnelDataPackets;
             }
             UdpHeader udpHeader;
             uint32_t udpBytes = copy->PeekHeader(udpHeader);
             if (udpBytes == 0) {
-                return false;
+                m_stats.dataPacketsAffected++;
+                return m_tunnelDataPackets;
             }
             uint16_t port = udpHeader.GetDestinationPort();
             
@@ -192,10 +198,15 @@ bool WormholeEndpointApp::ShouldTunnelPacket(Ptr<const Packet> packet,
         } else if (ipProtocol == 6) { // TCP
             m_stats.dataPacketsAffected++;
             return m_tunnelDataPackets;
+        } else {
+            // Other IP protocols (ICMP, etc.)
+            m_stats.dataPacketsAffected++;
+            return m_tunnelDataPackets;
         }
     }
     
-    return false;
+    // Non-IPv4 packets
+    return tunnelByDefault;
 }
 
 void WormholeEndpointApp::TunnelPacket(Ptr<Packet> packet, uint16_t protocol) {
