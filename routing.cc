@@ -99,7 +99,7 @@ const int flows = 2;
 int routing_algorithm = 5; //0-ECMP, 1-RR, 2-QR-SDN, 3-RLMR, 4-proposed, 5-DCMR
 int experiment_number = 0; //0 - qos, 1 - flow_size (packet arrival rate), 2 - mobility, 3 - network size
 
-double simTime = 300;
+double simTime = 10;  // Short simulation for testing wormhole attack (default was 300)
 
 uint16_t N_eNodeBs = 1+ N_Vehicles/40;
 int var = N_Vehicles+N_RSUs;
