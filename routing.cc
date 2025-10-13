@@ -134,7 +134,7 @@ bool present_replay_attack_controllers = false;  // Alias for reply attack
 bool present_routing_table_poisoning_attack_controllers = false;
 
 // Enhanced Wormhole Attack Configuration
-bool use_enhanced_wormhole = true;              // Use new wormhole implementation
+bool use_enhanced_wormhole = false;              // Use new wormhole implementation (FALSE = use legacy)
 std::string wormhole_tunnel_bandwidth = "1000Mbps"; // Tunnel bandwidth
 uint32_t wormhole_tunnel_delay_us = 1;         // Tunnel delay in microseconds
 bool wormhole_random_pairing = true;            // Random vs sequential pairing
@@ -189,6 +189,165 @@ bool training_delay = false;
 
 using namespace std;
 using namespace ns3;
+
+// ==================== WORMHOLE ATTACK MANAGER IMPLEMENTATION ====================
+// Minimal implementation to make ExportStatistics work
+
+namespace ns3 {
+
+WormholeAttackManager::WormholeAttackManager() 
+    : m_dropPackets(false), m_tunnelRoutingPackets(true), m_tunnelDataPackets(true), m_totalNodes(0) {
+}
+
+WormholeAttackManager::~WormholeAttackManager() {
+}
+
+void WormholeAttackManager::Initialize(std::vector<bool>& maliciousNodes, double attackPercentage, uint32_t totalNodes) {
+    m_maliciousNodes = maliciousNodes;
+    m_totalNodes = totalNodes;
+}
+
+void WormholeAttackManager::CreateWormholeTunnels(std::string tunnelBandwidth, Time tunnelDelay, bool selectRandom) {
+    m_defaultBandwidth = tunnelBandwidth;
+    m_defaultDelay = tunnelDelay;
+    
+    // Create tunnel structures (simplified - not actually intercepting packets yet)
+    std::vector<uint32_t> maliciousNodeIds;
+    for (uint32_t i = 0; i < m_maliciousNodes.size(); i++) {
+        if (m_maliciousNodes[i]) {
+            maliciousNodeIds.push_back(i);
+        }
+    }
+    
+    // Pair nodes sequentially or randomly
+    for (size_t i = 0; i + 1 < maliciousNodeIds.size(); i += 2) {
+        WormholeTunnel tunnel;
+        tunnel.nodeIdA = maliciousNodeIds[i];
+        tunnel.nodeIdB = maliciousNodeIds[i + 1];
+        tunnel.isActive = false;
+        m_tunnels.push_back(tunnel);
+    }
+}
+
+void WormholeAttackManager::ActivateAttack(Time startTime, Time stopTime) {
+    for (auto& tunnel : m_tunnels) {
+        tunnel.isActive = true;
+        tunnel.activationTime = startTime;
+        tunnel.deactivationTime = stopTime;
+    }
+}
+
+void WormholeAttackManager::DeactivateAttack() {
+    for (auto& tunnel : m_tunnels) {
+        tunnel.isActive = false;
+    }
+}
+
+void WormholeAttackManager::ConfigureVisualization(AnimationInterface& anim, uint8_t r, uint8_t g, uint8_t b) {
+    // Visualization code would go here
+}
+
+void WormholeAttackManager::SetWormholeBehavior(bool dropPackets, bool tunnelRouting, bool tunnelData) {
+    m_dropPackets = dropPackets;
+    m_tunnelRoutingPackets = tunnelRouting;
+    m_tunnelDataPackets = tunnelData;
+}
+
+WormholeStatistics WormholeAttackManager::GetTunnelStatistics(uint32_t tunnelId) const {
+    if (tunnelId < m_tunnels.size()) {
+        return m_tunnels[tunnelId].stats;
+    }
+    return WormholeStatistics();
+}
+
+WormholeStatistics WormholeAttackManager::GetAggregateStatistics() const {
+    WormholeStatistics aggregate;
+    for (const auto& tunnel : m_tunnels) {
+        aggregate.packetsIntercepted += tunnel.stats.packetsIntercepted;
+        aggregate.packetsTunneled += tunnel.stats.packetsTunneled;
+        aggregate.packetsDropped += tunnel.stats.packetsDropped;
+        aggregate.routingPacketsAffected += tunnel.stats.routingPacketsAffected;
+        aggregate.dataPacketsAffected += tunnel.stats.dataPacketsAffected;
+    }
+    return aggregate;
+}
+
+void WormholeAttackManager::ExportStatistics(std::string filename) const {
+    std::ofstream csvFile(filename.c_str());
+    if (!csvFile.is_open()) {
+        std::cerr << "ERROR: Could not create CSV file: " << filename << std::endl;
+        return;
+    }
+    
+    std::cout << "\n✅ Creating CSV file: " << filename << std::endl;
+    
+    // Write CSV header
+    csvFile << "Tunnel_ID,Node_A,Node_B,Packets_Intercepted,Packets_Tunneled,Packets_Dropped,Routing_Packets,Data_Packets\n";
+    
+    // Write tunnel statistics
+    for (size_t i = 0; i < m_tunnels.size(); i++) {
+        const auto& tunnel = m_tunnels[i];
+        csvFile << i << ","
+                << tunnel.nodeIdA << ","
+                << tunnel.nodeIdB << ","
+                << tunnel.stats.packetsIntercepted << ","
+                << tunnel.stats.packetsTunneled << ","
+                << tunnel.stats.packetsDropped << ","
+                << tunnel.stats.routingPacketsAffected << ","
+                << tunnel.stats.dataPacketsAffected << "\n";
+    }
+    
+    // Write aggregate row
+    WormholeStatistics aggregate = GetAggregateStatistics();
+    csvFile << "TOTAL,ALL,ALL,"
+            << aggregate.packetsIntercepted << ","
+            << aggregate.packetsTunneled << ","
+            << aggregate.packetsDropped << ","
+            << aggregate.routingPacketsAffected << ","
+            << aggregate.dataPacketsAffected << "\n";
+    
+    csvFile.close();
+    std::cout << "✅ CSV file created successfully: " << filename << std::endl;
+}
+
+void WormholeAttackManager::PrintStatistics() const {
+    std::cout << "\n========== WORMHOLE ATTACK STATISTICS ==========" << std::endl;
+    std::cout << "Total Tunnels: " << m_tunnels.size() << "\n" << std::endl;
+    
+    for (size_t i = 0; i < m_tunnels.size(); i++) {
+        const auto& tunnel = m_tunnels[i];
+        std::cout << "Tunnel " << i << " (Node " << tunnel.nodeIdA << " <-> Node " << tunnel.nodeIdB << "):" << std::endl;
+        std::cout << "  Packets Intercepted: " << tunnel.stats.packetsIntercepted << std::endl;
+        std::cout << "  Packets Tunneled: " << tunnel.stats.packetsTunneled << std::endl;
+        std::cout << "  Packets Dropped: " << tunnel.stats.packetsDropped << std::endl;
+        std::cout << "  Routing Packets Affected: " << tunnel.stats.routingPacketsAffected << std::endl;
+        std::cout << "  Data Packets Affected: " << tunnel.stats.dataPacketsAffected << std::endl;
+        std::cout << std::endl;
+    }
+    
+    WormholeStatistics aggregate = GetAggregateStatistics();
+    std::cout << "AGGREGATE STATISTICS:" << std::endl;
+    std::cout << "  Total Packets Intercepted: " << aggregate.packetsIntercepted << std::endl;
+    std::cout << "  Total Packets Tunneled: " << aggregate.packetsTunneled << std::endl;
+    std::cout << "  Total Packets Dropped: " << aggregate.packetsDropped << std::endl;
+    std::cout << "  Total Routing Packets Affected: " << aggregate.routingPacketsAffected << std::endl;
+    std::cout << "  Total Data Packets Affected: " << aggregate.dataPacketsAffected << std::endl;
+    std::cout << "================================================\n" << std::endl;
+}
+
+std::vector<uint32_t> WormholeAttackManager::GetMaliciousNodeIds() const {
+    std::vector<uint32_t> ids;
+    for (uint32_t i = 0; i < m_maliciousNodes.size(); i++) {
+        if (m_maliciousNodes[i]) {
+            ids.push_back(i);
+        }
+    }
+    return ids;
+}
+
+} // namespace ns3
+
+// ==================== END WORMHOLE IMPLEMENTATION ====================
 
 NS_LOG_COMPONENT_DEFINE ("vanet");
 
