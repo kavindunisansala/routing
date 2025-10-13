@@ -163,6 +163,10 @@ void WormholeEndpointApp::ReceiveAODVMessage(Ptr<Socket> socket) {
             if (msgType == 1) {  // RREQ intercepted
                 m_stats.packetsIntercepted++;
                 
+                std::cout << "[WORMHOLE] Node " << GetNode()->GetId() 
+                          << " intercepted AODV RREQ from " << inetFrom.GetIpv4()
+                          << " (Total intercepted: " << m_stats.packetsIntercepted << ")" << std::endl;
+                
                 // Reply with fake RREP to attract traffic through wormhole
                 SendFakeRREP(packet, inetFrom.GetIpv4());
                 
@@ -171,6 +175,10 @@ void WormholeEndpointApp::ReceiveAODVMessage(Ptr<Socket> socket) {
                     Ptr<Packet> copy = packet->Copy();
                     m_tunnelSocket->SendTo(copy, 0, InetSocketAddress(m_peerAddress, 9999));
                     m_stats.packetsTunneled++;
+                    
+                    std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                              << " tunneled RREQ to peer " << m_peer->GetId()
+                              << " (Total tunneled: " << m_stats.packetsTunneled << ")" << std::endl;
                 }
             }
         }
@@ -271,16 +279,15 @@ void WormholeEndpointApp::HandleTunneledPacket(Ptr<Socket> socket) {
     while ((packet = socket->RecvFrom(from))) {
         m_stats.packetsTunneled++;
         
+        std::cout << "[WORMHOLE] Node " << GetNode()->GetId() 
+                  << " received tunneled packet from peer (Total: " 
+                  << m_stats.packetsTunneled << ")" << std::endl;
+        
         // Rebroadcast the tunneled packet in local area
         // This makes it appear as if packet traveled through wormhole instantly
         
         // In real implementation, would extract and reinject into network
         // For now, just count statistics
-        
-        if (m_stats.packetsTunneled % 100 == 0) {
-            std::cout << "Node " << GetNode()->GetId() << " received " 
-                      << m_stats.packetsTunneled << " tunneled packets" << std::endl;
-        }
     }
 }
 
