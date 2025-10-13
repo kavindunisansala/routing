@@ -69,6 +69,9 @@ void WormholeEndpointApp::SetSelectiveTunneling(bool routing, bool data) {
 void WormholeEndpointApp::StartApplication(void) {
     // // NS_LOG_FUNCTION(this);  // Disabled  // Disabled when included in routing.cc
     
+    std::cout << "*** Wormhole app STARTING on node " << GetNode()->GetId() 
+              << " (Tunnel ID: " << m_tunnelId << ") ***" << std::endl;
+    
     // Hook into all network devices to intercept packets
     Ptr<Node> node = GetNode();
     for (uint32_t i = 0; i < node->GetNDevices(); ++i) {
@@ -78,6 +81,8 @@ void WormholeEndpointApp::StartApplication(void) {
             MakeCallback(&WormholeEndpointApp::ReceivePacket, this)
         );
     }
+    std::cout << "*** Wormhole app on node " << GetNode()->GetId() 
+              << " registered promiscuous callback on " << node->GetNDevices() << " devices ***" << std::endl;
     
     // Create socket for tunneling if peer is set
     if (m_peerAddress != Ipv4Address::GetZero()) {
@@ -113,6 +118,12 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
                                         const Address &to,
                                         NetDevice::PacketType packetType) {
     // // NS_LOG_FUNCTION(this << device << packet << protocol);  // Disabled  // Disabled when included in routing.cc
+    
+    static uint32_t callCounter = 0;
+    if (callCounter < 5) {  // Limit output spam
+        std::cout << "!!! ReceivePacket called on node " << GetNode()->GetId() 
+                  << " (call #" << ++callCounter << ") protocol=" << protocol << std::endl;
+    }
     
     // Only intercept packets not destined for this node in normal routing
     // (We want to intercept packets in transit)
@@ -379,6 +390,9 @@ uint32_t WormholeAttackManager::CreateWormholeTunnel(uint32_t nodeIdA,
 
 void WormholeAttackManager::ActivateAttack(Time startTime, Time stopTime) {
     // // NS_LOG_FUNCTION(this << startTime << stopTime);  // Disabled  // Disabled when included in routing.cc
+    
+    std::cout << "=== ACTIVATING " << m_tunnels.size() << " WORMHOLE TUNNELS ===" << std::endl;
+    std::cout << "Start time: " << startTime.GetSeconds() << "s, Stop time: " << stopTime.GetSeconds() << "s" << std::endl;
     
     for (size_t i = 0; i < m_tunnels.size(); ++i) {
         WormholeTunnel& tunnel = m_tunnels[i];
