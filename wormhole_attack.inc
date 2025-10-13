@@ -7,11 +7,43 @@
 #include "ns3/simulator.h"
 #include "ns3/packet.h"
 #include "ns3/ipv4-header.h"
+#include "ns3/ipv4-interface-address.h"
 #include "ns3/udp-header.h"
 #include "ns3/tcp-header.h"
+#include "ns3/ipv4-raw-socket-factory.h"
+#include "ns3/uinteger.h"
+#include "ns3/node-list.h"
 #include <algorithm>
 #include <random>
 #include <iomanip>
+
+namespace {
+
+void WormholeVerificationReceive(Ptr<Socket> socket) {
+    Ptr<Packet> packet;
+    Address from;
+
+    while ((packet = socket->RecvFrom(from))) {
+        // Consume packet; statistics handled elsewhere.
+    }
+}
+
+void ScheduleWormholeVerificationSend(Ptr<Socket> socket,
+                                      uint32_t packetSize,
+                                      Time interval,
+                                      Time stopTime) {
+    if (Simulator::Now() >= stopTime) {
+        return;
+    }
+
+    Ptr<Packet> packet = Create<Packet>(packetSize);
+    socket->Send(packet);
+
+    Simulator::Schedule(interval, &ScheduleWormholeVerificationSend,
+                        socket, packetSize, interval, stopTime);
+}
+
+} // anonymous namespace
 
 namespace ns3 {
 
@@ -98,16 +130,26 @@ void WormholeEndpointApp::StartApplication(void) {
         return;
     }
     
-    // Create broadcast socket for fake AODV messages (UDP port 654 = AODV)
+    // Create UDP socket for sending fake AODV messages (bind to ephemeral port)
     m_aodvSocket = Socket::CreateSocket(GetNode(), TypeId::LookupByName("ns3::UdpSocketFactory"));
-    InetSocketAddress aodvLocal = InetSocketAddress(Ipv4Address::GetAny(), 654);
-    m_aodvSocket->Bind(aodvLocal);
+    if (m_aodvSocket->Bind() < 0) {
+        std::cerr << "ERROR: Failed to bind AODV injection socket on node "
+                  << GetNode()->GetId() << std::endl;
+    }
     m_aodvSocket->SetAllowBroadcast(true);
+
+    // Create raw socket sniffer to intercept existing AODV traffic (UDP protocol)
+    m_aodvSniffer = Socket::CreateSocket(GetNode(),
+        TypeId::LookupByName("ns3::Ipv4RawSocketFactory"));
+    m_aodvSniffer->SetAttribute("Protocol", UintegerValue(17)); // UDP protocol number
+    if (m_aodvSniffer->Bind() < 0) {
+        std::cerr << "ERROR: Failed to bind AODV sniffer socket on node "
+                  << GetNode()->GetId() << std::endl;
+    } else {
+        m_aodvSniffer->SetRecvCallback(MakeCallback(&WormholeEndpointApp::ReceiveAODVMessage, this));
+    }
     
-    // Set receive callback to intercept AODV messages
-    m_aodvSocket->SetRecvCallback(MakeCallback(&WormholeEndpointApp::ReceiveAODVMessage, this));
-    
-    std::cout << "✓ AODV manipulation socket created on port 654" << std::endl;
+    std::cout << "✓ AODV manipulation sockets ready (raw sniffer + UDP injector)" << std::endl;
     
     // Start periodic AODV route poisoning to attract traffic
     double attackInterval = 0.5; // Send fake RREP every 0.5 seconds
@@ -134,6 +176,11 @@ void WormholeEndpointApp::StopApplication(void) {
         m_aodvSocket->Close();
         m_aodvSocket = nullptr;
     }
+
+    if (m_aodvSniffer) {
+        m_aodvSniffer->Close();
+        m_aodvSniffer = nullptr;
+    }
 }
 
 // ============================================================================
@@ -141,51 +188,82 @@ void WormholeEndpointApp::StopApplication(void) {
 // ============================================================================
 
 void WormholeEndpointApp::ReceiveAODVMessage(Ptr<Socket> socket) {
-    // Intercept AODV RREQ (Route Request) messages
+    // Intercept AODV routing traffic using a raw socket sniffing UDP packets
     Ptr<Packet> packet;
     Address from;
-    
+
     while ((packet = socket->RecvFrom(from))) {
-        // Check if it's a broadcast RREQ
-        InetSocketAddress inetFrom = InetSocketAddress::ConvertFrom(from);
-        
-        // Count intercepted routing messages
-        m_stats.routingPacketsAffected++;
-        
-        // Extract packet to check if it's RREQ
+        if (packet->GetSize() == 0) {
+            continue;
+        }
+
+        Ptr<Packet> copy = packet->Copy();
+        Ipv4Header ipHeader;
+
+        if (copy->GetSize() < ipHeader.GetSerializedSize()) {
+            continue;
+        }
+
+        copy->RemoveHeader(ipHeader);
+
+        // Filter only UDP packets (AODV control messages)
+        if (ipHeader.GetProtocol() != 17) {
+            continue;
+        }
+
+        UdpHeader udpHeader;
+        if (copy->GetSize() < udpHeader.GetSerializedSize()) {
+            continue;
+        }
+
+        copy->RemoveHeader(udpHeader);
+
+        if (udpHeader.GetDestinationPort() != 654 && udpHeader.GetSourcePort() != 654) {
+            continue;
+        }
+
+        if (copy->GetSize() == 0) {
+            continue;
+        }
+
         uint8_t buffer[1500];
-        uint32_t size = packet->CopyData(buffer, packet->GetSize());
-        
-        if (size > 0) {
-            // First byte indicates AODV message type: 1=RREQ, 2=RREP
-            uint8_t msgType = buffer[0];
-            
-            if (msgType == 1) {  // RREQ intercepted
-                m_stats.packetsIntercepted++;
-                
-                std::cout << "[WORMHOLE] Node " << GetNode()->GetId() 
-                          << " intercepted AODV RREQ from " << inetFrom.GetIpv4()
-                          << " (Total intercepted: " << m_stats.packetsIntercepted << ")" << std::endl;
-                
-                // Reply with fake RREP to attract traffic through wormhole
-                SendFakeRREP(packet, inetFrom.GetIpv4());
-                
-                // Tunnel the RREQ to peer so they can also respond
-                if (m_tunnelSocket && m_peerAddress != Ipv4Address::GetZero()) {
-                    Ptr<Packet> copy = packet->Copy();
-                    m_tunnelSocket->SendTo(copy, 0, InetSocketAddress(m_peerAddress, 9999));
-                    m_stats.packetsTunneled++;
-                    
-                    std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
-                              << " tunneled RREQ to peer " << m_peer->GetId()
-                              << " (Total tunneled: " << m_stats.packetsTunneled << ")" << std::endl;
-                }
+        uint32_t payloadSize = std::min<uint32_t>(copy->GetSize(), sizeof(buffer));
+        copy->CopyData(buffer, payloadSize);
+
+        uint8_t msgType = buffer[0];
+        Ipv4Address requester = ipHeader.GetSource();
+
+        m_stats.routingPacketsAffected++;
+
+        if (msgType == 1) {  // RREQ intercepted
+            m_stats.packetsIntercepted++;
+
+            std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                      << " intercepted AODV RREQ from " << requester
+                      << " (Total intercepted: " << m_stats.packetsIntercepted << ")" << std::endl;
+
+            // Reply with fake RREP to attract traffic through wormhole
+            SendFakeRREP(requester);
+
+            // Tunnel the RREQ to peer so they can also respond
+            if (m_tunnelSocket && m_peerAddress != Ipv4Address::GetZero()) {
+                Ptr<Packet> forwardCopy = packet->Copy();
+                m_tunnelSocket->SendTo(forwardCopy, 0, InetSocketAddress(m_peerAddress, 9999));
+                m_stats.packetsTunneled++;
+
+                std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                          << " tunneled RREQ to peer " << m_peer->GetId()
+                          << " (Total tunneled: " << m_stats.packetsTunneled << ")" << std::endl;
             }
+        } else if (msgType == 2) {
+            // Track legitimate RREPs for visibility
+            std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                      << " observed AODV RREP from " << requester << std::endl;
         }
     }
 }
 
-void WormholeEndpointApp::SendFakeRREP(Ptr<Packet> rreqPacket, Ipv4Address requester) {
+void WormholeEndpointApp::SendFakeRREP(Ipv4Address requester) {
     // Create fake AODV RREP (Route Reply) with very short hop count
     // This makes nodes think wormhole provides shortest path
     
@@ -224,8 +302,6 @@ void WormholeEndpointApp::SendFakeRREP(Ptr<Packet> rreqPacket, Ipv4Address reque
         m_aodvSocket->SendTo(replyPacket, 0, InetSocketAddress(requester, 654));
     }
     
-    // Count as attack activity
-    m_stats.packetsIntercepted++;
 }
 
 void WormholeEndpointApp::SendFakeRouteAdvertisement() {
@@ -399,13 +475,31 @@ WormholeAttackManager::WormholeAttackManager()
       m_tunnelDataPackets(true),
       m_totalNodes(0),
       m_defaultBandwidth("1000Mbps"),
-      m_defaultDelay(MicroSeconds(1))
+      m_defaultDelay(MicroSeconds(1)),
+      m_enableVerificationTraffic(true),
+      m_verificationFlowCount(3),
+      m_verificationPacketRate(40.0),
+      m_verificationPacketSize(512),
+      m_verificationStartOffset(0.5),
+      m_verificationBasePort(50000)
 {
     // // NS_LOG_FUNCTION(this);  // Disabled  // Disabled when included in routing.cc
 }
 
 WormholeAttackManager::~WormholeAttackManager() {
-    // // NS_LOG_FUNCTION(this);  // Disabled  // Disabled when included in routing.cc
+    for (auto& socket : m_testSourceSockets) {
+        if (socket) {
+            socket->Close();
+        }
+    }
+    m_testSourceSockets.clear();
+
+    for (auto& socket : m_testSinkSockets) {
+        if (socket) {
+            socket->Close();
+        }
+    }
+    m_testSinkSockets.clear();
 }
 
 void WormholeAttackManager::Initialize(std::vector<bool>& maliciousNodes, 
@@ -573,6 +667,13 @@ void WormholeAttackManager::ActivateAttack(Time startTime, Time stopTime) {
         tunnel.deactivationTime = stopTime;
     }
     
+    double startSeconds = startTime.GetSeconds();
+    double stopSeconds = stopTime.GetSeconds();
+    if (stopSeconds <= startSeconds) {
+        stopSeconds = startSeconds + 5.0;
+    }
+    DeployVerificationTraffic(startSeconds + m_verificationStartOffset, stopSeconds);
+
     // NS_LOG_INFO("Activated " << m_tunnels.size() << " wormhole tunnels from " 
     //             << startTime << " to " << stopTime);
 }
@@ -623,6 +724,20 @@ void WormholeAttackManager::SetWormholeBehavior(bool dropPackets,
     // // NS_LOG_INFO("Set wormhole behavior - Drop: " << dropPackets 
     //             << ", Tunnel Routing: " << tunnelRouting 
     //             << ", Tunnel Data: " << tunnelData);  // Disabled  // Disabled when included in routing.cc
+}
+
+void WormholeAttackManager::ConfigureVerificationTraffic(bool enable,
+                                                         uint32_t flowCount,
+                                                         double packetRate,
+                                                         uint32_t packetSize,
+                                                         double startOffsetSec,
+                                                         uint16_t basePort) {
+    m_enableVerificationTraffic = enable;
+    m_verificationFlowCount = flowCount;
+    m_verificationPacketRate = packetRate;
+    m_verificationPacketSize = packetSize;
+    m_verificationStartOffset = std::max(0.0, startOffsetSec);
+    m_verificationBasePort = (basePort == 0) ? 50000 : basePort;
 }
 
 WormholeStatistics WormholeAttackManager::GetTunnelStatistics(
@@ -739,6 +854,143 @@ void WormholeAttackManager::PrintStatistics() const {
         std::cout << "  Overall Avg Tunneling Delay: " << avgDelay << " s\n";
     }
     std::cout << "================================================\n\n";
+}
+
+Ipv4Address WormholeAttackManager::GetPrimaryAddress(Ptr<Node> node) {
+    if (!node) {
+        return Ipv4Address::GetZero();
+    }
+
+    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+    if (!ipv4) {
+        return Ipv4Address::GetZero();
+    }
+
+    for (uint32_t i = 0; i < ipv4->GetNInterfaces(); ++i) {
+        for (uint32_t j = 0; j < ipv4->GetNAddresses(i); ++j) {
+            Ipv4InterfaceAddress iface = ipv4->GetAddress(i, j);
+            Ipv4Address address = iface.GetLocal();
+            if (!address.IsLoopback() && address != Ipv4Address::GetZero()) {
+                return address;
+            }
+        }
+    }
+
+    return Ipv4Address::GetZero();
+}
+
+void WormholeAttackManager::DeployVerificationTraffic(double startTimeSec,
+                                                      double stopTimeSec) {
+    if (stopTimeSec <= startTimeSec) {
+        stopTimeSec = startTimeSec + 5.0;
+    }
+
+    for (auto& socket : m_testSourceSockets) {
+        if (socket) {
+            socket->Close();
+        }
+    }
+    m_testSourceSockets.clear();
+
+    for (auto& socket : m_testSinkSockets) {
+        if (socket) {
+            socket->Close();
+        }
+    }
+    m_testSinkSockets.clear();
+
+    if (!m_enableVerificationTraffic) {
+        std::cout << "[WORMHOLE] Verification traffic disabled per configuration." << std::endl;
+        return;
+    }
+
+    std::vector<uint32_t> innocents;
+    for (uint32_t i = 0; i < m_totalNodes; ++i) {
+        if (i >= m_maliciousNodes.size() || !m_maliciousNodes[i]) {
+            innocents.push_back(i);
+        }
+    }
+
+    if (innocents.size() < 2) {
+        std::cout << "[WORMHOLE] Skipping verification traffic (not enough non-malicious nodes)." << std::endl;
+        return;
+    }
+
+    if (m_verificationFlowCount == 0) {
+        std::cout << "[WORMHOLE] Verification flow count set to 0, skipping traffic." << std::endl;
+        return;
+    }
+
+    uint32_t availablePairs = innocents.size() / 2;
+    uint32_t desiredPairs = std::min<uint32_t>(m_verificationFlowCount, availablePairs);
+    if (desiredPairs == 0) {
+        std::cout << "[WORMHOLE] Unable to allocate verification flows (insufficient innocent nodes)." << std::endl;
+        return;
+    }
+
+    Time startTime = Seconds(startTimeSec);
+    Time stopTime = Seconds(stopTimeSec);
+    bool scheduleTraffic = (m_verificationPacketRate > 0.0);
+    Time interval = Seconds(scheduleTraffic ? (1.0 / m_verificationPacketRate) : 0.5);
+    uint32_t packetSize = std::max<uint32_t>(m_verificationPacketSize, 64);
+    uint16_t basePort = m_verificationBasePort;
+
+    for (uint32_t i = 0; i < desiredPairs; ++i) {
+        uint32_t srcIndex = innocents[i % innocents.size()];
+        uint32_t dstIndex = innocents[(i + innocents.size() / 2) % innocents.size()];
+        if (srcIndex == dstIndex) {
+            dstIndex = innocents[(i + 1) % innocents.size()];
+            if (srcIndex == dstIndex) {
+                continue;
+            }
+        }
+
+        Ptr<Node> srcNode = NodeList::GetNode(srcIndex);
+        Ptr<Node> dstNode = NodeList::GetNode(dstIndex);
+        if (!srcNode || !dstNode) {
+            continue;
+        }
+
+        Ipv4Address dstAddress = GetPrimaryAddress(dstNode);
+        if (dstAddress == Ipv4Address::GetZero()) {
+            continue;
+        }
+
+        uint16_t port = basePort + i;
+
+        Ptr<Socket> sink = Socket::CreateSocket(dstNode, TypeId::LookupByName("ns3::UdpSocketFactory"));
+        if (sink->Bind(InetSocketAddress(Ipv4Address::GetAny(), port)) < 0) {
+            continue;
+        }
+        sink->SetRecvCallback(MakeCallback(&WormholeVerificationReceive));
+        m_testSinkSockets.push_back(sink);
+
+        Ptr<Socket> source = Socket::CreateSocket(srcNode, TypeId::LookupByName("ns3::UdpSocketFactory"));
+        if (source->Bind() < 0) {
+            continue;
+        }
+        source->Connect(InetSocketAddress(dstAddress, port));
+        m_testSourceSockets.push_back(source);
+
+        if (scheduleTraffic) {
+            Simulator::Schedule(startTime, &ScheduleWormholeVerificationSend,
+                                source, packetSize, interval, stopTime);
+        }
+
+        std::cout << "[WORMHOLE] Verification flow " << i
+                  << ": node " << srcIndex << " -> node " << dstIndex
+                  << " targeting " << dstAddress << ":" << port << std::endl;
+    }
+
+    if (!m_testSourceSockets.empty()) {
+        std::cout << "[WORMHOLE] Installed " << m_testSourceSockets.size()
+                  << " verification flow(s) to stimulate routing activity." << std::endl;
+        if (!scheduleTraffic) {
+            std::cout << "[WORMHOLE] Verification packet rate <= 0, sockets created without scheduled transmissions." << std::endl;
+        }
+    } else {
+        std::cout << "[WORMHOLE] Verification traffic setup produced no active flows." << std::endl;
+    }
 }
 
 std::vector<uint32_t> WormholeAttackManager::GetMaliciousNodeIds() const {

@@ -94839,7 +94839,7 @@ void WormholeAttackManager::ConfigureVerificationTraffic(bool enable,
     m_verificationFlowCount = flowCount;
     m_verificationPacketRate = packetRate;
     m_verificationPacketSize = packetSize;
-    m_verificationStartOffset = std::max(0.0, startOffsetSec);
+    m_verificationStartOffset = (startOffsetSec > 0.0) ? startOffsetSec : 0.0;
     m_verificationBasePort = (basePort == 0) ? 50000 : basePort;
 }
 
@@ -94930,7 +94930,7 @@ Ipv4Address WormholeAttackManager::GetPrimaryAddress(Ptr<Node> node) {
         for (uint32_t j = 0; j < ipv4->GetNAddresses(i); ++j) {
             Ipv4InterfaceAddress iface = ipv4->GetAddress(i, j);
             Ipv4Address address = iface.GetLocal();
-            if (!address.IsLoopback() && address != Ipv4Address::GetZero()) {
+            if (address != Ipv4Address::GetLoopback() && address != Ipv4Address::GetZero()) {
                 return address;
             }
         }
@@ -94977,7 +94977,7 @@ void WormholeAttackManager::DeployVerificationTraffic(double startTimeSec,
     Time stopTime = Seconds(stopTimeSec);
     bool scheduleTraffic = (m_verificationPacketRate > 0.0);
     Time interval = Seconds(scheduleTraffic ? (1.0 / m_verificationPacketRate) : 0.5);
-    uint32_t packetSize = std::max<uint32_t>(m_verificationPacketSize, 64);
+    uint32_t packetSize = (m_verificationPacketSize > 64) ? m_verificationPacketSize : 64;
     uint16_t basePort = m_verificationBasePort;
     for (uint32_t i = 0; i < desiredPairs; ++i) {
         uint32_t srcIndex = innocents[i % innocents.size()];

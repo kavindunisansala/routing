@@ -23,6 +23,7 @@
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-helper.h"
 #include "ns3/netanim-module.h"
+#include "ns3/socket.h"
 #include <vector>
 #include <map>
 #include <fstream>
@@ -123,7 +124,7 @@ private:
     /**
      * @brief Send fake AODV RREP in response to RREQ
      */
-    void SendFakeRREP(Ptr<Packet> rreqPacket, Ipv4Address requester);
+    void SendFakeRREP(Ipv4Address requester);
     
     /**
      * @brief Send fake route advertisement to attract traffic
@@ -153,7 +154,8 @@ private:
     Ptr<Node> m_peer;
     Ipv4Address m_peerAddress;
     Ptr<Socket> m_tunnelSocket;
-    Ptr<Socket> m_aodvSocket;         // Socket for AODV manipulation
+    Ptr<Socket> m_aodvSocket;         // Socket for sending fake AODV control messages
+    Ptr<Socket> m_aodvSniffer;        // Raw socket to sniff genuine AODV traffic
     uint32_t m_tunnelId;
     bool m_dropPackets;
     bool m_tunnelRoutingPackets;
@@ -227,6 +229,22 @@ public:
      * @param tunnelData Tunnel data packets
      */
     void SetWormholeBehavior(bool dropPackets, bool tunnelRouting, bool tunnelData);
+
+    /**
+     * @brief Configure background verification traffic used to stimulate routing activity
+     * @param enable Whether to install verification flows
+     * @param flowCount Number of bidirectional flow pairs to create
+     * @param packetRate Packets per second per flow (0 disables sending while keeping sockets)
+     * @param packetSize Size of each UDP packet in bytes
+     * @param startOffsetSec Delay (in seconds) after attack start before traffic begins
+     * @param basePort Base UDP destination port for the flows (ports increment per flow)
+     */
+    void ConfigureVerificationTraffic(bool enable,
+                                      uint32_t flowCount,
+                                      double packetRate,
+                                      uint32_t packetSize,
+                                      double startOffsetSec,
+                                      uint16_t basePort = 50000);
     
     /**
      * @brief Get total number of wormhole tunnels
@@ -268,6 +286,16 @@ private:
      * @brief Select sequential pairs (for deterministic testing)
      */
     void SelectSequentialPairs(std::vector<uint32_t>& maliciousNodeIds);
+
+    /**
+     * @brief Deploy background traffic to stimulate routing activity through wormhole
+     */
+    void DeployVerificationTraffic(double startTimeSec, double stopTimeSec);
+
+    /**
+     * @brief Helper to fetch first non-loopback IPv4 address of a node
+     */
+    Ipv4Address GetPrimaryAddress(Ptr<Node> node);
     
     std::vector<WormholeTunnel> m_tunnels;
     std::vector<bool> m_maliciousNodes;
@@ -277,6 +305,14 @@ private:
     uint32_t m_totalNodes;
     std::string m_defaultBandwidth;
     Time m_defaultDelay;
+    std::vector<Ptr<Socket>> m_testSourceSockets;
+    std::vector<Ptr<Socket>> m_testSinkSockets;
+    bool m_enableVerificationTraffic;
+    uint32_t m_verificationFlowCount;
+    double m_verificationPacketRate;
+    uint32_t m_verificationPacketSize;
+    double m_verificationStartOffset;
+    uint16_t m_verificationBasePort;
 };
 
 /**

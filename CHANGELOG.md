@@ -2,6 +2,42 @@
 
 ## Date: 2025-10-14
 
+## Version History
+
+### v1.1 - Bug Fixes (2025-10-14)
+
+#### **Compilation Error Fixes**
+
+**Issue 1: Macro Conflict with std::max()**
+- **Error**: `expected unqualified-id before numeric constant` at lines 94842 and 94980
+- **Cause**: `#define max 40` at line 210 conflicts with `std::max()` function calls
+- **Fix**: Replaced `std::max()` calls with ternary operators to avoid macro expansion
+  - Line 94842: `std::max(0.0, startOffsetSec)` → `(startOffsetSec > 0.0) ? startOffsetSec : 0.0`
+  - Line 94980: `std::max<uint32_t>(m_verificationPacketSize, 64)` → `(m_verificationPacketSize > 64) ? m_verificationPacketSize : 64`
+- **Impact**: No functional change, same behavior with compatible syntax
+
+**Issue 2: Ipv4Address Method Not Found**
+- **Error**: `'class ns3::Ipv4Address' has no member named 'IsLoopback'` at line 94933
+- **Cause**: ns-3 API doesn't have `IsLoopback()` instance method
+- **Fix**: Changed `!address.IsLoopback()` to `address != Ipv4Address::GetLoopback()`
+- **Impact**: Correctly checks if address is not the loopback address (127.0.0.1)
+
+#### **Files Modified**
+- `routing.cc` - Lines 94842, 94933, 94980
+
+#### **Verification**
+After fixes, compilation should complete successfully:
+```bash
+cd ~/Downloads/ns-allinone-3.35/ns-3.35
+./waf
+```
+
+Expected output: `'build' finished successfully`
+
+---
+
+### v1.0 - Initial Release (2025-10-14)
+
 ## Summary
 Migrated wormhole attack functionality from separate files (`wormhole_attack.h` and `wormhole_attack.inc`) into inline code within `routing.cc`. This simplifies the build process and makes the wormhole attack implementation self-contained within the main routing simulation file.
 
