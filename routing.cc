@@ -52,9 +52,160 @@
 #include <limits.h>
 #include <bits/stdc++.h>
 
-// Enhanced Wormhole Attack Module
-#include "wormhole_attack.h"
-#include "wormhole_attack.inc"  // Include implementation (not compiled separately)
+// ============================================================================
+// INLINE WORMHOLE ATTACK MODULE
+// ============================================================================
+// Wormhole attack implementation integrated directly into routing.cc
+// This creates realistic wormhole tunnels between malicious nodes that
+// intercept AODV routing packets and tunnel them through high-speed links
+
+namespace ns3 {
+
+// Forward declarations for wormhole attack classes
+struct WormholeStatistics;
+struct WormholeTunnel;
+class WormholeEndpointApp;
+class WormholeAttackManager;
+
+/**
+ * @brief Statistics for wormhole attack monitoring
+ */
+struct WormholeStatistics {
+    uint32_t packetsIntercepted;      // Total packets intercepted by wormhole endpoints
+    uint32_t packetsTunneled;         // Total packets successfully tunneled
+    uint32_t packetsDropped;          // Packets dropped during tunneling
+    uint32_t routingPacketsAffected;  // Routing protocol packets affected
+    uint32_t dataPacketsAffected;     // Data packets affected
+    double totalTunnelingDelay;       // Cumulative tunneling delay
+    Time firstPacketTime;             // First packet intercepted
+    Time lastPacketTime;              // Last packet intercepted
+    
+    WormholeStatistics() 
+        : packetsIntercepted(0), packetsTunneled(0), packetsDropped(0),
+          routingPacketsAffected(0), dataPacketsAffected(0), 
+          totalTunnelingDelay(0.0) {}
+};
+
+/**
+ * @brief Represents a wormhole tunnel between two endpoints
+ */
+struct WormholeTunnel {
+    Ptr<Node> endpointA;              // First endpoint node
+    Ptr<Node> endpointB;              // Second endpoint node
+    uint32_t nodeIdA;                 // Node ID of endpoint A
+    uint32_t nodeIdB;                 // Node ID of endpoint B
+    NetDeviceContainer tunnelDevices; // Point-to-point devices for tunnel
+    Ipv4InterfaceContainer tunnelInterfaces; // IP interfaces
+    bool isActive;                    // Whether tunnel is currently active
+    Time activationTime;              // When tunnel was activated
+    Time deactivationTime;            // When tunnel will be deactivated (if scheduled)
+    WormholeStatistics stats;         // Statistics for this tunnel
+    
+    WormholeTunnel() : nodeIdA(0), nodeIdB(0), isActive(false) {}
+};
+
+/**
+ * @brief Application that intercepts and tunnels packets (wormhole endpoint)
+ */
+class WormholeEndpointApp : public Application {
+public:
+    static TypeId GetTypeId(void);
+    
+    WormholeEndpointApp();
+    virtual ~WormholeEndpointApp();
+    
+    void SetPeer(Ptr<Node> peer, Ipv4Address peerAddress);
+    void SetTunnelId(uint32_t id);
+    void SetDropPackets(bool drop);
+    void SetSelectiveTunneling(bool routing, bool data);
+    WormholeStatistics GetStatistics() const { return m_stats; }
+    
+protected:
+    virtual void StartApplication(void);
+    virtual void StopApplication(void);
+    
+private:
+    bool ReceivePacket(Ptr<NetDevice> device, Ptr<const Packet> packet, 
+                       uint16_t protocol, const Address &from,
+                       const Address &to, NetDevice::PacketType packetType);
+    void ReceiveAODVMessage(Ptr<Socket> socket);
+    void SendFakeRREP(Ipv4Address requester);
+    void SendFakeRouteAdvertisement();
+    void PeriodicAttack();
+    void HandleTunneledPacket(Ptr<Socket> socket);
+    void TunnelPacket(Ptr<Packet> packet, uint16_t protocol);
+    bool ShouldTunnelPacket(Ptr<const Packet> packet, uint16_t protocol);
+    
+    Ptr<Node> m_peer;
+    Ipv4Address m_peerAddress;
+    Ptr<Socket> m_tunnelSocket;
+    Ptr<Socket> m_aodvSocket;
+    Ptr<Socket> m_aodvSniffer;
+    uint32_t m_tunnelId;
+    bool m_dropPackets;
+    bool m_tunnelRoutingPackets;
+    bool m_tunnelDataPackets;
+    WormholeStatistics m_stats;
+};
+
+/**
+ * @brief Wormhole Attack Manager - Manages all wormhole tunnels
+ */
+class WormholeAttackManager {
+public:
+    WormholeAttackManager();
+    ~WormholeAttackManager();
+    
+    void Initialize(std::vector<bool>& maliciousNodes, double attackPercentage, 
+                    uint32_t totalNodes);
+    void CreateWormholeTunnels(std::string tunnelBandwidth, Time tunnelDelay, 
+                               bool selectRandom = true);
+    uint32_t CreateWormholeTunnel(uint32_t nodeIdA, uint32_t nodeIdB,
+                                  std::string bandwidth, Time delay);
+    void ActivateAttack(Time startTime, Time stopTime);
+    void DeactivateAttack();
+    void ConfigureVisualization(AnimationInterface& anim, 
+                                uint8_t r = 255, uint8_t g = 0, uint8_t b = 0);
+    void SetWormholeBehavior(bool dropPackets, bool tunnelRouting, bool tunnelData);
+    void ConfigureVerificationTraffic(bool enable, uint32_t flowCount,
+                                      double packetRate, uint32_t packetSize,
+                                      double startOffsetSec, uint16_t basePort = 50000);
+    
+    uint32_t GetTunnelCount() const { return m_tunnels.size(); }
+    WormholeStatistics GetTunnelStatistics(uint32_t tunnelId) const;
+    WormholeStatistics GetAggregateStatistics() const;
+    void ExportStatistics(std::string filename) const;
+    void PrintStatistics() const;
+    std::vector<uint32_t> GetMaliciousNodeIds() const;
+    
+private:
+    void SelectRandomPairs(std::vector<uint32_t>& maliciousNodeIds);
+    void SelectSequentialPairs(std::vector<uint32_t>& maliciousNodeIds);
+    void DeployVerificationTraffic(double startTimeSec, double stopTimeSec);
+    Ipv4Address GetPrimaryAddress(Ptr<Node> node);
+    
+    std::vector<WormholeTunnel> m_tunnels;
+    std::vector<bool> m_maliciousNodes;
+    bool m_dropPackets;
+    bool m_tunnelRoutingPackets;
+    bool m_tunnelDataPackets;
+    uint32_t m_totalNodes;
+    std::string m_defaultBandwidth;
+    Time m_defaultDelay;
+    std::vector<Ptr<Socket>> m_testSourceSockets;
+    std::vector<Ptr<Socket>> m_testSinkSockets;
+    bool m_enableVerificationTraffic;
+    uint32_t m_verificationFlowCount;
+    double m_verificationPacketRate;
+    uint32_t m_verificationPacketSize;
+    double m_verificationStartOffset;
+    uint16_t m_verificationBasePort;
+};
+
+} // namespace ns3
+
+// End of wormhole attack class declarations
+// ============================================================================
 
 #define max 40
 
@@ -143,6 +294,12 @@ bool wormhole_tunnel_routing = true;            // Tunnel routing packets
 bool wormhole_tunnel_data = true;               // Tunnel data packets
 double wormhole_start_time = 0.0;               // When to start attack (seconds)
 double wormhole_stop_time = 0.0;                // When to stop attack (0 = simTime)
+bool wormhole_enable_verification_flows = true; // Install background verification flows
+uint32_t wormhole_verification_flow_count = 3;  // Number of verification flow pairs
+double wormhole_verification_packet_rate = 40.0; // Packets per second per flow
+uint32_t wormhole_verification_packet_size = 512; // UDP packet size in bytes
+double wormhole_verification_start_offset = 0.5; // Seconds after attack start to begin flows
+uint16_t wormhole_verification_base_port = 50000; // Base UDP port for verification flows
 
 // Number of controllers
 const int controllers = 6;
@@ -94198,6 +94355,685 @@ void refresh_data_at_nodes(struct data_at_nodes * nd1)//If data is old, remove t
 	}
 }
 
+// ============================================================================
+// WORMHOLE ATTACK IMPLEMENTATION (INLINE)
+// ============================================================================
+
+namespace {
+
+void WormholeVerificationReceive(Ptr<Socket> socket) {
+    Ptr<Packet> packet;
+    Address from;
+    while ((packet = socket->RecvFrom(from))) {
+        // Consume packet; statistics handled elsewhere.
+    }
+}
+
+void ScheduleWormholeVerificationSend(Ptr<Socket> socket,
+                                      uint32_t packetSize,
+                                      Time interval,
+                                      Time stopTime) {
+    if (Simulator::Now() >= stopTime) {
+        return;
+    }
+    Ptr<Packet> packet = Create<Packet>(packetSize);
+    socket->Send(packet);
+    Simulator::Schedule(interval, &ScheduleWormholeVerificationSend,
+                        socket, packetSize, interval, stopTime);
+}
+
+} // anonymous namespace
+
+namespace ns3 {
+
+// WormholeEndpointApp Implementation
+NS_OBJECT_ENSURE_REGISTERED(WormholeEndpointApp);
+
+TypeId WormholeEndpointApp::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::WormholeEndpointApp")
+        .SetParent<Application>()
+        .SetGroupName("Applications")
+        .AddConstructor<WormholeEndpointApp>();
+    return tid;
+}
+
+WormholeEndpointApp::WormholeEndpointApp()
+    : m_peer(nullptr),
+      m_peerAddress(Ipv4Address::GetZero()),
+      m_tunnelSocket(nullptr),
+      m_tunnelId(0),
+      m_dropPackets(false),
+      m_tunnelRoutingPackets(true),
+      m_tunnelDataPackets(true)
+{
+}
+
+WormholeEndpointApp::~WormholeEndpointApp() {
+}
+
+void WormholeEndpointApp::SetPeer(Ptr<Node> peer, Ipv4Address peerAddress) {
+    m_peer = peer;
+    m_peerAddress = peerAddress;
+}
+
+void WormholeEndpointApp::SetTunnelId(uint32_t id) {
+    m_tunnelId = id;
+}
+
+void WormholeEndpointApp::SetDropPackets(bool drop) {
+    m_dropPackets = drop;
+}
+
+void WormholeEndpointApp::SetSelectiveTunneling(bool routing, bool data) {
+    m_tunnelRoutingPackets = routing;
+    m_tunnelDataPackets = data;
+}
+
+void WormholeEndpointApp::StartApplication(void) {
+    std::cout << "\n=== WORMHOLE ATTACK STARTING on Node " << GetNode()->GetId() 
+              << " (Tunnel " << m_tunnelId << ") ===" << std::endl;
+    std::cout << "Attack Type: AODV Route Poisoning (WAVE-compatible)" << std::endl;
+    std::cout << "Peer Node: " << m_peer->GetId() << " @ " << m_peerAddress << std::endl;
+    
+    if (m_peerAddress != Ipv4Address::GetZero()) {
+        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+        m_tunnelSocket = Socket::CreateSocket(GetNode(), tid);
+        InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), 9999);
+        if (m_tunnelSocket->Bind(local) < 0) {
+            std::cerr << "ERROR: Failed to bind tunnel socket on node " << GetNode()->GetId() << std::endl;
+        }
+        m_tunnelSocket->SetRecvCallback(MakeCallback(&WormholeEndpointApp::HandleTunneledPacket, this));
+        std::cout << "✓ Tunnel socket created and bound to port 9999" << std::endl;
+    }
+    
+    Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4>();
+    if (!ipv4) {
+        std::cerr << "ERROR: No IPv4 on node " << GetNode()->GetId() << std::endl;
+        return;
+    }
+    
+    m_aodvSocket = Socket::CreateSocket(GetNode(), TypeId::LookupByName("ns3::UdpSocketFactory"));
+    if (m_aodvSocket->Bind() < 0) {
+        std::cerr << "ERROR: Failed to bind AODV injection socket on node "
+                  << GetNode()->GetId() << std::endl;
+    }
+    m_aodvSocket->SetAllowBroadcast(true);
+
+    m_aodvSniffer = Socket::CreateSocket(GetNode(),
+        TypeId::LookupByName("ns3::Ipv4RawSocketFactory"));
+    m_aodvSniffer->SetAttribute("Protocol", UintegerValue(17));
+    if (m_aodvSniffer->Bind() < 0) {
+        std::cerr << "ERROR: Failed to bind AODV sniffer socket on node "
+                  << GetNode()->GetId() << std::endl;
+    } else {
+        m_aodvSniffer->SetRecvCallback(MakeCallback(&WormholeEndpointApp::ReceiveAODVMessage, this));
+    }
+    
+    std::cout << "✓ AODV manipulation sockets ready" << std::endl;
+    double attackInterval = 0.5;
+    Simulator::Schedule(Seconds(0.1), &WormholeEndpointApp::SendFakeRouteAdvertisement, this);
+    Simulator::Schedule(Seconds(attackInterval), &WormholeEndpointApp::PeriodicAttack, this);
+    std::cout << "✓ Route poisoning scheduled (interval: " << attackInterval << "s)" << std::endl;
+    std::cout << "=== Wormhole attack ACTIVE on node " << GetNode()->GetId() << " ===" << std::endl << std::endl;
+}
+
+void WormholeEndpointApp::StopApplication(void) {
+    std::cout << "\n=== WORMHOLE STOPPING on Node " << GetNode()->GetId() << " ===" << std::endl;
+    std::cout << "Final Stats - Intercepted: " << m_stats.packetsIntercepted 
+              << ", Tunneled: " << m_stats.packetsTunneled << std::endl;
+    
+    if (m_tunnelSocket) {
+        m_tunnelSocket->Close();
+        m_tunnelSocket = nullptr;
+    }
+    if (m_aodvSocket) {
+        m_aodvSocket->Close();
+        m_aodvSocket = nullptr;
+    }
+    if (m_aodvSniffer) {
+        m_aodvSniffer->Close();
+        m_aodvSniffer = nullptr;
+    }
+}
+
+void WormholeEndpointApp::ReceiveAODVMessage(Ptr<Socket> socket) {
+    Ptr<Packet> packet;
+    Address from;
+
+    while ((packet = socket->RecvFrom(from))) {
+        if (packet->GetSize() == 0) continue;
+        Ptr<Packet> copy = packet->Copy();
+        Ipv4Header ipHeader;
+        if (copy->GetSize() < ipHeader.GetSerializedSize()) continue;
+        copy->RemoveHeader(ipHeader);
+        if (ipHeader.GetProtocol() != 17) continue;
+
+        UdpHeader udpHeader;
+        if (copy->GetSize() < udpHeader.GetSerializedSize()) continue;
+        copy->RemoveHeader(udpHeader);
+        if (udpHeader.GetDestinationPort() != 654 && udpHeader.GetSourcePort() != 654) continue;
+        if (copy->GetSize() == 0) continue;
+
+        uint8_t buffer[1500];
+        uint32_t payloadSize = std::min<uint32_t>(copy->GetSize(), sizeof(buffer));
+        copy->CopyData(buffer, payloadSize);
+        uint8_t msgType = buffer[0];
+        Ipv4Address requester = ipHeader.GetSource();
+        m_stats.routingPacketsAffected++;
+
+        if (msgType == 1) {  // RREQ intercepted
+            m_stats.packetsIntercepted++;
+            std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                      << " intercepted AODV RREQ from " << requester
+                      << " (Total intercepted: " << m_stats.packetsIntercepted << ")" << std::endl;
+            SendFakeRREP(requester);
+            if (m_tunnelSocket && m_peerAddress != Ipv4Address::GetZero()) {
+                Ptr<Packet> forwardCopy = packet->Copy();
+                m_tunnelSocket->SendTo(forwardCopy, 0, InetSocketAddress(m_peerAddress, 9999));
+                m_stats.packetsTunneled++;
+                std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                          << " tunneled RREQ to peer " << m_peer->GetId()
+                          << " (Total tunneled: " << m_stats.packetsTunneled << ")" << std::endl;
+            }
+        } else if (msgType == 2) {
+            std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                      << " observed AODV RREP from " << requester << std::endl;
+        }
+    }
+}
+
+void WormholeEndpointApp::SendFakeRREP(Ipv4Address requester) {
+    uint8_t fakeRREP[32];
+    memset(fakeRREP, 0, sizeof(fakeRREP));
+    fakeRREP[0] = 2;  // RREP type
+    fakeRREP[4] = 1;  // Hop count = 1
+    uint32_t peerIp = m_peerAddress.Get();
+    memcpy(&fakeRREP[5], &peerIp, 4);
+    uint32_t reqIp = requester.Get();
+    memcpy(&fakeRREP[13], &reqIp, 4);
+    uint32_t lifetime = 10000;
+    memcpy(&fakeRREP[17], &lifetime, 4);
+    Ptr<Packet> replyPacket = Create<Packet>(fakeRREP, 24);
+    if (m_aodvSocket) {
+        m_aodvSocket->SendTo(replyPacket, 0, InetSocketAddress(requester, 654));
+    }
+}
+
+void WormholeEndpointApp::SendFakeRouteAdvertisement() {
+    if (!m_peer || m_peerAddress == Ipv4Address::GetZero()) return;
+    std::cout << "Node " << GetNode()->GetId() << " advertising fake route to " 
+              << m_peerAddress << " (peer node " << m_peer->GetId() << ")" << std::endl;
+    Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4>();
+    if (!ipv4) return;
+    uint8_t fakeRREP[32];
+    memset(fakeRREP, 0, sizeof(fakeRREP));
+    fakeRREP[0] = 2;  // RREP
+    fakeRREP[4] = 1;  // Hop count = 1
+    uint32_t peerIp = m_peerAddress.Get();
+    memcpy(&fakeRREP[5], &peerIp, 4);
+    Ptr<Packet> advPacket = Create<Packet>(fakeRREP, 24);
+    if (m_aodvSocket) {
+        m_aodvSocket->SendTo(advPacket, 0, 
+            InetSocketAddress(Ipv4Address("255.255.255.255"), 654));
+    }
+    m_stats.routingPacketsAffected++;
+}
+
+void WormholeEndpointApp::PeriodicAttack() {
+    SendFakeRouteAdvertisement();
+    Simulator::Schedule(Seconds(0.5), &WormholeEndpointApp::PeriodicAttack, this);
+}
+
+void WormholeEndpointApp::HandleTunneledPacket(Ptr<Socket> socket) {
+    Ptr<Packet> packet;
+    Address from;
+    while ((packet = socket->RecvFrom(from))) {
+        m_stats.packetsTunneled++;
+        std::cout << "[WORMHOLE] Node " << GetNode()->GetId() 
+                  << " received tunneled packet from peer (Total: " 
+                  << m_stats.packetsTunneled << ")" << std::endl;
+    }
+}
+
+bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device, 
+                                        Ptr<const Packet> packet,
+                                        uint16_t protocol, 
+                                        const Address &from,
+                                        const Address &to,
+                                        NetDevice::PacketType packetType) {
+    return false;
+}
+
+bool WormholeEndpointApp::ShouldTunnelPacket(Ptr<const Packet> packet, 
+                                              uint16_t protocol) {
+    bool tunnelByDefault = (m_tunnelRoutingPackets && m_tunnelDataPackets);
+    if (protocol == 0x0800) {
+        Ptr<Packet> copy = packet->Copy();
+        if (copy->GetSize() < 20) return tunnelByDefault;
+        Ipv4Header ipHeader;
+        uint32_t bytesRead = copy->RemoveHeader(ipHeader);
+        if (bytesRead == 0) return tunnelByDefault;
+        uint8_t ipProtocol = ipHeader.GetProtocol();
+        if (ipProtocol == 17) {
+            if (copy->GetSize() < 8) {
+                m_stats.dataPacketsAffected++;
+                return m_tunnelDataPackets;
+            }
+            UdpHeader udpHeader;
+            uint32_t udpBytes = copy->PeekHeader(udpHeader);
+            if (udpBytes == 0) {
+                m_stats.dataPacketsAffected++;
+                return m_tunnelDataPackets;
+            }
+            uint16_t port = udpHeader.GetDestinationPort();
+            if (port == 654 || port == 520) {
+                m_stats.routingPacketsAffected++;
+                return m_tunnelRoutingPackets;
+            } else {
+                m_stats.dataPacketsAffected++;
+                return m_tunnelDataPackets;
+            }
+        } else if (ipProtocol == 6) {
+            m_stats.dataPacketsAffected++;
+            return m_tunnelDataPackets;
+        } else {
+            m_stats.dataPacketsAffected++;
+            return m_tunnelDataPackets;
+        }
+    }
+    return tunnelByDefault;
+}
+
+void WormholeEndpointApp::TunnelPacket(Ptr<Packet> packet, uint16_t protocol) {
+    if (!m_tunnelSocket) {
+        m_stats.packetsDropped++;
+        return;
+    }
+    Time startTime = Simulator::Now();
+    int sent = m_tunnelSocket->Send(packet);
+    if (sent > 0) {
+        Time endTime = Simulator::Now();
+        m_stats.totalTunnelingDelay += (endTime - startTime).GetSeconds();
+    } else {
+        m_stats.packetsDropped++;
+    }
+}
+
+// WormholeAttackManager Implementation
+WormholeAttackManager::WormholeAttackManager()
+    : m_dropPackets(false),
+      m_tunnelRoutingPackets(true),
+      m_tunnelDataPackets(true),
+      m_totalNodes(0),
+      m_defaultBandwidth("1000Mbps"),
+      m_defaultDelay(MicroSeconds(1)),
+      m_enableVerificationTraffic(true),
+      m_verificationFlowCount(3),
+      m_verificationPacketRate(40.0),
+      m_verificationPacketSize(512),
+      m_verificationStartOffset(0.5),
+      m_verificationBasePort(50000)
+{
+}
+
+WormholeAttackManager::~WormholeAttackManager() {
+    for (auto& socket : m_testSourceSockets) {
+        if (socket) socket->Close();
+    }
+    m_testSourceSockets.clear();
+    for (auto& socket : m_testSinkSockets) {
+        if (socket) socket->Close();
+    }
+    m_testSinkSockets.clear();
+}
+
+void WormholeAttackManager::Initialize(std::vector<bool>& maliciousNodes, 
+                                       double attackPercentage,
+                                       uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    m_maliciousNodes.resize(totalNodes, false);
+    if (maliciousNodes.size() == totalNodes) {
+        m_maliciousNodes = maliciousNodes;
+    } else {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_real_distribution<> dis(0.0, 1.0);
+        for (uint32_t i = 0; i < totalNodes; ++i) {
+            m_maliciousNodes[i] = (dis(gen) < attackPercentage);
+            maliciousNodes.push_back(m_maliciousNodes[i]);
+        }
+    }
+}
+
+void WormholeAttackManager::CreateWormholeTunnels(std::string tunnelBandwidth,
+                                                  Time tunnelDelay,
+                                                  bool selectRandom) {
+    m_defaultBandwidth = tunnelBandwidth;
+    m_defaultDelay = tunnelDelay;
+    std::vector<uint32_t> maliciousNodeIds;
+    for (uint32_t i = 0; i < m_maliciousNodes.size(); ++i) {
+        if (m_maliciousNodes[i]) {
+            maliciousNodeIds.push_back(i);
+        }
+    }
+    if (maliciousNodeIds.size() < 2) return;
+    if (selectRandom) {
+        SelectRandomPairs(maliciousNodeIds);
+    } else {
+        SelectSequentialPairs(maliciousNodeIds);
+    }
+}
+
+void WormholeAttackManager::SelectSequentialPairs(
+    std::vector<uint32_t>& maliciousNodeIds) {
+    for (size_t i = 0; i + 1 < maliciousNodeIds.size(); i += 2) {
+        CreateWormholeTunnel(maliciousNodeIds[i], maliciousNodeIds[i+1],
+                            m_defaultBandwidth, m_defaultDelay);
+    }
+}
+
+void WormholeAttackManager::SelectRandomPairs(
+    std::vector<uint32_t>& maliciousNodeIds) {
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(maliciousNodeIds.begin(), maliciousNodeIds.end(), g);
+    SelectSequentialPairs(maliciousNodeIds);
+}
+
+uint32_t WormholeAttackManager::CreateWormholeTunnel(uint32_t nodeIdA, 
+                                                     uint32_t nodeIdB,
+                                                     std::string bandwidth,
+                                                     Time delay) {
+    WormholeTunnel tunnel;
+    tunnel.nodeIdA = nodeIdA;
+    tunnel.nodeIdB = nodeIdB;
+    tunnel.endpointA = NodeList::GetNode(nodeIdA);
+    tunnel.endpointB = NodeList::GetNode(nodeIdB);
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute("DataRate", StringValue(bandwidth));
+    p2p.SetChannelAttribute("Delay", TimeValue(delay));
+    tunnel.tunnelDevices = p2p.Install(tunnel.endpointA, tunnel.endpointB);
+    Ipv4AddressHelper address;
+    std::ostringstream subnet;
+    subnet << "100." << (m_tunnels.size() / 254) << "."
+           << (m_tunnels.size() % 254) << ".0";
+    address.SetBase(subnet.str().c_str(), "255.255.255.0");
+    tunnel.tunnelInterfaces = address.Assign(tunnel.tunnelDevices);
+    tunnel.isActive = false;
+    uint32_t tunnelId = m_tunnels.size();
+    m_tunnels.push_back(tunnel);
+    return tunnelId;
+}
+
+void WormholeAttackManager::ActivateAttack(Time startTime, Time stopTime) {
+    std::cout << "=== ACTIVATING " << m_tunnels.size() << " WORMHOLE TUNNELS ===" << std::endl;
+    std::cout << "Start time: " << startTime.GetSeconds() << "s, Stop time: " << stopTime.GetSeconds() << "s" << std::endl;
+    
+    for (size_t i = 0; i < m_tunnels.size(); ++i) {
+        WormholeTunnel& tunnel = m_tunnels[i];
+        Ptr<WormholeEndpointApp> appA = CreateObject<WormholeEndpointApp>();
+        Ptr<WormholeEndpointApp> appB = CreateObject<WormholeEndpointApp>();
+        Ipv4Address addrB = tunnel.tunnelInterfaces.GetAddress(1);
+        Ipv4Address addrA = tunnel.tunnelInterfaces.GetAddress(0);
+        appA->SetPeer(tunnel.endpointB, addrB);
+        appA->SetTunnelId(i);
+        appA->SetDropPackets(m_dropPackets);
+        appA->SetSelectiveTunneling(m_tunnelRoutingPackets, m_tunnelDataPackets);
+        appB->SetPeer(tunnel.endpointA, addrA);
+        appB->SetTunnelId(i);
+        appB->SetDropPackets(m_dropPackets);
+        appB->SetSelectiveTunneling(m_tunnelRoutingPackets, m_tunnelDataPackets);
+        tunnel.endpointA->AddApplication(appA);
+        tunnel.endpointB->AddApplication(appB);
+        appA->SetStartTime(startTime);
+        appA->SetStopTime(stopTime);
+        appB->SetStartTime(startTime);
+        appB->SetStopTime(stopTime);
+        tunnel.isActive = true;
+        tunnel.activationTime = startTime;
+        tunnel.deactivationTime = stopTime;
+    }
+    double startSeconds = startTime.GetSeconds();
+    double stopSeconds = stopTime.GetSeconds();
+    if (stopSeconds <= startSeconds) stopSeconds = startSeconds + 5.0;
+    DeployVerificationTraffic(startSeconds + m_verificationStartOffset, stopSeconds);
+}
+
+void WormholeAttackManager::DeactivateAttack() {
+    for (auto& tunnel : m_tunnels) {
+        tunnel.isActive = false;
+    }
+}
+
+void WormholeAttackManager::ConfigureVisualization(AnimationInterface& anim,
+                                                   uint8_t r, uint8_t g, uint8_t b) {
+    for (const auto& tunnel : m_tunnels) {
+        anim.UpdateNodeColor(tunnel.endpointA, r, g, b);
+        anim.UpdateNodeColor(tunnel.endpointB, r, g, b);
+        anim.UpdateNodeSize(tunnel.nodeIdA, 15.0, 15.0);
+        anim.UpdateNodeSize(tunnel.nodeIdB, 15.0, 15.0);
+        std::ostringstream desc;
+        desc << "Wormhole Node " << tunnel.nodeIdA;
+        anim.UpdateNodeDescription(tunnel.nodeIdA, desc.str());
+        desc.str("");
+        desc << "Wormhole Node " << tunnel.nodeIdB;
+        anim.UpdateNodeDescription(tunnel.nodeIdB, desc.str());
+    }
+}
+
+void WormholeAttackManager::SetWormholeBehavior(bool dropPackets, 
+                                                bool tunnelRouting,
+                                                bool tunnelData) {
+    m_dropPackets = dropPackets;
+    m_tunnelRoutingPackets = tunnelRouting;
+    m_tunnelDataPackets = tunnelData;
+}
+
+void WormholeAttackManager::ConfigureVerificationTraffic(bool enable,
+                                                         uint32_t flowCount,
+                                                         double packetRate,
+                                                         uint32_t packetSize,
+                                                         double startOffsetSec,
+                                                         uint16_t basePort) {
+    m_enableVerificationTraffic = enable;
+    m_verificationFlowCount = flowCount;
+    m_verificationPacketRate = packetRate;
+    m_verificationPacketSize = packetSize;
+    m_verificationStartOffset = std::max(0.0, startOffsetSec);
+    m_verificationBasePort = (basePort == 0) ? 50000 : basePort;
+}
+
+WormholeStatistics WormholeAttackManager::GetTunnelStatistics(
+    uint32_t tunnelId) const {
+    if (tunnelId >= m_tunnels.size()) {
+        return WormholeStatistics();
+    }
+    return m_tunnels[tunnelId].stats;
+}
+
+WormholeStatistics WormholeAttackManager::GetAggregateStatistics() const {
+    WormholeStatistics aggregate;
+    for (const auto& tunnel : m_tunnels) {
+        aggregate.packetsIntercepted += tunnel.stats.packetsIntercepted;
+        aggregate.packetsTunneled += tunnel.stats.packetsTunneled;
+        aggregate.packetsDropped += tunnel.stats.packetsDropped;
+        aggregate.routingPacketsAffected += tunnel.stats.routingPacketsAffected;
+        aggregate.dataPacketsAffected += tunnel.stats.dataPacketsAffected;
+        aggregate.totalTunnelingDelay += tunnel.stats.totalTunnelingDelay;
+    }
+    return aggregate;
+}
+
+void WormholeAttackManager::ExportStatistics(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) return;
+    outFile << "TunnelID,NodeA,NodeB,PacketsIntercepted,PacketsTunneled,"
+            << "PacketsDropped,RoutingAffected,DataAffected,AvgDelay\n";
+    for (size_t i = 0; i < m_tunnels.size(); ++i) {
+        const auto& tunnel = m_tunnels[i];
+        const auto& stats = tunnel.stats;
+        double avgDelay = (stats.packetsTunneled > 0) 
+            ? stats.totalTunnelingDelay / stats.packetsTunneled : 0.0;
+        outFile << i << "," << tunnel.nodeIdA << "," << tunnel.nodeIdB << ","
+                << stats.packetsIntercepted << "," << stats.packetsTunneled << ","
+                << stats.packetsDropped << "," << stats.routingPacketsAffected << ","
+                << stats.dataPacketsAffected << "," << avgDelay << "\n";
+    }
+    WormholeStatistics aggregate = GetAggregateStatistics();
+    double avgDelay = (aggregate.packetsTunneled > 0)
+        ? aggregate.totalTunnelingDelay / aggregate.packetsTunneled : 0.0;
+    outFile << "TOTAL,ALL,ALL," << aggregate.packetsIntercepted << ","
+            << aggregate.packetsTunneled << "," << aggregate.packetsDropped << ","
+            << aggregate.routingPacketsAffected << "," << aggregate.dataPacketsAffected << ","
+            << avgDelay << "\n";
+    outFile.close();
+}
+
+void WormholeAttackManager::PrintStatistics() const {
+    std::cout << "\n========== WORMHOLE ATTACK STATISTICS ==========\n";
+    std::cout << "Total Tunnels: " << m_tunnels.size() << "\n\n";
+    for (size_t i = 0; i < m_tunnels.size(); ++i) {
+        const auto& tunnel = m_tunnels[i];
+        const auto& stats = tunnel.stats;
+        std::cout << "Tunnel " << i << " (Node " << tunnel.nodeIdA 
+                  << " <-> Node " << tunnel.nodeIdB << "):\n";
+        std::cout << "  Packets Intercepted: " << stats.packetsIntercepted << "\n";
+        std::cout << "  Packets Tunneled: " << stats.packetsTunneled << "\n";
+        std::cout << "  Packets Dropped: " << stats.packetsDropped << "\n";
+        std::cout << "  Routing Packets Affected: " << stats.routingPacketsAffected << "\n";
+        std::cout << "  Data Packets Affected: " << stats.dataPacketsAffected << "\n";
+        if (stats.packetsTunneled > 0) {
+            double avgDelay = stats.totalTunnelingDelay / stats.packetsTunneled;
+            std::cout << "  Avg Tunneling Delay: " << avgDelay << " s\n";
+        }
+        std::cout << "\n";
+    }
+    WormholeStatistics aggregate = GetAggregateStatistics();
+    std::cout << "AGGREGATE STATISTICS:\n";
+    std::cout << "  Total Packets Intercepted: " << aggregate.packetsIntercepted << "\n";
+    std::cout << "  Total Packets Tunneled: " << aggregate.packetsTunneled << "\n";
+    std::cout << "  Total Packets Dropped: " << aggregate.packetsDropped << "\n";
+    std::cout << "  Total Routing Packets Affected: " << aggregate.routingPacketsAffected << "\n";
+    std::cout << "  Total Data Packets Affected: " << aggregate.dataPacketsAffected << "\n";
+    if (aggregate.packetsTunneled > 0) {
+        double avgDelay = aggregate.totalTunnelingDelay / aggregate.packetsTunneled;
+        std::cout << "  Overall Avg Tunneling Delay: " << avgDelay << " s\n";
+    }
+    std::cout << "================================================\n\n";
+}
+
+Ipv4Address WormholeAttackManager::GetPrimaryAddress(Ptr<Node> node) {
+    if (!node) return Ipv4Address::GetZero();
+    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+    if (!ipv4) return Ipv4Address::GetZero();
+    for (uint32_t i = 0; i < ipv4->GetNInterfaces(); ++i) {
+        for (uint32_t j = 0; j < ipv4->GetNAddresses(i); ++j) {
+            Ipv4InterfaceAddress iface = ipv4->GetAddress(i, j);
+            Ipv4Address address = iface.GetLocal();
+            if (!address.IsLoopback() && address != Ipv4Address::GetZero()) {
+                return address;
+            }
+        }
+    }
+    return Ipv4Address::GetZero();
+}
+
+void WormholeAttackManager::DeployVerificationTraffic(double startTimeSec,
+                                                      double stopTimeSec) {
+    if (stopTimeSec <= startTimeSec) stopTimeSec = startTimeSec + 5.0;
+    for (auto& socket : m_testSourceSockets) {
+        if (socket) socket->Close();
+    }
+    m_testSourceSockets.clear();
+    for (auto& socket : m_testSinkSockets) {
+        if (socket) socket->Close();
+    }
+    m_testSinkSockets.clear();
+    if (!m_enableVerificationTraffic) {
+        std::cout << "[WORMHOLE] Verification traffic disabled per configuration." << std::endl;
+        return;
+    }
+    std::vector<uint32_t> innocents;
+    for (uint32_t i = 0; i < m_totalNodes; ++i) {
+        if (i >= m_maliciousNodes.size() || !m_maliciousNodes[i]) {
+            innocents.push_back(i);
+        }
+    }
+    if (innocents.size() < 2) {
+        std::cout << "[WORMHOLE] Skipping verification traffic (not enough non-malicious nodes)." << std::endl;
+        return;
+    }
+    if (m_verificationFlowCount == 0) {
+        std::cout << "[WORMHOLE] Verification flow count set to 0, skipping traffic." << std::endl;
+        return;
+    }
+    uint32_t availablePairs = innocents.size() / 2;
+    uint32_t desiredPairs = std::min<uint32_t>(m_verificationFlowCount, availablePairs);
+    if (desiredPairs == 0) {
+        std::cout << "[WORMHOLE] Unable to allocate verification flows." << std::endl;
+        return;
+    }
+    Time startTime = Seconds(startTimeSec);
+    Time stopTime = Seconds(stopTimeSec);
+    bool scheduleTraffic = (m_verificationPacketRate > 0.0);
+    Time interval = Seconds(scheduleTraffic ? (1.0 / m_verificationPacketRate) : 0.5);
+    uint32_t packetSize = std::max<uint32_t>(m_verificationPacketSize, 64);
+    uint16_t basePort = m_verificationBasePort;
+    for (uint32_t i = 0; i < desiredPairs; ++i) {
+        uint32_t srcIndex = innocents[i % innocents.size()];
+        uint32_t dstIndex = innocents[(i + innocents.size() / 2) % innocents.size()];
+        if (srcIndex == dstIndex) {
+            dstIndex = innocents[(i + 1) % innocents.size()];
+            if (srcIndex == dstIndex) continue;
+        }
+        Ptr<Node> srcNode = NodeList::GetNode(srcIndex);
+        Ptr<Node> dstNode = NodeList::GetNode(dstIndex);
+        if (!srcNode || !dstNode) continue;
+        Ipv4Address dstAddress = GetPrimaryAddress(dstNode);
+        if (dstAddress == Ipv4Address::GetZero()) continue;
+        uint16_t port = basePort + i;
+        Ptr<Socket> sink = Socket::CreateSocket(dstNode, TypeId::LookupByName("ns3::UdpSocketFactory"));
+        if (sink->Bind(InetSocketAddress(Ipv4Address::GetAny(), port)) < 0) continue;
+        sink->SetRecvCallback(MakeCallback(&WormholeVerificationReceive));
+        m_testSinkSockets.push_back(sink);
+        Ptr<Socket> source = Socket::CreateSocket(srcNode, TypeId::LookupByName("ns3::UdpSocketFactory"));
+        if (source->Bind() < 0) continue;
+        source->Connect(InetSocketAddress(dstAddress, port));
+        m_testSourceSockets.push_back(source);
+        if (scheduleTraffic) {
+            Simulator::Schedule(startTime, &ScheduleWormholeVerificationSend,
+                                source, packetSize, interval, stopTime);
+        }
+        std::cout << "[WORMHOLE] Verification flow " << i
+                  << ": node " << srcIndex << " -> node " << dstIndex
+                  << " targeting " << dstAddress << ":" << port << std::endl;
+    }
+    if (!m_testSourceSockets.empty()) {
+        std::cout << "[WORMHOLE] Installed " << m_testSourceSockets.size()
+                  << " verification flow(s) to stimulate routing activity." << std::endl;
+        if (!scheduleTraffic) {
+            std::cout << "[WORMHOLE] Verification packet rate <= 0, sockets created without scheduled transmissions." << std::endl;
+        }
+    } else {
+        std::cout << "[WORMHOLE] Verification traffic setup produced no active flows." << std::endl;
+    }
+}
+
+std::vector<uint32_t> WormholeAttackManager::GetMaliciousNodeIds() const {
+    std::vector<uint32_t> nodeIds;
+    for (uint32_t i = 0; i < m_maliciousNodes.size(); ++i) {
+        if (m_maliciousNodes[i]) {
+            nodeIds.push_back(i);
+        }
+    }
+    return nodeIds;
+}
+
+} // namespace ns3
+
+// End of inline wormhole attack implementation
+// ============================================================================
+
 uint32_t empty_neighborset[max];
 
 void initialize_empty()
@@ -139195,11 +140031,17 @@ int main(int argc, char *argv[])
     cmd.AddValue ("wormhole_delay_us", "Wormhole tunnel delay (microseconds)", wormhole_tunnel_delay_us);
     cmd.AddValue ("wormhole_random_pairing", "Random pairing of wormhole nodes", wormhole_random_pairing);
     cmd.AddValue ("wormhole_drop_packets", "Drop packets instead of tunneling", wormhole_drop_packets);
-    cmd.AddValue ("wormhole_tunnel_routing", "Tunnel routing protocol packets", wormhole_tunnel_routing);
-    cmd.AddValue ("wormhole_tunnel_data", "Tunnel data packets", wormhole_tunnel_data);
-    cmd.AddValue ("wormhole_start_time", "Wormhole attack start time (seconds)", wormhole_start_time);
-    cmd.AddValue ("wormhole_stop_time", "Wormhole attack stop time (seconds, 0=simTime)", wormhole_stop_time);
-    cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
+	cmd.AddValue ("wormhole_tunnel_routing", "Tunnel routing protocol packets", wormhole_tunnel_routing);
+	cmd.AddValue ("wormhole_tunnel_data", "Tunnel data packets", wormhole_tunnel_data);
+	cmd.AddValue ("wormhole_start_time", "Wormhole attack start time (seconds)", wormhole_start_time);
+	cmd.AddValue ("wormhole_stop_time", "Wormhole attack stop time (seconds, 0=simTime)", wormhole_stop_time);
+	cmd.AddValue ("wormhole_enable_verification_flows", "Enable background verification traffic for wormhole attack", wormhole_enable_verification_flows);
+	cmd.AddValue ("wormhole_verification_flow_count", "Number of verification flow pairs to install", wormhole_verification_flow_count);
+	cmd.AddValue ("wormhole_verification_packet_rate", "Packets per second per verification flow", wormhole_verification_packet_rate);
+	cmd.AddValue ("wormhole_verification_packet_size", "Verification flow packet size (bytes)", wormhole_verification_packet_size);
+	cmd.AddValue ("wormhole_verification_start_offset", "Seconds after attack start before verification flows begin", wormhole_verification_start_offset);
+	cmd.AddValue ("wormhole_verification_base_port", "Base UDP destination port for verification flows", wormhole_verification_base_port);
+	cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
     cmd.AddValue ("routing_test", "routing_test", routing_test);
     cmd.AddValue ("routing_algorithm", "routing_algorithm", routing_algorithm);
     cmd.AddValue ("qf", "qf", qf);
@@ -141150,12 +141992,20 @@ int main(int argc, char *argv[])
         g_wormholeManager->Initialize(wormhole_malicious_nodes, attack_percentage, actual_node_count);
         
         // Set wormhole behavior
-        g_wormholeManager->SetWormholeBehavior(wormhole_drop_packets, 
-                                               wormhole_tunnel_routing, 
-                                               wormhole_tunnel_data);
-        
-        // Create wormhole tunnels
-        ns3::Time tunnelDelay = ns3::MicroSeconds(wormhole_tunnel_delay_us);
+		g_wormholeManager->SetWormholeBehavior(wormhole_drop_packets, 
+											   wormhole_tunnel_routing, 
+											   wormhole_tunnel_data);
+
+		g_wormholeManager->ConfigureVerificationTraffic(
+			wormhole_enable_verification_flows,
+			wormhole_verification_flow_count,
+			wormhole_verification_packet_rate,
+			wormhole_verification_packet_size,
+			wormhole_verification_start_offset,
+			wormhole_verification_base_port);
+
+		// Create wormhole tunnels
+		ns3::Time tunnelDelay = ns3::MicroSeconds(wormhole_tunnel_delay_us);
         g_wormholeManager->CreateWormholeTunnels(wormhole_tunnel_bandwidth, 
                                                  tunnelDelay, 
                                                  wormhole_random_pairing);
