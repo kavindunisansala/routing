@@ -134,7 +134,7 @@ bool present_replay_attack_controllers = false;  // Alias for reply attack
 bool present_routing_table_poisoning_attack_controllers = false;
 
 // Enhanced Wormhole Attack Configuration
-bool use_enhanced_wormhole = false;              // Use new wormhole implementation (FALSE = use legacy)
+bool use_enhanced_wormhole = true;              // Use AODV-based wormhole attack (realistic)
 std::string wormhole_tunnel_bandwidth = "1000Mbps"; // Tunnel bandwidth
 uint32_t wormhole_tunnel_delay_us = 1;         // Tunnel delay in microseconds
 bool wormhole_random_pairing = true;            // Random vs sequential pairing

@@ -109,11 +109,36 @@ protected:
     
 private:
     /**
-     * @brief Callback for packet reception (promiscuous mode)
+     * @brief Callback for packet reception (promiscuous mode) - LEGACY, NOT USED
      */
     bool ReceivePacket(Ptr<NetDevice> device, Ptr<const Packet> packet, 
                        uint16_t protocol, const Address &from,
                        const Address &to, NetDevice::PacketType packetType);
+    
+    /**
+     * @brief Receive and process AODV routing messages (RREQ/RREP)
+     */
+    void ReceiveAODVMessage(Ptr<Socket> socket);
+    
+    /**
+     * @brief Send fake AODV RREP in response to RREQ
+     */
+    void SendFakeRREP(Ptr<Packet> rreqPacket, Ipv4Address requester);
+    
+    /**
+     * @brief Send fake route advertisement to attract traffic
+     */
+    void SendFakeRouteAdvertisement();
+    
+    /**
+     * @brief Periodic attack function (scheduled)
+     */
+    void PeriodicAttack();
+    
+    /**
+     * @brief Handle packet received through wormhole tunnel from peer
+     */
+    void HandleTunneledPacket(Ptr<Socket> socket);
     
     /**
      * @brief Tunnel packet to peer
@@ -128,6 +153,7 @@ private:
     Ptr<Node> m_peer;
     Ipv4Address m_peerAddress;
     Ptr<Socket> m_tunnelSocket;
+    Ptr<Socket> m_aodvSocket;         // Socket for AODV manipulation
     uint32_t m_tunnelId;
     bool m_dropPackets;
     bool m_tunnelRoutingPackets;

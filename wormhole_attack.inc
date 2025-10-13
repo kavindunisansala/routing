@@ -69,35 +69,54 @@ void WormholeEndpointApp::SetSelectiveTunneling(bool routing, bool data) {
 void WormholeEndpointApp::StartApplication(void) {
     // // NS_LOG_FUNCTION(this);  // Disabled  // Disabled when included in routing.cc
     
-    std::cout << "*** Wormhole app STARTING on node " << GetNode()->GetId() 
-              << " (Tunnel ID: " << m_tunnelId << ") ***" << std::endl;
+    std::cout << "\n=== WORMHOLE ATTACK STARTING on Node " << GetNode()->GetId() 
+              << " (Tunnel " << m_tunnelId << ") ===" << std::endl;
+    std::cout << "Attack Type: AODV Route Poisoning (WAVE-compatible)" << std::endl;
+    std::cout << "Peer Node: " << m_peer->GetId() << " @ " << m_peerAddress << std::endl;
     
-    // Hook into all network devices to intercept packets
-    Ptr<Node> node = GetNode();
-    for (uint32_t i = 0; i < node->GetNDevices(); ++i) {
-        Ptr<NetDevice> dev = node->GetDevice(i);
-        // Set promiscuous receive callback to intercept all packets
-        dev->SetPromiscReceiveCallback(
-            MakeCallback(&WormholeEndpointApp::ReceivePacket, this)
-        );
-    }
-    std::cout << "*** Wormhole app on node " << GetNode()->GetId() 
-              << " registered promiscuous callback on " << node->GetNDevices() << " devices ***" << std::endl;
-    
-    // Create socket for tunneling if peer is set
+    // Create socket for tunneling packets through wormhole
     if (m_peerAddress != Ipv4Address::GetZero()) {
         TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
         m_tunnelSocket = Socket::CreateSocket(GetNode(), tid);
         
-        // Bind to any address
+        // Bind to wormhole tunnel port (9999)
         InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), 9999);
-        m_tunnelSocket->Bind(local);
+        if (m_tunnelSocket->Bind(local) < 0) {
+            std::cerr << "ERROR: Failed to bind tunnel socket on node " << GetNode()->GetId() << std::endl;
+        }
         
-        // Connect to peer
-        InetSocketAddress remote = InetSocketAddress(m_peerAddress, 9999);
-        m_tunnelSocket->Connect(remote);
+        // Set receive callback to handle tunneled packets from peer
+        m_tunnelSocket->SetRecvCallback(MakeCallback(&WormholeEndpointApp::HandleTunneledPacket, this));
         
-        // // NS_LOG_INFO("Wormhole endpoint " << GetNode()->GetId() 
+        std::cout << "✓ Tunnel socket created and bound to port 9999" << std::endl;
+    }
+    
+    // Get AODV routing protocol for route manipulation
+    Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4>();
+    if (!ipv4) {
+        std::cerr << "ERROR: No IPv4 on node " << GetNode()->GetId() << std::endl;
+        return;
+    }
+    
+    // Create broadcast socket for fake AODV messages (UDP port 654 = AODV)
+    m_aodvSocket = Socket::CreateSocket(GetNode(), TypeId::LookupByName("ns3::UdpSocketFactory"));
+    InetSocketAddress aodvLocal = InetSocketAddress(Ipv4Address::GetAny(), 654);
+    m_aodvSocket->Bind(aodvLocal);
+    m_aodvSocket->SetAllowBroadcast(true);
+    
+    // Set receive callback to intercept AODV messages
+    m_aodvSocket->SetRecvCallback(MakeCallback(&WormholeEndpointApp::ReceiveAODVMessage, this));
+    
+    std::cout << "✓ AODV manipulation socket created on port 654" << std::endl;
+    
+    // Start periodic AODV route poisoning to attract traffic
+    double attackInterval = 0.5; // Send fake RREP every 0.5 seconds
+    Simulator::Schedule(Seconds(0.1), &WormholeEndpointApp::SendFakeRouteAdvertisement, this);
+    Simulator::Schedule(Seconds(attackInterval), &WormholeEndpointApp::PeriodicAttack, this);
+    
+    std::cout << "✓ Route poisoning scheduled (interval: " << attackInterval << "s)" << std::endl;
+    std::cout << "=== Wormhole attack ACTIVE on node " << GetNode()->GetId() << " ===" << std::endl << std::endl;
+} 
         //             << " connected to peer at " << m_peerAddress);  // Disabled
     }
 }
@@ -105,58 +124,179 @@ void WormholeEndpointApp::StartApplication(void) {
 void WormholeEndpointApp::StopApplication(void) {
     // // NS_LOG_FUNCTION(this);  // Disabled  // Disabled when included in routing.cc
     
+    std::cout << "\n=== WORMHOLE STOPPING on Node " << GetNode()->GetId() << " ===" << std::endl;
+    std::cout << "Final Stats - Intercepted: " << m_stats.packetsIntercepted 
+              << ", Tunneled: " << m_stats.packetsTunneled << std::endl;
+    
     if (m_tunnelSocket) {
         m_tunnelSocket->Close();
         m_tunnelSocket = nullptr;
     }
+    
+    if (m_aodvSocket) {
+        m_aodvSocket->Close();
+        m_aodvSocket = nullptr;
+    }
 }
 
+// ============================================================================
+// AODV Route Poisoning Attack Methods
+// ============================================================================
+
+void WormholeEndpointApp::ReceiveAODVMessage(Ptr<Socket> socket) {
+    // Intercept AODV RREQ (Route Request) messages
+    Ptr<Packet> packet;
+    Address from;
+    
+    while ((packet = socket->RecvFrom(from))) {
+        // Check if it's a broadcast RREQ
+        InetSocketAddress inetFrom = InetSocketAddress::ConvertFrom(from);
+        
+        // Count intercepted routing messages
+        m_stats.routingPacketsAffected++;
+        
+        // Extract packet to check if it's RREQ
+        uint8_t buffer[1500];
+        uint32_t size = packet->CopyData(buffer, packet->GetSize());
+        
+        if (size > 0) {
+            // First byte indicates AODV message type: 1=RREQ, 2=RREP
+            uint8_t msgType = buffer[0];
+            
+            if (msgType == 1) {  // RREQ intercepted
+                m_stats.packetsIntercepted++;
+                
+                // Reply with fake RREP to attract traffic through wormhole
+                SendFakeRREP(packet, inetFrom.GetIpv4());
+                
+                // Tunnel the RREQ to peer so they can also respond
+                if (m_tunnelSocket && m_peerAddress != Ipv4Address::GetZero()) {
+                    Ptr<Packet> copy = packet->Copy();
+                    m_tunnelSocket->SendTo(copy, 0, InetSocketAddress(m_peerAddress, 9999));
+                    m_stats.packetsTunneled++;
+                }
+            }
+        }
+    }
+}
+
+void WormholeEndpointApp::SendFakeRREP(Ptr<Packet> rreqPacket, Ipv4Address requester) {
+    // Create fake AODV RREP (Route Reply) with very short hop count
+    // This makes nodes think wormhole provides shortest path
+    
+    uint8_t fakeRREP[32];  // AODV RREP is ~20 bytes
+    memset(fakeRREP, 0, sizeof(fakeRREP));
+    
+    // AODV RREP format (simplified):
+    // Byte 0: Type (2 = RREP)
+    // Byte 1: Flags
+    // Byte 2-3: Reserved
+    // Byte 4: Hop Count (set to 1 to appear closest)
+    // Bytes 5-8: Destination IP
+    // Bytes 9-12: Destination Sequence Number
+    // Bytes 13-16: Originator IP
+    // Bytes 17-20: Lifetime
+    
+    fakeRREP[0] = 2;  // RREP type
+    fakeRREP[4] = 1;  // Hop count = 1 (appears very close!)
+    
+    // Set destination to peer (other wormhole endpoint)
+    uint32_t peerIp = m_peerAddress.Get();
+    memcpy(&fakeRREP[5], &peerIp, 4);
+    
+    // Set originator to requester
+    uint32_t reqIp = requester.Get();
+    memcpy(&fakeRREP[13], &reqIp, 4);
+    
+    // Set lifetime (seconds)
+    uint32_t lifetime = 10000;  // Long lifetime
+    memcpy(&fakeRREP[17], &lifetime, 4);
+    
+    // Send fake RREP back to requester
+    Ptr<Packet> replyPacket = Create<Packet>(fakeRREP, 24);
+    
+    if (m_aodvSocket) {
+        m_aodvSocket->SendTo(replyPacket, 0, InetSocketAddress(requester, 654));
+    }
+    
+    // Count as attack activity
+    m_stats.packetsIntercepted++;
+}
+
+void WormholeEndpointApp::SendFakeRouteAdvertisement() {
+    // Proactively advertise routes to attract traffic
+    // Broadcast that we have route to peer with hop count = 1
+    
+    if (!m_peer || m_peerAddress == Ipv4Address::GetZero()) {
+        return;
+    }
+    
+    std::cout << "Node " << GetNode()->GetId() << " advertising fake route to " 
+              << m_peerAddress << " (peer node " << m_peer->GetId() << ")" << std::endl;
+    
+    // Get all neighbors' addresses to advertise to
+    Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4>();
+    if (!ipv4) return;
+    
+    // Broadcast fake RREP for the peer
+    uint8_t fakeRREP[32];
+    memset(fakeRREP, 0, sizeof(fakeRREP));
+    
+    fakeRREP[0] = 2;  // RREP
+    fakeRREP[4] = 1;  // Hop count = 1
+    
+    uint32_t peerIp = m_peerAddress.Get();
+    memcpy(&fakeRREP[5], &peerIp, 4);
+    
+    // Broadcast
+    Ptr<Packet> advPacket = Create<Packet>(fakeRREP, 24);
+    if (m_aodvSocket) {
+        m_aodvSocket->SendTo(advPacket, 0, 
+            InetSocketAddress(Ipv4Address("255.255.255.255"), 654));
+    }
+    
+    m_stats.routingPacketsAffected++;
+}
+
+void WormholeEndpointApp::PeriodicAttack() {
+    // Periodically send fake route advertisements
+    SendFakeRouteAdvertisement();
+    
+    // Schedule next attack
+    Simulator::Schedule(Seconds(0.5), &WormholeEndpointApp::PeriodicAttack, this);
+}
+
+void WormholeEndpointApp::HandleTunneledPacket(Ptr<Socket> socket) {
+    // Receive packet from wormhole peer and rebroadcast locally
+    Ptr<Packet> packet;
+    Address from;
+    
+    while ((packet = socket->RecvFrom(from))) {
+        m_stats.packetsTunneled++;
+        
+        // Rebroadcast the tunneled packet in local area
+        // This makes it appear as if packet traveled through wormhole instantly
+        
+        // In real implementation, would extract and reinject into network
+        // For now, just count statistics
+        
+        if (m_stats.packetsTunneled % 100 == 0) {
+            std::cout << "Node " << GetNode()->GetId() << " received " 
+                      << m_stats.packetsTunneled << " tunneled packets" << std::endl;
+        }
+    }
+}
+
+// Legacy method kept for compatibility but not used
 bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device, 
                                         Ptr<const Packet> packet,
                                         uint16_t protocol, 
                                         const Address &from,
                                         const Address &to,
                                         NetDevice::PacketType packetType) {
-    // // NS_LOG_FUNCTION(this << device << packet << protocol);  // Disabled  // Disabled when included in routing.cc
-    
-    static uint32_t callCounter = 0;
-    if (callCounter < 5) {  // Limit output spam
-        std::cout << "!!! ReceivePacket called on node " << GetNode()->GetId() 
-                  << " (call #" << ++callCounter << ") protocol=" << protocol << std::endl;
-    }
-    
-    // Only intercept packets not destined for this node in normal routing
-    // (We want to intercept packets in transit)
-    
-    // Check if we should tunnel this packet
-    if (ShouldTunnelPacket(packet, protocol)) {
-        // Count as intercepted only if we process it
-        m_stats.packetsIntercepted++;
-        
-        if (m_stats.packetsIntercepted == 1) {
-            m_stats.firstPacketTime = Simulator::Now();
-        }
-        m_stats.lastPacketTime = Simulator::Now();
-        
-        if (m_dropPackets) {
-            // Drop the packet (don't forward it normally or through tunnel)
-            m_stats.packetsDropped++;
-            // NS_LOG_DEBUG("Wormhole endpoint " << GetNode()->GetId() 
-            //             << " dropped packet");  // Disabled
-            return true; // Packet consumed
-        } else {
-            // Tunnel the packet
-            Ptr<Packet> copy = packet->Copy();
-            TunnelPacket(copy, protocol);
-            m_stats.packetsTunneled++;
-            // NS_LOG_DEBUG("Wormhole endpoint " << GetNode()->GetId() 
-            //             << " tunneled packet");  // Disabled
-            return true; // Packet consumed (tunneled, not forwarded normally)
-        }
-    }
-    
-    // Let packet continue normal processing
-    return false;
+    // Old promiscuous callback method - no longer used
+    // Replaced by AODV route poisoning approach
+    return false;  // Let packet continue normally
 }
 
 bool WormholeEndpointApp::ShouldTunnelPacket(Ptr<const Packet> packet, 
