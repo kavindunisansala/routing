@@ -116,9 +116,6 @@ void WormholeEndpointApp::StartApplication(void) {
     
     std::cout << "✓ Route poisoning scheduled (interval: " << attackInterval << "s)" << std::endl;
     std::cout << "=== Wormhole attack ACTIVE on node " << GetNode()->GetId() << " ===" << std::endl << std::endl;
-} 
-        //             << " connected to peer at " << m_peerAddress);  // Disabled
-    }
 }
 
 void WormholeEndpointApp::StopApplication(void) {
