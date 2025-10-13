@@ -89,9 +89,10 @@ int lambda = 30;
 const int Flow_size = 55;
 uint32_t flow_size = 55;
 
-int total_size = 28;  // Will be updated after parsing command line arguments
+const int total_size = 28;  // Maximum network size for compile-time arrays
 uint32_t N_RSUs = 10;
 uint32_t N_Vehicles = 18;
+uint32_t actual_total_nodes = 28;  // Runtime node count (N_Vehicles + N_RSUs)
 
 const int flows = 2;
 
@@ -116667,7 +116668,7 @@ void transmit_solution()
 {
 	read_csv();
 	//After getting the solution, unicast the solution to the nodes.
-	for (uint32_t u=0;u< total_size;u++)
+	for (uint32_t u=0;u< actual_total_nodes;u++)
 	{
 		if (u < (N_Vehicles))
 		{
@@ -116697,7 +116698,7 @@ void transmit_delta_values()
 {
 	//read_csv();
 	//After getting the solution, unicast the solution to the nodes.
-	for (uint32_t u=0;u< total_size;u++)
+	for (uint32_t u=0;u< actual_total_nodes;u++)
 	{
 		if (u < (N_Vehicles))
 		{
@@ -139211,11 +139212,12 @@ int main(int argc, char *argv[])
      	//flows = 1;
     }
 	
-    // Update total_size based on actual node counts
-    total_size = N_Vehicles + N_RSUs;
+    // Update actual_total_nodes based on runtime configuration
+    actual_total_nodes = N_Vehicles + N_RSUs;
     std::cout << "Network configuration: N_Vehicles=" << N_Vehicles 
               << ", N_RSUs=" << N_RSUs 
-              << ", total_size=" << total_size << std::endl;
+              << ", actual_total_nodes=" << actual_total_nodes 
+              << ", total_size=" << total_size << " (compile-time max)" << std::endl;
     
     routing_frequency = data_transmission_frequency;
     N_eNodeBs = 1 + N_Vehicles/320;
