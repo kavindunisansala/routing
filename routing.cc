@@ -94578,54 +94578,6 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
     
     return false; // Let packet continue to routing protocol
 }
-    memcpy(&fakeRREP[5], &peerIp, 4);
-    uint32_t reqIp = requester.Get();
-    memcpy(&fakeRREP[13], &reqIp, 4);
-    uint32_t lifetime = 10000;
-    memcpy(&fakeRREP[17], &lifetime, 4);
-    Ptr<Packet> replyPacket = Create<Packet>(fakeRREP, 24);
-    if (m_aodvSocket) {
-        m_aodvSocket->SendTo(replyPacket, 0, InetSocketAddress(requester, 654));
-    }
-}
-
-void WormholeEndpointApp::SendFakeRouteAdvertisement() {
-    if (!m_peer || m_peerAddress == Ipv4Address::GetZero()) return;
-    std::cout << "Node " << GetNode()->GetId() << " advertising fake route to " 
-              << m_peerAddress << " (peer node " << m_peer->GetId() << ")" << std::endl;
-    Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4>();
-    if (!ipv4) return;
-    uint8_t fakeRREP[32];
-    memset(fakeRREP, 0, sizeof(fakeRREP));
-    fakeRREP[0] = 2;  // RREP
-    fakeRREP[4] = 1;  // Hop count = 1
-    uint32_t peerIp = m_peerAddress.Get();
-    memcpy(&fakeRREP[5], &peerIp, 4);
-    Ptr<Packet> advPacket = Create<Packet>(fakeRREP, 24);
-    if (m_aodvSocket) {
-        m_aodvSocket->SendTo(advPacket, 0, 
-            InetSocketAddress(Ipv4Address("255.255.255.255"), 654));
-    }
-    m_stats.routingPacketsAffected++;
-}
-
-void WormholeEndpointApp::PeriodicAttack() {
-    SendFakeRouteAdvertisement();
-    Simulator::Schedule(Seconds(0.5), &WormholeEndpointApp::PeriodicAttack, this);
-}
-
-void WormholeEndpointApp::HandleTunneledPacket(Ptr<Socket> socket) {
-    Ptr<Packet> packet;
-    Address from;
-    while ((packet = socket->RecvFrom(from))) {
-        m_stats.packetsTunneled++;
-        std::cout << "[WORMHOLE] Node " << GetNode()->GetId() 
-                  << " received tunneled packet from peer (Total: " 
-                  << m_stats.packetsTunneled << ")" << std::endl;
-    }
-    
-    return false; // Let packet continue to routing protocol
-}
 
 void WormholeEndpointApp::SendFakeRREP(Ipv4Address requester) {
     uint8_t fakeRREP[32];
