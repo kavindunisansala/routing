@@ -94459,17 +94459,16 @@ void WormholeEndpointApp::StartApplication(void) {
     }
     m_aodvSocket->SetAllowBroadcast(true);
 
-    m_aodvSniffer = Socket::CreateSocket(GetNode(),
-        TypeId::LookupByName("ns3::Ipv4RawSocketFactory"));
-    m_aodvSniffer->SetAttribute("Protocol", UintegerValue(17));
-    if (m_aodvSniffer->Bind() < 0) {
-        std::cerr << "ERROR: Failed to bind AODV sniffer socket on node "
-                  << GetNode()->GetId() << std::endl;
-    } else {
-        m_aodvSniffer->SetRecvCallback(MakeCallback(&WormholeEndpointApp::ReceiveAODVMessage, this));
+    // Install promiscuous receive callback on all net devices to intercept AODV packets
+    for (uint32_t i = 0; i < GetNode()->GetNDevices(); ++i) {
+        Ptr<NetDevice> device = GetNode()->GetDevice(i);
+        if (device) {
+            device->SetPromiscReceiveCallback(MakeCallback(&WormholeEndpointApp::ReceivePacket, this));
+            std::cout << "✓ Installed promiscuous callback on device " << i << std::endl;
+        }
     }
     
-    std::cout << "✓ AODV manipulation sockets ready" << std::endl;
+    std::cout << "✓ AODV interception ready on all network interfaces" << std::endl;
     double attackInterval = 0.5;
     Simulator::Schedule(Seconds(0.1), &WormholeEndpointApp::SendFakeRouteAdvertisement, this);
     Simulator::Schedule(Seconds(attackInterval), &WormholeEndpointApp::PeriodicAttack, this);
@@ -94490,64 +94489,95 @@ void WormholeEndpointApp::StopApplication(void) {
         m_aodvSocket->Close();
         m_aodvSocket = nullptr;
     }
-    if (m_aodvSniffer) {
-        m_aodvSniffer->Close();
-        m_aodvSniffer = nullptr;
-    }
 }
 
-void WormholeEndpointApp::ReceiveAODVMessage(Ptr<Socket> socket) {
-    Ptr<Packet> packet;
-    Address from;
-
-    while ((packet = socket->RecvFrom(from))) {
-        if (packet->GetSize() == 0) continue;
-        Ptr<Packet> copy = packet->Copy();
-        Ipv4Header ipHeader;
-        if (copy->GetSize() < ipHeader.GetSerializedSize()) continue;
-        copy->RemoveHeader(ipHeader);
-        if (ipHeader.GetProtocol() != 17) continue;
-
-        UdpHeader udpHeader;
-        if (copy->GetSize() < udpHeader.GetSerializedSize()) continue;
-        copy->RemoveHeader(udpHeader);
-        if (udpHeader.GetDestinationPort() != 654 && udpHeader.GetSourcePort() != 654) continue;
-        if (copy->GetSize() == 0) continue;
-
-        uint8_t buffer[1500];
-        uint32_t payloadSize = std::min<uint32_t>(copy->GetSize(), sizeof(buffer));
-        copy->CopyData(buffer, payloadSize);
-        uint8_t msgType = buffer[0];
-        Ipv4Address requester = ipHeader.GetSource();
-        m_stats.routingPacketsAffected++;
-
-        if (msgType == 1) {  // RREQ intercepted
-            m_stats.packetsIntercepted++;
-            std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
-                      << " intercepted AODV RREQ from " << requester
-                      << " (Total intercepted: " << m_stats.packetsIntercepted << ")" << std::endl;
-            SendFakeRREP(requester);
-            if (m_tunnelSocket && m_peerAddress != Ipv4Address::GetZero()) {
-                Ptr<Packet> forwardCopy = packet->Copy();
-                m_tunnelSocket->SendTo(forwardCopy, 0, InetSocketAddress(m_peerAddress, 9999));
-                m_stats.packetsTunneled++;
-                std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
-                          << " tunneled RREQ to peer " << m_peer->GetId()
-                          << " (Total tunneled: " << m_stats.packetsTunneled << ")" << std::endl;
+bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device, 
+                                        Ptr<const Packet> packet,
+                                        uint16_t protocol, 
+                                        const Address &from,
+                                        const Address &to,
+                                        NetDevice::PacketType packetType) {
+    // Only process IPv4 packets
+    if (protocol != 0x0800) {
+        return false;
+    }
+    
+    Ptr<Packet> copy = packet->Copy();
+    Ipv4Header ipHeader;
+    
+    if (copy->GetSize() < 20) {
+        return false;
+    }
+    
+    copy->RemoveHeader(ipHeader);
+    
+    // Only process UDP packets
+    if (ipHeader.GetProtocol() != 17) {
+        return false;
+    }
+    
+    UdpHeader udpHeader;
+    if (copy->GetSize() < 8) {
+        return false;
+    }
+    
+    copy->RemoveHeader(udpHeader);
+    
+    // Only process AODV packets (port 654)
+    if (udpHeader.GetDestinationPort() != 654) {
+        return false;
+    }
+    
+    if (copy->GetSize() == 0) {
+        return false;
+    }
+    
+    uint8_t buffer[1500];
+    uint32_t payloadSize = (copy->GetSize() < sizeof(buffer)) ? copy->GetSize() : sizeof(buffer);
+    copy->CopyData(buffer, payloadSize);
+    uint8_t msgType = buffer[0];
+    Ipv4Address sourceAddr = ipHeader.GetSource();
+    
+    // Don't intercept our own packets
+    Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4>();
+    if (ipv4) {
+        for (uint32_t i = 0; i < ipv4->GetNInterfaces(); ++i) {
+            for (uint32_t j = 0; j < ipv4->GetNAddresses(i); ++j) {
+                if (ipv4->GetAddress(i, j).GetLocal() == sourceAddr) {
+                    return false; // Our own packet, don't intercept
+                }
             }
-        } else if (msgType == 2) {
-            std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
-                      << " observed AODV RREP from " << requester << std::endl;
         }
     }
+    
+    m_stats.routingPacketsAffected++;
+    
+    if (msgType == 1) {  // RREQ intercepted
+        m_stats.packetsIntercepted++;
+        std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                  << " intercepted AODV RREQ from " << sourceAddr
+                  << " (Total intercepted: " << m_stats.packetsIntercepted << ")" << std::endl;
+        
+        // Send fake RREP
+        SendFakeRREP(sourceAddr);
+        
+        // Tunnel the RREQ to peer
+        if (m_tunnelSocket && m_peerAddress != Ipv4Address::GetZero()) {
+            Ptr<Packet> forwardCopy = packet->Copy();
+            m_tunnelSocket->SendTo(forwardCopy, 0, InetSocketAddress(m_peerAddress, 9999));
+            m_stats.packetsTunneled++;
+            std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                      << " tunneled RREQ to peer " << m_peer->GetId()
+                      << " (Total tunneled: " << m_stats.packetsTunneled << ")" << std::endl;
+        }
+    } else if (msgType == 2) {
+        // RREP observed
+        std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                  << " observed AODV RREP from " << sourceAddr << std::endl;
+    }
+    
+    return false; // Let packet continue to routing protocol
 }
-
-void WormholeEndpointApp::SendFakeRREP(Ipv4Address requester) {
-    uint8_t fakeRREP[32];
-    memset(fakeRREP, 0, sizeof(fakeRREP));
-    fakeRREP[0] = 2;  // RREP type
-    fakeRREP[4] = 1;  // Hop count = 1
-    uint32_t peerIp = m_peerAddress.Get();
     memcpy(&fakeRREP[5], &peerIp, 4);
     uint32_t reqIp = requester.Get();
     memcpy(&fakeRREP[13], &reqIp, 4);
@@ -94595,14 +94625,15 @@ void WormholeEndpointApp::HandleTunneledPacket(Ptr<Socket> socket) {
     }
 }
 
-bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device, 
-                                        Ptr<const Packet> packet,
-                                        uint16_t protocol, 
-                                        const Address &from,
-                                        const Address &to,
-                                        NetDevice::PacketType packetType) {
-    return false;
+    return false; // Let packet continue to routing protocol
 }
+
+void WormholeEndpointApp::SendFakeRREP(Ipv4Address requester) {
+    uint8_t fakeRREP[32];
+    memset(fakeRREP, 0, sizeof(fakeRREP));
+    fakeRREP[0] = 2;  // RREP type
+    fakeRREP[4] = 1;  // Hop count = 1
+    uint32_t peerIp = m_peerAddress.Get();
 
 bool WormholeEndpointApp::ShouldTunnelPacket(Ptr<const Packet> packet, 
                                               uint16_t protocol) {
