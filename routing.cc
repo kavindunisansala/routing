@@ -94497,6 +94497,16 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
                                         const Address &from,
                                         const Address &to,
                                         NetDevice::PacketType packetType) {
+    // Debug: Log all received packets
+    static int debugCount = 0;
+    if (debugCount < 10) {
+        std::cout << "[WORMHOLE-DEBUG] Node " << GetNode()->GetId()
+                  << " received packet: protocol=0x" << std::hex << protocol << std::dec
+                  << " size=" << packet->GetSize()
+                  << " packetType=" << (int)packetType << std::endl;
+        debugCount++;
+    }
+    
     // Only process IPv4 packets
     if (protocol != 0x0800) {
         return false;
@@ -94522,6 +94532,14 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
     }
     
     copy->RemoveHeader(udpHeader);
+    
+    // Debug: Log UDP ports
+    if (debugCount < 20) {
+        std::cout << "[WORMHOLE-DEBUG] Node " << GetNode()->GetId()
+                  << " UDP packet: src=" << udpHeader.GetSourcePort()
+                  << " dst=" << udpHeader.GetDestinationPort() << std::endl;
+        debugCount++;
+    }
     
     // Only process AODV packets (port 654)
     if (udpHeader.GetDestinationPort() != 654) {
@@ -94552,6 +94570,10 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
     
     m_stats.routingPacketsAffected++;
     
+    std::cout << "[WORMHOLE-DEBUG] Node " << GetNode()->GetId()
+              << " Processing AODV packet: msgType=" << (int)msgType
+              << " from " << sourceAddr << std::endl;
+    
     if (msgType == 1) {  // RREQ intercepted
         m_stats.packetsIntercepted++;
         std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
@@ -94570,13 +94592,24 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
                       << " tunneled RREQ to peer " << m_peer->GetId()
                       << " (Total tunneled: " << m_stats.packetsTunneled << ")" << std::endl;
         }
+        
+        // DROP the packet if configured, otherwise let it continue
+        if (m_dropPackets) {
+            m_stats.packetsDropped++;
+            std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                      << " DROPPED RREQ (Total dropped: " << m_stats.packetsDropped << ")" << std::endl;
+            return true; // Consume packet (drop it)
+        } else {
+            return false; // Let packet continue (observe-only mode)
+        }
     } else if (msgType == 2) {
-        // RREP observed
+        // RREP - just observe, don't intercept
         std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
                   << " observed AODV RREP from " << sourceAddr << std::endl;
+        return false; // Let RREP continue normally
     }
     
-    return false; // Let packet continue to routing protocol
+    return false; // Let other packets continue
 }
 
 void WormholeEndpointApp::SendFakeRREP(Ipv4Address requester) {
