@@ -63,9 +63,12 @@ namespace ns3 {
 
 // Forward declarations for wormhole attack classes
 struct WormholeStatistics;
+struct FlowLatencyRecord;
+struct WormholeDetectionMetrics;
 struct WormholeTunnel;
 class WormholeEndpointApp;
 class WormholeAttackManager;
+class WormholeDetector;
 
 /**
  * @brief Statistics for wormhole attack monitoring
@@ -84,6 +87,48 @@ struct WormholeStatistics {
         : packetsIntercepted(0), packetsTunneled(0), packetsDropped(0),
           routingPacketsAffected(0), dataPacketsAffected(0), 
           totalTunnelingDelay(0.0) {}
+};
+
+/**
+ * @brief Per-flow latency tracking for wormhole detection
+ */
+struct FlowLatencyRecord {
+    Ipv4Address srcAddr;              // Source IP address
+    Ipv4Address dstAddr;              // Destination IP address
+    Time firstPacketTime;             // Time of first packet
+    Time lastPacketTime;              // Time of last packet
+    double totalLatency;              // Total cumulative latency
+    uint32_t packetCount;             // Number of packets in flow
+    double avgLatency;                // Average latency for this flow
+    bool suspectedWormhole;           // Flag if wormhole detected
+    std::vector<uint32_t> pathNodes;  // Nodes in the path
+    
+    FlowLatencyRecord() 
+        : totalLatency(0.0), packetCount(0), avgLatency(0.0), 
+          suspectedWormhole(false) {}
+};
+
+/**
+ * @brief Metrics for wormhole detection evaluation
+ */
+struct WormholeDetectionMetrics {
+    uint32_t totalFlows;              // Total number of flows monitored
+    uint32_t flowsAffected;           // Flows affected by wormhole
+    uint32_t flowsDetected;           // Flows where wormhole was detected
+    uint32_t truePositives;           // Correctly detected wormholes
+    uint32_t falsePositives;          // Normal flows flagged as wormhole
+    uint32_t falseNegatives;          // Missed wormhole detections
+    double detectionAccuracy;         // Detection accuracy percentage
+    double avgNormalLatency;          // Average latency for normal flows
+    double avgWormholeLatency;        // Average latency for wormhole flows
+    double avgLatencyIncrease;        // Average latency increase percentage
+    uint32_t routeChanges;            // Number of route changes triggered
+    
+    WormholeDetectionMetrics() 
+        : totalFlows(0), flowsAffected(0), flowsDetected(0),
+          truePositives(0), falsePositives(0), falseNegatives(0),
+          detectionAccuracy(0.0), avgNormalLatency(0.0), 
+          avgWormholeLatency(0.0), avgLatencyIncrease(0.0), routeChanges(0) {}
 };
 
 /**
@@ -210,6 +255,60 @@ private:
     uint16_t m_verificationBasePort;
 };
 
+/**
+ * @brief Wormhole Detector - Latency-based detection and mitigation
+ */
+class WormholeDetector {
+public:
+    WormholeDetector();
+    ~WormholeDetector();
+    
+    void Initialize(uint32_t totalNodes, double latencyThreshold = 2.0);
+    void EnableDetection(bool enable);
+    void EnableMitigation(bool enable);
+    void SetLatencyThreshold(double multiplier);
+    
+    // Flow monitoring
+    void RecordPacketSent(Ipv4Address src, Ipv4Address dst, Time txTime, uint32_t packetId);
+    void RecordPacketReceived(Ipv4Address src, Ipv4Address dst, Time rxTime, uint32_t packetId);
+    void UpdateFlowLatency(Ipv4Address src, Ipv4Address dst, double latency);
+    
+    // Detection
+    bool DetectWormholeInFlow(Ipv4Address src, Ipv4Address dst);
+    void PeriodicDetectionCheck();
+    bool IsFlowSuspicious(const FlowLatencyRecord& flow);
+    
+    // Mitigation
+    void BlacklistNode(uint32_t nodeId);
+    void UnblacklistNode(uint32_t nodeId);
+    bool IsNodeBlacklisted(uint32_t nodeId) const;
+    void TriggerRouteChange(Ipv4Address src, Ipv4Address dst);
+    
+    // Statistics and reporting
+    WormholeDetectionMetrics GetMetrics() const { return m_metrics; }
+    void PrintDetectionReport() const;
+    void ExportDetectionResults(std::string filename) const;
+    
+private:
+    void CalculateBaselineLatency();
+    void UpdateDetectionMetrics();
+    std::string GetFlowKey(Ipv4Address src, Ipv4Address dst) const;
+    
+    bool m_detectionEnabled;
+    bool m_mitigationEnabled;
+    uint32_t m_totalNodes;
+    double m_latencyThresholdMultiplier;
+    double m_baselineLatency;
+    
+    std::map<std::string, FlowLatencyRecord> m_flowRecords;
+    std::map<uint32_t, Time> m_packetSendTimes;
+    std::set<uint32_t> m_blacklistedNodes;
+    WormholeDetectionMetrics m_metrics;
+    
+    Time m_detectionStartTime;
+    Time m_lastDetectionCheck;
+};
+
 } // namespace ns3
 
 // End of wormhole attack class declarations
@@ -308,6 +407,12 @@ double wormhole_verification_packet_rate = 40.0; // Packets per second per flow
 uint32_t wormhole_verification_packet_size = 512; // UDP packet size in bytes
 double wormhole_verification_start_offset = 0.5; // Seconds after attack start to begin flows
 uint16_t wormhole_verification_base_port = 50000; // Base UDP port for verification flows
+
+// Wormhole Detection and Mitigation Configuration
+bool enable_wormhole_detection = false;         // Enable latency-based wormhole detection
+bool enable_wormhole_mitigation = false;        // Enable automatic mitigation (route changes)
+double detection_latency_threshold = 2.0;       // Latency multiplier for detection (2.0 = 200% of baseline)
+double detection_check_interval = 1.0;          // Seconds between detection checks
 
 // Number of controllers
 const int controllers = 6;
@@ -95341,6 +95446,278 @@ std::vector<uint32_t> WormholeAttackManager::GetMaliciousNodeIds() const {
     return nodeIds;
 }
 
+// ============================================================================
+// Wormhole Detector Implementation
+// ============================================================================
+
+WormholeDetector::WormholeDetector()
+    : m_detectionEnabled(false),
+      m_mitigationEnabled(false),
+      m_totalNodes(0),
+      m_latencyThresholdMultiplier(2.0),
+      m_baselineLatency(0.001) // Default 1ms baseline
+{
+}
+
+WormholeDetector::~WormholeDetector() {
+}
+
+void WormholeDetector::Initialize(uint32_t totalNodes, double latencyThreshold) {
+    m_totalNodes = totalNodes;
+    m_latencyThresholdMultiplier = latencyThreshold;
+    m_detectionStartTime = Simulator::Now();
+    m_lastDetectionCheck = Simulator::Now();
+    
+    std::cout << "[DETECTOR] Wormhole detector initialized for " << totalNodes 
+              << " nodes with threshold multiplier " << latencyThreshold << "\n";
+}
+
+void WormholeDetector::EnableDetection(bool enable) {
+    m_detectionEnabled = enable;
+    std::cout << "[DETECTOR] Detection " << (enable ? "ENABLED" : "DISABLED") << "\n";
+}
+
+void WormholeDetector::EnableMitigation(bool enable) {
+    m_mitigationEnabled = enable;
+    std::cout << "[DETECTOR] Mitigation " << (enable ? "ENABLED" : "DISABLED") << "\n";
+}
+
+void WormholeDetector::SetLatencyThreshold(double multiplier) {
+    m_latencyThresholdMultiplier = multiplier;
+}
+
+std::string WormholeDetector::GetFlowKey(Ipv4Address src, Ipv4Address dst) const {
+    std::ostringstream oss;
+    oss << src << "->" << dst;
+    return oss.str();
+}
+
+void WormholeDetector::RecordPacketSent(Ipv4Address src, Ipv4Address dst, 
+                                        Time txTime, uint32_t packetId) {
+    m_packetSendTimes[packetId] = txTime;
+}
+
+void WormholeDetector::RecordPacketReceived(Ipv4Address src, Ipv4Address dst, 
+                                            Time rxTime, uint32_t packetId) {
+    auto it = m_packetSendTimes.find(packetId);
+    if (it != m_packetSendTimes.end()) {
+        double latency = (rxTime - it->second).GetSeconds();
+        UpdateFlowLatency(src, dst, latency);
+        m_packetSendTimes.erase(it); // Clean up
+    }
+}
+
+void WormholeDetector::UpdateFlowLatency(Ipv4Address src, Ipv4Address dst, double latency) {
+    if (!m_detectionEnabled) return;
+    
+    std::string flowKey = GetFlowKey(src, dst);
+    FlowLatencyRecord& flow = m_flowRecords[flowKey];
+    
+    // Initialize flow if this is the first packet
+    if (flow.packetCount == 0) {
+        flow.srcAddr = src;
+        flow.dstAddr = dst;
+        flow.firstPacketTime = Simulator::Now();
+        m_metrics.totalFlows++;
+    }
+    
+    flow.totalLatency += latency;
+    flow.packetCount++;
+    flow.avgLatency = flow.totalLatency / flow.packetCount;
+    flow.lastPacketTime = Simulator::Now();
+    
+    // Check if this flow shows wormhole characteristics
+    if (IsFlowSuspicious(flow) && !flow.suspectedWormhole) {
+        flow.suspectedWormhole = true;
+        m_metrics.flowsDetected++;
+        m_metrics.flowsAffected++;
+        
+        std::cout << "[DETECTOR] Wormhole suspected in flow " << src << " -> " << dst 
+                  << " (avg latency: " << (flow.avgLatency * 1000.0) << " ms, "
+                  << "threshold: " << (m_baselineLatency * m_latencyThresholdMultiplier * 1000.0) 
+                  << " ms)\n";
+        
+        if (m_mitigationEnabled) {
+            TriggerRouteChange(src, dst);
+        }
+    }
+}
+
+bool WormholeDetector::IsFlowSuspicious(const FlowLatencyRecord& flow) {
+    // Need at least a few packets to make a determination
+    if (flow.packetCount < 3) return false;
+    
+    // Calculate baseline if not set
+    if (m_baselineLatency < 0.0001 && !m_flowRecords.empty()) {
+        const_cast<WormholeDetector*>(this)->CalculateBaselineLatency();
+    }
+    
+    // Flow is suspicious if latency exceeds threshold
+    double threshold = m_baselineLatency * m_latencyThresholdMultiplier;
+    return flow.avgLatency > threshold;
+}
+
+void WormholeDetector::CalculateBaselineLatency() {
+    if (m_flowRecords.empty()) {
+        m_baselineLatency = 0.001; // Default 1ms
+        return;
+    }
+    
+    // Calculate average latency across all flows
+    double totalLatency = 0.0;
+    uint32_t flowCount = 0;
+    
+    for (const auto& pair : m_flowRecords) {
+        const FlowLatencyRecord& flow = pair.second;
+        if (flow.packetCount >= 3 && !flow.suspectedWormhole) {
+            totalLatency += flow.avgLatency;
+            flowCount++;
+        }
+    }
+    
+    if (flowCount > 0) {
+        m_baselineLatency = totalLatency / flowCount;
+        m_metrics.avgNormalLatency = m_baselineLatency;
+        std::cout << "[DETECTOR] Baseline latency calculated: " 
+                  << (m_baselineLatency * 1000.0) << " ms (from " 
+                  << flowCount << " flows)\n";
+    }
+}
+
+bool WormholeDetector::DetectWormholeInFlow(Ipv4Address src, Ipv4Address dst) {
+    std::string flowKey = GetFlowKey(src, dst);
+    auto it = m_flowRecords.find(flowKey);
+    if (it == m_flowRecords.end()) return false;
+    
+    return it->second.suspectedWormhole;
+}
+
+void WormholeDetector::PeriodicDetectionCheck() {
+    if (!m_detectionEnabled) return;
+    
+    m_lastDetectionCheck = Simulator::Now();
+    UpdateDetectionMetrics();
+    
+    std::cout << "[DETECTOR] Periodic check - Flows monitored: " << m_flowRecords.size()
+              << ", Suspicious flows: " << m_metrics.flowsDetected << "\n";
+}
+
+void WormholeDetector::UpdateDetectionMetrics() {
+    // Recalculate metrics
+    uint32_t suspiciousCount = 0;
+    double normalLatencySum = 0.0;
+    double wormholeLatencySum = 0.0;
+    uint32_t normalCount = 0;
+    uint32_t wormholeCount = 0;
+    
+    for (const auto& pair : m_flowRecords) {
+        const FlowLatencyRecord& flow = pair.second;
+        if (flow.packetCount >= 3) {
+            if (flow.suspectedWormhole) {
+                wormholeLatencySum += flow.avgLatency;
+                wormholeCount++;
+                suspiciousCount++;
+            } else {
+                normalLatencySum += flow.avgLatency;
+                normalCount++;
+            }
+        }
+    }
+    
+    m_metrics.flowsDetected = suspiciousCount;
+    
+    if (normalCount > 0) {
+        m_metrics.avgNormalLatency = normalLatencySum / normalCount;
+    }
+    
+    if (wormholeCount > 0) {
+        m_metrics.avgWormholeLatency = wormholeLatencySum / wormholeCount;
+        
+        if (m_metrics.avgNormalLatency > 0) {
+            m_metrics.avgLatencyIncrease = 
+                ((m_metrics.avgWormholeLatency - m_metrics.avgNormalLatency) / 
+                 m_metrics.avgNormalLatency) * 100.0;
+        }
+    }
+}
+
+void WormholeDetector::BlacklistNode(uint32_t nodeId) {
+    m_blacklistedNodes.insert(nodeId);
+    std::cout << "[DETECTOR] Node " << nodeId << " blacklisted\n";
+}
+
+void WormholeDetector::UnblacklistNode(uint32_t nodeId) {
+    m_blacklistedNodes.erase(nodeId);
+    std::cout << "[DETECTOR] Node " << nodeId << " removed from blacklist\n";
+}
+
+bool WormholeDetector::IsNodeBlacklisted(uint32_t nodeId) const {
+    return m_blacklistedNodes.find(nodeId) != m_blacklistedNodes.end();
+}
+
+void WormholeDetector::TriggerRouteChange(Ipv4Address src, Ipv4Address dst) {
+    m_metrics.routeChanges++;
+    std::cout << "[DETECTOR] Triggering route change for flow " << src << " -> " << dst << "\n";
+    // Note: Actual route invalidation would require AODV routing table access
+    // This is a placeholder for the mitigation action
+}
+
+void WormholeDetector::PrintDetectionReport() const {
+    std::cout << "\n========== WORMHOLE DETECTION REPORT ==========\n";
+    std::cout << "Detection Status: " << (m_detectionEnabled ? "ENABLED" : "DISABLED") << "\n";
+    std::cout << "Mitigation Status: " << (m_mitigationEnabled ? "ENABLED" : "DISABLED") << "\n";
+    std::cout << "Latency Threshold Multiplier: " << m_latencyThresholdMultiplier << "x\n";
+    std::cout << "Baseline Latency: " << (m_baselineLatency * 1000.0) << " ms\n\n";
+    
+    std::cout << "FLOW STATISTICS:\n";
+    std::cout << "  Total Flows Monitored: " << m_metrics.totalFlows << "\n";
+    std::cout << "  Flows Affected by Wormhole: " << m_metrics.flowsAffected << "\n";
+    std::cout << "  Flows with Detection: " << m_metrics.flowsDetected << "\n";
+    
+    if (m_metrics.totalFlows > 0) {
+        double affectedPercentage = (m_metrics.flowsAffected * 100.0) / m_metrics.totalFlows;
+        std::cout << "  Percentage of Flows Affected: " << affectedPercentage << "%\n";
+    }
+    
+    std::cout << "\nLATENCY ANALYSIS:\n";
+    std::cout << "  Average Normal Flow Latency: " << (m_metrics.avgNormalLatency * 1000.0) << " ms\n";
+    std::cout << "  Average Wormhole Flow Latency: " << (m_metrics.avgWormholeLatency * 1000.0) << " ms\n";
+    std::cout << "  Average Latency Increase: " << m_metrics.avgLatencyIncrease << "%\n";
+    
+    std::cout << "\nMITIGATION ACTIONS:\n";
+    std::cout << "  Route Changes Triggered: " << m_metrics.routeChanges << "\n";
+    std::cout << "  Nodes Blacklisted: " << m_blacklistedNodes.size() << "\n";
+    
+    std::cout << "===============================================\n\n";
+}
+
+void WormholeDetector::ExportDetectionResults(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[DETECTOR] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    // CSV Header
+    outFile << "Metric,Value\n";
+    outFile << "DetectionEnabled," << (m_detectionEnabled ? "true" : "false") << "\n";
+    outFile << "MitigationEnabled," << (m_mitigationEnabled ? "true" : "false") << "\n";
+    outFile << "LatencyThresholdMultiplier," << m_latencyThresholdMultiplier << "\n";
+    outFile << "BaselineLatency_ms," << (m_baselineLatency * 1000.0) << "\n";
+    outFile << "TotalFlows," << m_metrics.totalFlows << "\n";
+    outFile << "FlowsAffected," << m_metrics.flowsAffected << "\n";
+    outFile << "FlowsDetected," << m_metrics.flowsDetected << "\n";
+    outFile << "AffectedPercentage," << (m_metrics.totalFlows > 0 ? (m_metrics.flowsAffected * 100.0 / m_metrics.totalFlows) : 0.0) << "\n";
+    outFile << "AvgNormalLatency_ms," << (m_metrics.avgNormalLatency * 1000.0) << "\n";
+    outFile << "AvgWormholeLatency_ms," << (m_metrics.avgWormholeLatency * 1000.0) << "\n";
+    outFile << "AvgLatencyIncrease_percent," << m_metrics.avgLatencyIncrease << "\n";
+    outFile << "RouteChangesTriggered," << m_metrics.routeChanges << "\n";
+    outFile << "NodesBlacklisted," << m_blacklistedNodes.size() << "\n";
+    
+    outFile.close();
+    std::cout << "[DETECTOR] Detection results exported to " << filename << "\n";
+}
+
 } // namespace ns3
 
 // End of inline wormhole attack implementation
@@ -140353,6 +140730,12 @@ int main(int argc, char *argv[])
 	cmd.AddValue ("wormhole_verification_packet_size", "Verification flow packet size (bytes)", wormhole_verification_packet_size);
 	cmd.AddValue ("wormhole_verification_start_offset", "Seconds after attack start before verification flows begin", wormhole_verification_start_offset);
 	cmd.AddValue ("wormhole_verification_base_port", "Base UDP destination port for verification flows", wormhole_verification_base_port);
+	
+	// Wormhole Detection and Mitigation Parameters
+	cmd.AddValue ("enable_wormhole_detection", "Enable latency-based wormhole detection", enable_wormhole_detection);
+	cmd.AddValue ("enable_wormhole_mitigation", "Enable automatic mitigation (route changes)", enable_wormhole_mitigation);
+	cmd.AddValue ("detection_latency_threshold", "Latency multiplier for detection (e.g., 2.0 = 200%)", detection_latency_threshold);
+	cmd.AddValue ("detection_check_interval", "Seconds between detection checks", detection_check_interval);
 	cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
     cmd.AddValue ("routing_test", "routing_test", routing_test);
     cmd.AddValue ("routing_algorithm", "routing_algorithm", routing_algorithm);

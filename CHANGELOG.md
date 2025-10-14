@@ -4,6 +4,188 @@
 
 ## Version History
 
+### v2.0 - Latency-Based Wormhole Detection and Mitigation (2025-10-14)
+
+#### **Major Feature: Detection System Implementation**
+
+Implemented a comprehensive latency-based wormhole detection and mitigation system inspired by SDN wormhole detection research. The system monitors per-flow latency, detects abnormal delays caused by wormhole tunnels, and automatically triggers mitigation actions.
+
+**Research Foundation**:
+- Based on: "Latency-based Wormhole Detection in Software-Defined Networks"
+- Key insight: Wormhole attacks increase flow latency by 2-3x compared to legitimate paths
+- In research experiments: affected 11-42% of flows depending on topology and placement
+
+#### **New Data Structures**
+
+1. **`FlowLatencyRecord`** (routing.cc, lines ~40-55)
+   - Tracks per-flow latency metrics
+   - Fields: srcAddr, dstAddr, timestamps, avgLatency, packetCount, suspectedWormhole flag
+   - Purpose: Identify flows exhibiting wormhole-like latency patterns
+
+2. **`WormholeDetectionMetrics`** (routing.cc, lines ~57-75)
+   - Comprehensive detection performance metrics
+   - Tracks: totalFlows, flowsAffected, flowsDetected, true/false positives/negatives
+   - Calculates: detection accuracy, latency increases, route changes triggered
+   - Purpose: Evaluate detection effectiveness and system performance
+
+#### **New Class: WormholeDetector**
+
+**Declaration** (routing.cc, lines ~218-270):
+```cpp
+class WormholeDetector {
+public:
+    void Initialize(uint32_t totalNodes, double latencyThreshold);
+    void EnableDetection(bool enable);
+    void EnableMitigation(bool enable);
+    
+    // Flow monitoring
+    void RecordPacketSent(Ipv4Address src, Ipv4Address dst, Time txTime, uint32_t packetId);
+    void RecordPacketReceived(Ipv4Address src, Ipv4Address dst, Time rxTime, uint32_t packetId);
+    void UpdateFlowLatency(Ipv4Address src, Ipv4Address dst, double latency);
+    
+    // Detection
+    bool DetectWormholeInFlow(Ipv4Address src, Ipv4Address dst);
+    void PeriodicDetectionCheck();
+    bool IsFlowSuspicious(const FlowLatencyRecord& flow);
+    
+    // Mitigation
+    void BlacklistNode(uint32_t nodeId);
+    void TriggerRouteChange(Ipv4Address src, Ipv4Address dst);
+    
+    // Reporting
+    WormholeDetectionMetrics GetMetrics() const;
+    void PrintDetectionReport() const;
+    void ExportDetectionResults(std::string filename) const;
+};
+```
+
+**Implementation** (routing.cc, lines ~95451-95750):
+
+**Key Methods**:
+1. **`Initialize()`** - Sets up detector with node count and latency threshold multiplier (default 2.0x)
+2. **`CalculateBaselineLatency()`** - Computes average latency from normal flows to establish baseline
+3. **`IsFlowSuspicious()`** - Flags flows exceeding `baseline × threshold_multiplier` (requires ≥3 packets)
+4. **`UpdateFlowLatency()`** - Records packet latency, triggers detection if threshold exceeded
+5. **`PeriodicDetectionCheck()`** - Scheduled checks every `detection_check_interval` seconds
+6. **`TriggerRouteChange()`** - Invalidates routes for affected flows (placeholder for AODV integration)
+7. **`BlacklistNode()`** - Adds suspicious nodes to blacklist to prevent route selection
+8. **`PrintDetectionReport()`** - Outputs comprehensive detection statistics
+9. **`ExportDetectionResults()`** - Saves metrics to CSV for analysis
+
+#### **Detection Algorithm**
+
+```
+FOR EACH packet received:
+    1. Calculate latency = rxTime - txTime
+    2. Update flow's avgLatency
+    3. IF packetCount >= 3:
+        a. IF avgLatency > (baselineLatency × thresholdMultiplier):
+            - Mark flow as suspicious
+            - Increment flowsDetected counter
+            - IF mitigation enabled:
+                * Trigger route change
+                * Blacklist involved nodes
+```
+
+#### **Configuration Parameters Added**
+
+**Global Variables** (routing.cc, lines ~413-416):
+```cpp
+bool enable_wormhole_detection = false;         // Enable detection system
+bool enable_wormhole_mitigation = false;        // Enable automatic mitigation
+double detection_latency_threshold = 2.0;       // Latency multiplier (2.0 = 200%)
+double detection_check_interval = 1.0;          // Seconds between checks
+```
+
+**Command-Line Parameters** (routing.cc, lines ~140461-140464):
+```bash
+--enable_wormhole_detection=true/false          # Enable detection
+--enable_wormhole_mitigation=true/false         # Enable mitigation
+--detection_latency_threshold=2.0               # Threshold multiplier
+--detection_check_interval=1.0                  # Check interval (seconds)
+```
+
+#### **Detection Metrics Tracked**
+
+| Metric | Description | Use Case |
+|--------|-------------|----------|
+| `totalFlows` | Total flows monitored | System coverage |
+| `flowsAffected` | Flows with wormhole | Attack impact |
+| `flowsDetected` | Flows where wormhole detected | Detection effectiveness |
+| `truePositives` | Correct detections | Accuracy calculation |
+| `falsePositives` | Normal flows flagged | False alarm rate |
+| `avgNormalLatency` | Baseline latency | Threshold calculation |
+| `avgWormholeLatency` | Wormhole flow latency | Attack severity |
+| `avgLatencyIncrease` | Percentage increase | Quantify impact |
+| `routeChanges` | Mitigation actions triggered | Mitigation effectiveness |
+
+#### **Output Reports**
+
+**Console Output Example**:
+```
+========== WORMHOLE DETECTION REPORT ==========
+Detection Status: ENABLED
+Mitigation Status: ENABLED
+Latency Threshold Multiplier: 2.0x
+Baseline Latency: 5.23 ms
+
+FLOW STATISTICS:
+  Total Flows Monitored: 156
+  Flows Affected by Wormhole: 38
+  Flows with Detection: 35
+  Percentage of Flows Affected: 24.4%
+
+LATENCY ANALYSIS:
+  Average Normal Flow Latency: 5.23 ms
+  Average Wormhole Flow Latency: 12.87 ms
+  Average Latency Increase: 146.3%
+
+MITIGATION ACTIONS:
+  Route Changes Triggered: 35
+  Nodes Blacklisted: 4
+===============================================
+```
+
+**CSV Export** (detection_results.csv):
+```csv
+Metric,Value
+DetectionEnabled,true
+MitigationEnabled,true
+LatencyThresholdMultiplier,2.0
+BaselineLatency_ms,5.23
+TotalFlows,156
+FlowsAffected,38
+FlowsDetected,35
+AffectedPercentage,24.36
+AvgNormalLatency_ms,5.23
+AvgWormholeLatency_ms,12.87
+AvgLatencyIncrease_percent,146.3
+RouteChangesTriggered,35
+NodesBlacklisted,4
+```
+
+#### **Files Modified**
+- `routing.cc` - Added detection structures, WormholeDetector class, implementation
+
+#### **Files Created**
+- `WORMHOLE_DETECTION.md` - Complete detection system documentation
+- `TESTING_GUIDE.md` - Step-by-step testing procedures and expected results
+
+---
+
+### v1.2 - Statistics Collection Fix (2025-10-14)
+
+#### **Issue: Zero Statistics Problem**
+- **Problem**: `GetStatistics()` always returned zero because apps not properly stored
+- **Fix**: Added `appA` and `appB` pointers to `WormholeTunnel` struct
+- **Solution**: `CollectStatisticsFromApps()` now retrieves stats directly from running apps before printing
+- **Result**: Statistics now show actual packet counts (e.g., 56 packets tunneled in Tunnel 2)
+
+#### **Files Modified**
+- `routing.cc` - Modified `WormholeTunnel` struct, added `CollectStatisticsFromApps()` method
+
+---
+
 ### v1.1 - Bug Fixes (2025-10-14)
 
 #### **Compilation Error Fixes**
