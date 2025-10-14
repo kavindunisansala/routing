@@ -94756,9 +94756,9 @@ bool WormholeEndpointApp::InterceptPacket(Ptr<NetDevice> device,
         return false; // Not IPv4, let it through
     }
     
-    // Don't intercept our own tunnel traffic
-    if (device == m_tunnelSocket) {
-        return false;
+    // Don't intercept packets on the tunnel interface (P2P link to peer)
+    if (device && device->IsPointToPoint()) {
+        return false; // This is tunnel traffic, let it through
     }
     
     Ptr<Packet> copy = packet->Copy();
