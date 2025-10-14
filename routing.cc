@@ -184,6 +184,7 @@ private:
     void SelectRandomPairs(std::vector<uint32_t>& maliciousNodeIds);
     void SelectSequentialPairs(std::vector<uint32_t>& maliciousNodeIds);
     void DeployVerificationTraffic(double startTimeSec, double stopTimeSec);
+    void CollectStatisticsFromApps();
     Ipv4Address GetPrimaryAddress(Ptr<Node> node);
     
     std::vector<WormholeTunnel> m_tunnels;
@@ -94968,6 +94969,39 @@ void WormholeAttackManager::SetWormholeBehavior(bool dropPackets,
     m_tunnelDataPackets = tunnelData;
 }
 
+void WormholeAttackManager::CollectStatisticsFromApps() {
+    // Collect current statistics from all running wormhole applications
+    for (auto& tunnel : m_tunnels) {
+        // Get statistics from endpoint A
+        if (tunnel.endpointA) {
+            Ptr<WormholeEndpointApp> appA = tunnel.endpointA->GetApplication(0)->GetObject<WormholeEndpointApp>();
+            if (appA) {
+                WormholeStatistics statsA = appA->GetStatistics();
+                // Accumulate to tunnel stats (endpoint A's contribution)
+                tunnel.stats.packetsIntercepted += statsA.packetsIntercepted;
+                tunnel.stats.packetsTunneled += statsA.packetsTunneled;
+                tunnel.stats.packetsDropped += statsA.packetsDropped;
+                tunnel.stats.routingPacketsAffected += statsA.routingPacketsAffected;
+                tunnel.stats.dataPacketsAffected += statsA.dataPacketsAffected;
+            }
+        }
+        
+        // Get statistics from endpoint B
+        if (tunnel.endpointB) {
+            Ptr<WormholeEndpointApp> appB = tunnel.endpointB->GetApplication(0)->GetObject<WormholeEndpointApp>();
+            if (appB) {
+                WormholeStatistics statsB = appB->GetStatistics();
+                // Accumulate to tunnel stats (endpoint B's contribution)
+                tunnel.stats.packetsIntercepted += statsB.packetsIntercepted;
+                tunnel.stats.packetsTunneled += statsB.packetsTunneled;
+                tunnel.stats.packetsDropped += statsB.packetsDropped;
+                tunnel.stats.routingPacketsAffected += statsB.routingPacketsAffected;
+                tunnel.stats.dataPacketsAffected += statsB.dataPacketsAffected;
+            }
+        }
+    }
+}
+
 void WormholeAttackManager::ConfigureVerificationTraffic(bool enable,
                                                          uint32_t flowCount,
                                                          double packetRate,
@@ -95029,6 +95063,9 @@ void WormholeAttackManager::ExportStatistics(std::string filename) const {
 }
 
 void WormholeAttackManager::PrintStatistics() const {
+    // First, collect current statistics from all running applications
+    const_cast<WormholeAttackManager*>(this)->CollectStatisticsFromApps();
+    
     std::cout << "\n========== WORMHOLE ATTACK STATISTICS ==========\n";
     std::cout << "Total Tunnels: " << m_tunnels.size() << "\n\n";
     for (size_t i = 0; i < m_tunnels.size(); ++i) {
