@@ -130,6 +130,9 @@ private:
     bool ReceivePacket(Ptr<NetDevice> device, Ptr<const Packet> packet, 
                        uint16_t protocol, const Address &from,
                        const Address &to, NetDevice::PacketType packetType);
+    bool InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet,
+                        uint16_t protocol, const Address &from,
+                        const Address &to, NetDevice::PacketType packetType);
     void ReceiveAODVMessage(Ptr<Socket> socket);
     void SendFakeRREP(Ipv4Address requester);
     void SendFakeRouteAdvertisement();
@@ -94466,6 +94469,18 @@ void WormholeEndpointApp::StartApplication(void) {
 
     std::cout << "✓ AODV socket ready for broadcasting fake RREPs" << std::endl;
     
+    // Install promiscuous mode to intercept packets attracted by fake routes
+    std::cout << "Installing packet interception on " << GetNode()->GetNDevices() << " devices..." << std::endl;
+    for (uint32_t i = 0; i < GetNode()->GetNDevices(); ++i) {
+        Ptr<NetDevice> device = GetNode()->GetDevice(i);
+        if (device) {
+            // Set promiscuous callback to intercept ALL packets
+            device->SetPromiscReceiveCallback(
+                MakeCallback(&WormholeEndpointApp::InterceptPacket, this));
+            std::cout << "  ✓ Interception enabled on device " << i << std::endl;
+        }
+    }
+    
     // Send IMMEDIATE test broadcast to verify it works
     std::cout << "Sending immediate test broadcast..." << std::endl;
     BroadcastFakeRREP();
@@ -94730,6 +94745,101 @@ void WormholeEndpointApp::PeriodicBroadcast() {
     Simulator::Schedule(Seconds(2.0), &WormholeEndpointApp::PeriodicBroadcast, this);
 }
 
+bool WormholeEndpointApp::InterceptPacket(Ptr<NetDevice> device,
+                                          Ptr<const Packet> packet,
+                                          uint16_t protocol,
+                                          const Address &from,
+                                          const Address &to,
+                                          NetDevice::PacketType packetType) {
+    // Only intercept IPv4 packets
+    if (protocol != 0x0800) {
+        return false; // Not IPv4, let it through
+    }
+    
+    // Don't intercept our own tunnel traffic
+    if (device == m_tunnelSocket) {
+        return false;
+    }
+    
+    Ptr<Packet> copy = packet->Copy();
+    if (copy->GetSize() < 20) {
+        return false;
+    }
+    
+    Ipv4Header ipHeader;
+    copy->RemoveHeader(ipHeader);
+    
+    Ipv4Address srcAddr = ipHeader.GetSource();
+    Ipv4Address dstAddr = ipHeader.GetDestination();
+    
+    // Don't intercept packets we originated
+    Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4>();
+    if (ipv4) {
+        for (uint32_t i = 0; i < ipv4->GetNInterfaces(); ++i) {
+            for (uint32_t j = 0; j < ipv4->GetNAddresses(i); ++j) {
+                if (ipv4->GetAddress(i, j).GetLocal() == srcAddr) {
+                    return false; // Our own packet
+                }
+            }
+        }
+    }
+    
+    // Check if packet is destined for our peer (or going through us to reach peer)
+    // This means the fake route is working!
+    bool shouldTunnel = false;
+    
+    // Tunnel if destination is near our peer's subnet
+    if (m_peerAddress != Ipv4Address::GetZero()) {
+        // Simple heuristic: if packet is not for us, tunnel it to peer
+        // The fake RREP makes nodes think we're the best path
+        shouldTunnel = true;
+        
+        // But don't tunnel AODV routing packets
+        if (ipHeader.GetProtocol() == 17) { // UDP
+            UdpHeader udpHeader;
+            if (copy->GetSize() >= 8) {
+                copy->PeekHeader(udpHeader);
+                if (udpHeader.GetDestinationPort() == 654) {
+                    shouldTunnel = false; // Don't tunnel AODV
+                }
+            }
+        }
+    }
+    
+    if (shouldTunnel) {
+        m_stats.packetsIntercepted++;
+        m_stats.dataPacketsAffected++;
+        
+        if (m_stats.packetsIntercepted <= 10) {
+            std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                      << " intercepted packet: " << srcAddr << " -> " << dstAddr
+                      << " (Intercept #" << m_stats.packetsIntercepted << ")" << std::endl;
+        }
+        
+        // Tunnel the packet to peer
+        if (m_tunnelSocket && m_peerAddress != Ipv4Address::GetZero()) {
+            Ptr<Packet> tunnelCopy = packet->Copy();
+            int sent = m_tunnelSocket->SendTo(tunnelCopy, 0, InetSocketAddress(m_peerAddress, 9999));
+            
+            if (sent > 0) {
+                m_stats.packetsTunneled++;
+                if (m_stats.packetsTunneled <= 10) {
+                    std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
+                              << " tunneled packet to peer (Tunnel #" << m_stats.packetsTunneled << ")" << std::endl;
+                }
+            }
+        }
+        
+        // Drop the packet (don't let it route normally)
+        if (m_dropPackets) {
+            m_stats.packetsDropped++;
+            return true; // Consume packet
+        }
+    }
+    
+    return false; // Let packet continue normally
+}
+
 void WormholeEndpointApp::PeriodicAttack() {
     SendFakeRouteAdvertisement();
     Simulator::Schedule(Seconds(0.5), &WormholeEndpointApp::PeriodicAttack, this);
@@ -94740,9 +94850,33 @@ void WormholeEndpointApp::HandleTunneledPacket(Ptr<Socket> socket) {
     Address from;
     while ((packet = socket->RecvFrom(from))) {
         m_stats.packetsTunneled++;
-        std::cout << "[WORMHOLE] Node " << GetNode()->GetId() 
-                  << " received tunneled packet from peer (Total: " 
-                  << m_stats.packetsTunneled << ")" << std::endl;
+        
+        if (m_stats.packetsTunneled <= 10) {
+            std::cout << "[WORMHOLE] Node " << GetNode()->GetId() 
+                      << " received tunneled packet from peer #" 
+                      << m_stats.packetsTunneled << " - re-injecting into network" << std::endl;
+        }
+        
+        // Re-inject the packet into the local network
+        // This completes the wormhole: packet enters at one end, exits at the other
+        Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4>();
+        if (ipv4) {
+            // Get the first non-loopback interface
+            for (uint32_t i = 1; i < ipv4->GetNInterfaces(); ++i) {
+                Ptr<NetDevice> device = ipv4->GetNetDevice(i);
+                if (device && !device->IsPointToPoint()) {
+                    // Send the packet out on this interface
+                    // This makes it appear as if the packet originated from this node
+                    Mac48Address dest = Mac48Address::GetBroadcast();
+                    device->Send(packet, dest, 0x0800); // 0x0800 = IPv4
+                    
+                    if (m_stats.packetsTunneled <= 10) {
+                        std::cout << "[WORMHOLE] Packet re-injected on interface " << i << std::endl;
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
 
