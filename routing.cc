@@ -94463,10 +94463,12 @@ void WormholeEndpointApp::StartApplication(void) {
 
     std::cout << "✓ AODV socket ready for broadcasting fake RREPs" << std::endl;
     
-    // SIMPLIFIED APPROACH: Broadcast fake RREP packets periodically
-    // This advertises that we have a 1-hop route to our peer
+    // Send IMMEDIATE test broadcast to verify it works
+    std::cout << "Sending immediate test broadcast..." << std::endl;
+    BroadcastFakeRREP();
+    
+    // Schedule periodic broadcasts
     double broadcastInterval = 2.0; // Broadcast every 2 seconds
-    Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::BroadcastFakeRREP, this);
     Simulator::Schedule(Seconds(broadcastInterval), &WormholeEndpointApp::PeriodicBroadcast, this);
     
     std::cout << "✓ Fake RREP broadcast scheduled (interval: " << broadcastInterval << "s)" << std::endl;
@@ -94660,7 +94662,20 @@ void WormholeEndpointApp::SendFakeRouteAdvertisement() {
 }
 
 void WormholeEndpointApp::BroadcastFakeRREP() {
-    if (!m_peer || m_peerAddress == Ipv4Address::GetZero()) return;
+    if (!m_peer) {
+        std::cerr << "[WORMHOLE-ERROR] Node " << GetNode()->GetId() << " has no peer!" << std::endl;
+        return;
+    }
+    
+    if (m_peerAddress == Ipv4Address::GetZero()) {
+        std::cerr << "[WORMHOLE-ERROR] Node " << GetNode()->GetId() << " peer address is 0.0.0.0!" << std::endl;
+        return;
+    }
+    
+    if (!m_aodvSocket) {
+        std::cerr << "[WORMHOLE-ERROR] Node " << GetNode()->GetId() << " AODV socket is NULL!" << std::endl;
+        return;
+    }
     
     m_stats.packetsIntercepted++; // Count broadcasts as "interceptions"
     
@@ -94696,11 +94711,14 @@ void WormholeEndpointApp::BroadcastFakeRREP() {
     
     Ptr<Packet> replyPacket = Create<Packet>(fakeRREP, 24);
     
-    if (m_aodvSocket) {
-        // Broadcast to all nodes
-        m_aodvSocket->SendTo(replyPacket, 0, InetSocketAddress(Ipv4Address("255.255.255.255"), 654));
+    // Broadcast to all nodes on AODV port
+    int sent = m_aodvSocket->SendTo(replyPacket, 0, InetSocketAddress(Ipv4Address("255.255.255.255"), 654));
+    
+    if (sent < 0) {
+        std::cerr << "[WORMHOLE-ERROR] Failed to send broadcast! Error code: " << sent << std::endl;
+    } else {
         m_stats.routingPacketsAffected++;
-        std::cout << "[WORMHOLE] Fake RREP broadcast sent" << std::endl;
+        std::cout << "[WORMHOLE] Fake RREP broadcast sent successfully (" << sent << " bytes)" << std::endl;
     }
 }
 
