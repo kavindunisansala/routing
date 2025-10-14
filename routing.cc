@@ -94460,15 +94460,29 @@ void WormholeEndpointApp::StartApplication(void) {
     m_aodvSocket->SetAllowBroadcast(true);
 
     // Install promiscuous receive callback on all net devices to intercept AODV packets
-    for (uint32_t i = 0; i < GetNode()->GetNDevices(); ++i) {
+    uint32_t deviceCount = GetNode()->GetNDevices();
+    std::cout << "Node " << GetNode()->GetId() << " has " << deviceCount << " devices" << std::endl;
+    
+    for (uint32_t i = 0; i < deviceCount; ++i) {
         Ptr<NetDevice> device = GetNode()->GetDevice(i);
         if (device) {
-            device->SetPromiscReceiveCallback(MakeCallback(&WormholeEndpointApp::ReceivePacket, this));
-            std::cout << "✓ Installed promiscuous callback on device " << i << std::endl;
+            std::cout << "  Device " << i << " type: " << device->GetInstanceTypeId().GetName() << std::endl;
+            
+            // Set promiscuous callback
+            bool success = device->SetPromiscReceiveCallback(
+                MakeCallback(&WormholeEndpointApp::ReceivePacket, this));
+            
+            if (success) {
+                std::cout << "  ✓ Installed promiscuous callback on device " << i << std::endl;
+            } else {
+                std::cout << "  ✗ FAILED to install promiscuous callback on device " << i << std::endl;
+            }
+        } else {
+            std::cout << "  ✗ Device " << i << " is NULL!" << std::endl;
         }
     }
     
-    std::cout << "✓ AODV interception ready on all network interfaces" << std::endl;
+    std::cout << "✓ AODV interception ready on " << deviceCount << " network interface(s)" << std::endl;
     
     // NOTE: We do NOT send periodic fake route advertisements anymore!
     // Instead, we intercept RREQs and respond with fake RREPs on-demand.
