@@ -465,39 +465,6 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("vanet");
 
-// Forward declarations for global node containers
-extern NodeContainer Nodes;
-extern NodeContainer RSU_Nodes;
-extern uint32_t N_Vehicles;
-
-// Helper function to convert node ID to IP address for detection system
-Ipv4Address GetIpFromNodeId(uint32_t nodeId) {
-    try {
-        if (nodeId < N_Vehicles && nodeId < Nodes.GetN()) {
-            // Vehicle node
-            Ptr<Ipv4> ipv4 = Nodes.Get(nodeId)->GetObject<Ipv4>();
-            if (ipv4 && ipv4->GetNInterfaces() > 1) {
-                return ipv4->GetAddress(1,0).GetLocal();
-            }
-        } else if (nodeId >= N_Vehicles) {
-            // RSU node
-            uint32_t rsuIndex = nodeId - N_Vehicles;
-            if (rsuIndex < RSU_Nodes.GetN()) {
-                Ptr<Ipv4> ipv4 = RSU_Nodes.Get(rsuIndex)->GetObject<Ipv4>();
-                if (ipv4) {
-                    uint32_t interfaceIndex = (N_Vehicles > 0) ? 1 : 0;
-                    if (ipv4->GetNInterfaces() > interfaceIndex) {
-                        return ipv4->GetAddress(interfaceIndex, 0).GetLocal();
-                    }
-                }
-            }
-        }
-    } catch (...) {
-        // Return invalid address on error
-    }
-    return Ipv4Address("0.0.0.0");
-}
-
 class CustomDataTag : public Tag {
 public:
 
@@ -96584,6 +96551,28 @@ bool X_nodes[total_size+2];
     uint32_t nid = uint32_t(no->GetId());
     while ((packet = socket->RecvFrom(from)))
     {
+      // Add wormhole detection hook for packet receiving
+      if (g_wormholeDetector != nullptr && enable_wormhole_detection) {
+          try {
+              InetSocketAddress inetAddr = InetSocketAddress::ConvertFrom(from);
+              Ipv4Address sourceIp = inetAddr.GetIpv4();
+              
+              Ptr<Ipv4> ipv4 = no->GetObject<Ipv4>();
+              if (ipv4 != nullptr && ipv4->GetNInterfaces() > 1) {
+                  Ipv4Address destIp = ipv4->GetAddress(1, 0).GetLocal();
+                  
+                  // Use packet UID as packet ID for matching
+                  uint32_t packetId = packet->GetUid();
+                  Time rxTime = Simulator::Now();
+                  
+                  g_wormholeDetector->RecordPacketReceived(sourceIp, destIp, rxTime, packetId);
+                  //std::cout << "[HOOK] Packet " << packetId << " received from " << sourceIp << " to " << destIp << " at " << rxTime.GetSeconds() << "s\n";
+              }
+          } catch (...) {
+              // Silently ignore detection errors to not break simulation
+          }
+      }
+      
       //NS_LOG_INFO(PURPLE_CODE << "HandleReadOne : Received a Packet of size: " << packet->GetSize() << " at time " << Now().GetSeconds() << END_CODE);
       NS_LOG_INFO(packet->ToString());
       
@@ -113351,6 +113340,26 @@ bool X_nodes[total_size+2];
   {
     //cout<<m_send_socket<<endl;
     NS_LOG_FUNCTION (this << packet << destination << port);
+    
+    // Add wormhole detection hook for packet sending
+    if (g_wormholeDetector != nullptr && enable_wormhole_detection) {
+        try {
+            uint32_t packetId = packet->GetUid();  // Use packet UID for matching
+            Ptr<Node> node = m_send_socket->GetNode();
+            if (node != nullptr) {
+                Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+                if (ipv4 != nullptr && ipv4->GetNInterfaces() > 1) {
+                    Ipv4Address sourceIp = ipv4->GetAddress(1, 0).GetLocal();
+                    Time txTime = Simulator::Now();
+                    g_wormholeDetector->RecordPacketSent(sourceIp, destination, txTime, packetId);
+                    //std::cout << "[HOOK] Packet " << packetId << " sent from " << sourceIp << " to " << destination << " at " << txTime.GetSeconds() << "s\n";
+                }
+            }
+        } catch (...) {
+            // Silently ignore detection errors to not break simulation
+        }
+    }
+    
     m_send_socket->Connect(InetSocketAddress(Ipv4Address::ConvertFrom(destination), port));
     int x = m_send_socket->Send(packet);
     if (x == -1)
