@@ -94493,28 +94493,27 @@ void WormholeEndpointApp::StopApplication(void) {
     }
 }
 
-bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device, 
+bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
                                         Ptr<const Packet> packet,
                                         uint16_t protocol, 
                                         const Address &from,
                                         const Address &to,
                                         NetDevice::PacketType packetType) {
-    // Debug: Log all received packets
-    static int debugCount = 0;
-    if (debugCount < 10) {
+    // Debug: Count all packets received (only first 50 to avoid spam)
+    static int totalPackets = 0;
+    totalPackets++;
+    if (totalPackets <= 50) {
         std::cout << "[WORMHOLE-DEBUG] Node " << GetNode()->GetId()
-                  << " received packet: protocol=0x" << std::hex << protocol << std::dec
+                  << " callback #" << totalPackets
+                  << ": protocol=0x" << std::hex << protocol << std::dec
                   << " size=" << packet->GetSize()
-                  << " packetType=" << (int)packetType << std::endl;
-        debugCount++;
+                  << " type=" << (int)packetType << std::endl;
     }
     
     // Only process IPv4 packets
     if (protocol != 0x0800) {
         return false;
-    }
-    
-    Ptr<Packet> copy = packet->Copy();
+    }    Ptr<Packet> copy = packet->Copy();
     Ipv4Header ipHeader;
     
     if (copy->GetSize() < 20) {
@@ -94535,12 +94534,15 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
     
     copy->RemoveHeader(udpHeader);
     
-    // Debug: Log UDP ports
-    if (debugCount < 20) {
+    // Debug: Log all UDP packets to see if AODV port 654 is being used
+    static int udpCount = 0;
+    udpCount++;
+    if (udpCount <= 30) {
         std::cout << "[WORMHOLE-DEBUG] Node " << GetNode()->GetId()
-                  << " UDP packet: src=" << udpHeader.GetSourcePort()
-                  << " dst=" << udpHeader.GetDestinationPort() << std::endl;
-        debugCount++;
+                  << " UDP #" << udpCount
+                  << ": src=" << udpHeader.GetSourcePort()
+                  << " dst=" << udpHeader.GetDestinationPort()
+                  << " size=" << copy->GetSize() << std::endl;
     }
     
     // Only process AODV packets (port 654)
