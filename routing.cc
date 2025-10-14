@@ -131,6 +131,8 @@ private:
     void ReceiveAODVMessage(Ptr<Socket> socket);
     void SendFakeRREP(Ipv4Address requester);
     void SendFakeRouteAdvertisement();
+    void BroadcastFakeRREP();
+    void PeriodicBroadcast();
     void PeriodicAttack();
     void HandleTunneledPacket(Ptr<Socket> socket);
     void TunnelPacket(Ptr<Packet> packet, uint16_t protocol);
@@ -94459,36 +94461,15 @@ void WormholeEndpointApp::StartApplication(void) {
     }
     m_aodvSocket->SetAllowBroadcast(true);
 
-    // Install promiscuous receive callback on all net devices to intercept AODV packets
-    uint32_t deviceCount = GetNode()->GetNDevices();
-    std::cout << "Node " << GetNode()->GetId() << " has " << deviceCount << " devices" << std::endl;
+    std::cout << "✓ AODV socket ready for broadcasting fake RREPs" << std::endl;
     
-    for (uint32_t i = 0; i < deviceCount; ++i) {
-        Ptr<NetDevice> device = GetNode()->GetDevice(i);
-        if (device) {
-            std::cout << "  Device " << i << " type: " << device->GetInstanceTypeId().GetName() << std::endl;
-            
-            // Set promiscuous callback
-            bool success = device->SetPromiscReceiveCallback(
-                MakeCallback(&WormholeEndpointApp::ReceivePacket, this));
-            
-            if (success) {
-                std::cout << "  ✓ Installed promiscuous callback on device " << i << std::endl;
-            } else {
-                std::cout << "  ✗ FAILED to install promiscuous callback on device " << i << std::endl;
-            }
-        } else {
-            std::cout << "  ✗ Device " << i << " is NULL!" << std::endl;
-        }
-    }
+    // SIMPLIFIED APPROACH: Broadcast fake RREP packets periodically
+    // This advertises that we have a 1-hop route to our peer
+    double broadcastInterval = 2.0; // Broadcast every 2 seconds
+    Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::BroadcastFakeRREP, this);
+    Simulator::Schedule(Seconds(broadcastInterval), &WormholeEndpointApp::PeriodicBroadcast, this);
     
-    std::cout << "✓ AODV interception ready on " << deviceCount << " network interface(s)" << std::endl;
-    
-    // NOTE: We do NOT send periodic fake route advertisements anymore!
-    // Instead, we intercept RREQs and respond with fake RREPs on-demand.
-    // This ensures we catch RREQs before routes are established.
-    
-    std::cout << "✓ Wormhole configured to intercept and respond to RREQs" << std::endl;
+    std::cout << "✓ Fake RREP broadcast scheduled (interval: " << broadcastInterval << "s)" << std::endl;
     std::cout << "=== Wormhole attack ACTIVE on node " << GetNode()->GetId() << " ===" << std::endl << std::endl;
 }
 
@@ -94676,6 +94657,56 @@ void WormholeEndpointApp::SendFakeRouteAdvertisement() {
             InetSocketAddress(Ipv4Address("255.255.255.255"), 654));
     }
     m_stats.routingPacketsAffected++;
+}
+
+void WormholeEndpointApp::BroadcastFakeRREP() {
+    if (!m_peer || m_peerAddress == Ipv4Address::GetZero()) return;
+    
+    m_stats.packetsIntercepted++; // Count broadcasts as "interceptions"
+    
+    std::cout << "[WORMHOLE] Node " << GetNode()->GetId() 
+              << " broadcasting fake RREP for peer " << m_peer->GetId()
+              << " @ " << m_peerAddress 
+              << " (Broadcast #" << m_stats.packetsIntercepted << ")" << std::endl;
+    
+    // Create AODV RREP packet advertising 1-hop route to peer
+    uint8_t fakeRREP[24];
+    memset(fakeRREP, 0, sizeof(fakeRREP));
+    fakeRREP[0] = 2;   // Type: RREP
+    fakeRREP[1] = 0;   // Flags
+    fakeRREP[2] = 0;   // Prefix size
+    fakeRREP[3] = 0;   // Reserved
+    fakeRREP[4] = 1;   // Hop count = 1 (fake short path!)
+    
+    // Destination IP (bytes 5-8): our peer's address
+    uint32_t peerIp = m_peerAddress.Get();
+    memcpy(&fakeRREP[5], &peerIp, 4);
+    
+    // Destination sequence number (bytes 9-12): high value to look fresh
+    uint32_t destSeq = 999999;
+    memcpy(&fakeRREP[9], &destSeq, 4);
+    
+    // Originator IP (bytes 13-16): broadcast to all
+    uint32_t originIp = Ipv4Address("0.0.0.0").Get();
+    memcpy(&fakeRREP[13], &originIp, 4);
+    
+    // Lifetime (bytes 17-20): long lifetime
+    uint32_t lifetime = 10000;
+    memcpy(&fakeRREP[17], &lifetime, 4);
+    
+    Ptr<Packet> replyPacket = Create<Packet>(fakeRREP, 24);
+    
+    if (m_aodvSocket) {
+        // Broadcast to all nodes
+        m_aodvSocket->SendTo(replyPacket, 0, InetSocketAddress(Ipv4Address("255.255.255.255"), 654));
+        m_stats.routingPacketsAffected++;
+        std::cout << "[WORMHOLE] Fake RREP broadcast sent" << std::endl;
+    }
+}
+
+void WormholeEndpointApp::PeriodicBroadcast() {
+    BroadcastFakeRREP();
+    Simulator::Schedule(Seconds(2.0), &WormholeEndpointApp::PeriodicBroadcast, this);
 }
 
 void WormholeEndpointApp::PeriodicAttack() {
