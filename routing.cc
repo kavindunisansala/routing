@@ -92,6 +92,8 @@ struct WormholeStatistics {
 struct WormholeTunnel {
     Ptr<Node> endpointA;              // First endpoint node
     Ptr<Node> endpointB;              // Second endpoint node
+    Ptr<WormholeEndpointApp> appA;    // Application on endpoint A
+    Ptr<WormholeEndpointApp> appB;    // Application on endpoint B
     uint32_t nodeIdA;                 // Node ID of endpoint A
     uint32_t nodeIdB;                 // Node ID of endpoint B
     NetDeviceContainer tunnelDevices; // Point-to-point devices for tunnel
@@ -94913,6 +94915,11 @@ void WormholeAttackManager::ActivateAttack(Time startTime, Time stopTime) {
         WormholeTunnel& tunnel = m_tunnels[i];
         Ptr<WormholeEndpointApp> appA = CreateObject<WormholeEndpointApp>();
         Ptr<WormholeEndpointApp> appB = CreateObject<WormholeEndpointApp>();
+        
+        // Store app pointers in tunnel structure for easy access
+        tunnel.appA = appA;
+        tunnel.appB = appB;
+        
         Ipv4Address addrB = tunnel.tunnelInterfaces.GetAddress(1);
         Ipv4Address addrA = tunnel.tunnelInterfaces.GetAddress(0);
         appA->SetPeer(tunnel.endpointB, addrB);
@@ -94972,32 +94979,27 @@ void WormholeAttackManager::SetWormholeBehavior(bool dropPackets,
 void WormholeAttackManager::CollectStatisticsFromApps() {
     // Collect current statistics from all running wormhole applications
     for (auto& tunnel : m_tunnels) {
+        // Reset tunnel stats before collecting fresh data
+        tunnel.stats = WormholeStatistics();
+        
         // Get statistics from endpoint A
-        if (tunnel.endpointA) {
-            Ptr<WormholeEndpointApp> appA = tunnel.endpointA->GetApplication(0)->GetObject<WormholeEndpointApp>();
-            if (appA) {
-                WormholeStatistics statsA = appA->GetStatistics();
-                // Accumulate to tunnel stats (endpoint A's contribution)
-                tunnel.stats.packetsIntercepted += statsA.packetsIntercepted;
-                tunnel.stats.packetsTunneled += statsA.packetsTunneled;
-                tunnel.stats.packetsDropped += statsA.packetsDropped;
-                tunnel.stats.routingPacketsAffected += statsA.routingPacketsAffected;
-                tunnel.stats.dataPacketsAffected += statsA.dataPacketsAffected;
-            }
+        if (tunnel.appA) {
+            WormholeStatistics statsA = tunnel.appA->GetStatistics();
+            tunnel.stats.packetsIntercepted += statsA.packetsIntercepted;
+            tunnel.stats.packetsTunneled += statsA.packetsTunneled;
+            tunnel.stats.packetsDropped += statsA.packetsDropped;
+            tunnel.stats.routingPacketsAffected += statsA.routingPacketsAffected;
+            tunnel.stats.dataPacketsAffected += statsA.dataPacketsAffected;
         }
         
         // Get statistics from endpoint B
-        if (tunnel.endpointB) {
-            Ptr<WormholeEndpointApp> appB = tunnel.endpointB->GetApplication(0)->GetObject<WormholeEndpointApp>();
-            if (appB) {
-                WormholeStatistics statsB = appB->GetStatistics();
-                // Accumulate to tunnel stats (endpoint B's contribution)
-                tunnel.stats.packetsIntercepted += statsB.packetsIntercepted;
-                tunnel.stats.packetsTunneled += statsB.packetsTunneled;
-                tunnel.stats.packetsDropped += statsB.packetsDropped;
-                tunnel.stats.routingPacketsAffected += statsB.routingPacketsAffected;
-                tunnel.stats.dataPacketsAffected += statsB.dataPacketsAffected;
-            }
+        if (tunnel.appB) {
+            WormholeStatistics statsB = tunnel.appB->GetStatistics();
+            tunnel.stats.packetsIntercepted += statsB.packetsIntercepted;
+            tunnel.stats.packetsTunneled += statsB.packetsTunneled;
+            tunnel.stats.packetsDropped += statsB.packetsDropped;
+            tunnel.stats.routingPacketsAffected += statsB.routingPacketsAffected;
+            tunnel.stats.dataPacketsAffected += statsB.dataPacketsAffected;
         }
     }
 }
