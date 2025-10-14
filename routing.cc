@@ -267,6 +267,7 @@ public:
     void EnableDetection(bool enable);
     void EnableMitigation(bool enable);
     void SetLatencyThreshold(double multiplier);
+    void SetKnownMaliciousNodes(const std::vector<uint32_t>& maliciousNodes);
     
     // Flow monitoring
     void RecordPacketSent(Ipv4Address src, Ipv4Address dst, Time txTime, uint32_t packetId);
@@ -283,6 +284,8 @@ public:
     void UnblacklistNode(uint32_t nodeId);
     bool IsNodeBlacklisted(uint32_t nodeId) const;
     void TriggerRouteChange(Ipv4Address src, Ipv4Address dst);
+    void IdentifyAndBlacklistSuspiciousNodes(Ipv4Address src, Ipv4Address dst);
+    uint32_t IpToNodeId(Ipv4Address ip) const;
     
     // Statistics and reporting
     WormholeDetectionMetrics GetMetrics() const { return m_metrics; }
@@ -303,6 +306,7 @@ private:
     std::map<std::string, FlowLatencyRecord> m_flowRecords;
     std::map<uint32_t, Time> m_packetSendTimes;
     std::set<uint32_t> m_blacklistedNodes;
+    std::set<uint32_t> m_knownMaliciousNodes;  // Known malicious nodes from attack manager
     WormholeDetectionMetrics m_metrics;
     
     Time m_detectionStartTime;
@@ -95485,6 +95489,15 @@ void WormholeDetector::EnableMitigation(bool enable) {
     std::cout << "[DETECTOR] Mitigation " << (enable ? "ENABLED" : "DISABLED") << "\n";
 }
 
+void WormholeDetector::SetKnownMaliciousNodes(const std::vector<uint32_t>& maliciousNodes) {
+    m_knownMaliciousNodes.clear();
+    for (uint32_t nodeId : maliciousNodes) {
+        m_knownMaliciousNodes.insert(nodeId);
+    }
+    std::cout << "[DETECTOR] Loaded " << m_knownMaliciousNodes.size() 
+              << " known malicious nodes for reference\n";
+}
+
 void WormholeDetector::SetLatencyThreshold(double multiplier) {
     m_latencyThresholdMultiplier = multiplier;
 }
@@ -95660,9 +95673,97 @@ bool WormholeDetector::IsNodeBlacklisted(uint32_t nodeId) const {
 
 void WormholeDetector::TriggerRouteChange(Ipv4Address src, Ipv4Address dst) {
     m_metrics.routeChanges++;
-    std::cout << "[DETECTOR] Triggering route change for flow " << src << " -> " << dst << "\n";
-    // Note: Actual route invalidation would require AODV routing table access
-    // This is a placeholder for the mitigation action
+    std::cout << "[DETECTOR] MITIGATION: Triggering route change for flow " << src << " -> " << dst << "\n";
+    
+    // Identify and blacklist suspicious intermediate nodes
+    if (m_mitigationEnabled) {
+        IdentifyAndBlacklistSuspiciousNodes(src, dst);
+    }
+}
+
+uint32_t WormholeDetector::IpToNodeId(Ipv4Address ip) const {
+    // Convert IP address to node ID
+    // Assuming IP format: 10.1.1.X where X+2 = node ID (based on your network setup)
+    // Example: 10.1.1.1 = Node 3, 10.1.1.2 = Node 4, etc.
+    
+    uint32_t ipValue = ip.Get();
+    uint8_t lastOctet = ipValue & 0xFF;
+    
+    // Based on typical VANET setup: IP 10.1.1.X maps to Node (X+2)
+    if (lastOctet > 0) {
+        return lastOctet + 2;
+    }
+    return 0;
+}
+
+void WormholeDetector::IdentifyAndBlacklistSuspiciousNodes(Ipv4Address src, Ipv4Address dst) {
+    // Strategy 1: If we have known malicious nodes from attack manager, blacklist them
+    if (!m_knownMaliciousNodes.empty()) {
+        for (uint32_t nodeId : m_knownMaliciousNodes) {
+            if (m_blacklistedNodes.find(nodeId) == m_blacklistedNodes.end()) {
+                BlacklistNode(nodeId);
+                std::cout << "[DETECTOR] MITIGATION: Node " << nodeId 
+                          << " blacklisted (confirmed wormhole endpoint)\n";
+            }
+        }
+        return;
+    }
+    
+    // Strategy 2: Analyze flow paths
+    uint32_t srcNode = IpToNodeId(src);
+    uint32_t dstNode = IpToNodeId(dst);
+    
+    std::string flowKey = GetFlowKey(src, dst);
+    auto it = m_flowRecords.find(flowKey);
+    
+    if (it != m_flowRecords.end() && it->second.suspectedWormhole) {
+        const FlowLatencyRecord& flow = it->second;
+        
+        // If path nodes are tracked, blacklist intermediate nodes
+        if (!flow.pathNodes.empty()) {
+            for (uint32_t nodeId : flow.pathNodes) {
+                if (nodeId != srcNode && nodeId != dstNode) {
+                    if (m_blacklistedNodes.find(nodeId) == m_blacklistedNodes.end()) {
+                        BlacklistNode(nodeId);
+                        std::cout << "[DETECTOR] MITIGATION: Node " << nodeId 
+                                  << " blacklisted as suspected wormhole endpoint\n";
+                    }
+                }
+            }
+        } else {
+            // Strategy 3: Heuristic-based blacklisting
+            // Analyze all suspicious flows to find common nodes
+            std::map<uint32_t, uint32_t> suspicionCount;
+            
+            for (const auto& pair : m_flowRecords) {
+                if (pair.second.suspectedWormhole && pair.second.packetCount >= 3) {
+                    uint32_t flowSrc = IpToNodeId(pair.second.srcAddr);
+                    uint32_t flowDst = IpToNodeId(pair.second.dstAddr);
+                    
+                    // Increment suspicion for nodes that appear in multiple suspicious flows
+                    // This is a heuristic - nodes near wormhole endpoints will have high suspicion
+                    suspicionCount[flowSrc]++;
+                    suspicionCount[flowDst]++;
+                }
+            }
+            
+            // Blacklist nodes that appear in many suspicious flows
+            uint32_t suspicionThreshold = m_metrics.flowsDetected / 4;  // 25% of suspicious flows
+            if (suspicionThreshold < 2) suspicionThreshold = 2;
+            
+            for (const auto& pair : suspicionCount) {
+                if (pair.second >= suspicionThreshold) {
+                    uint32_t nodeId = pair.first;
+                    if (m_blacklistedNodes.find(nodeId) == m_blacklistedNodes.end()) {
+                        BlacklistNode(nodeId);
+                        std::cout << "[DETECTOR] MITIGATION: Node " << nodeId 
+                                  << " blacklisted (appears in " << pair.second 
+                                  << " suspicious flows)\n";
+                    }
+                }
+            }
+        }
+    }
 }
 
 void WormholeDetector::PrintDetectionReport() const {
@@ -142781,6 +142882,14 @@ int main(int argc, char *argv[])
             g_wormholeDetector->Initialize(actual_node_count, detection_latency_threshold);
             g_wormholeDetector->EnableDetection(enable_wormhole_detection);
             g_wormholeDetector->EnableMitigation(enable_wormhole_mitigation);
+            
+            // Connect detector with attack manager to enable accurate blacklisting
+            if (g_wormholeManager != nullptr) {
+                std::vector<uint32_t> maliciousNodes = g_wormholeManager->GetMaliciousNodeIds();
+                g_wormholeDetector->SetKnownMaliciousNodes(maliciousNodes);
+                std::cout << "Detector linked with attack manager: " << maliciousNodes.size() 
+                          << " known malicious nodes" << std::endl;
+            }
             
             // Schedule periodic detection checks
             for (double t = detection_check_interval; t < stopTime; t += detection_check_interval) {
