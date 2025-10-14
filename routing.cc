@@ -436,6 +436,9 @@ std::vector<bool> routing_table_poisoning_malicious_controllers(controllers, fal
 // Global wormhole attack manager instance
 ns3::WormholeAttackManager* g_wormholeManager = nullptr;
 
+// Global wormhole detector instance
+ns3::WormholeDetector* g_wormholeDetector = nullptr;
+
 int maxspeed = 80;	
 
 int paper = 1; //0-optimization, 1 -architecture
@@ -142720,6 +142723,45 @@ int main(int argc, char *argv[])
         std::cout << "Attack active from " << wormhole_start_time 
                   << "s to " << stopTime << "s" << std::endl;
         std::cout << "============================================\n" << std::endl;
+        
+        // ===== Wormhole Detection System Initialization =====
+        if (enable_wormhole_detection) {
+            std::cout << "\n=== Wormhole Detection System Configuration ===" << std::endl;
+            std::cout << "Detection: " << (enable_wormhole_detection ? "ENABLED" : "DISABLED") << std::endl;
+            std::cout << "Mitigation: " << (enable_wormhole_mitigation ? "ENABLED" : "DISABLED") << std::endl;
+            std::cout << "Latency Threshold Multiplier: " << detection_latency_threshold << "x" << std::endl;
+            std::cout << "Detection Check Interval: " << detection_check_interval << " seconds" << std::endl;
+            
+            // Create global detector
+            g_wormholeDetector = new ns3::WormholeDetector();
+            
+            // Initialize detector
+            g_wormholeDetector->Initialize(actual_node_count, detection_latency_threshold);
+            g_wormholeDetector->EnableDetection(enable_wormhole_detection);
+            g_wormholeDetector->EnableMitigation(enable_wormhole_mitigation);
+            
+            // Schedule periodic detection checks
+            for (double t = detection_check_interval; t < stopTime; t += detection_check_interval) {
+                ns3::Simulator::Schedule(ns3::Seconds(t), 
+                                        &ns3::WormholeDetector::PeriodicDetectionCheck, 
+                                        g_wormholeDetector);
+            }
+            
+            // Schedule detection report printing before simulation ends
+            ns3::Simulator::Schedule(ns3::Seconds(stopTime - 0.1), 
+                                    &ns3::WormholeDetector::PrintDetectionReport, 
+                                    g_wormholeDetector);
+            
+            // Schedule CSV export
+            ns3::Simulator::Schedule(ns3::Seconds(stopTime - 0.05), 
+                                    &ns3::WormholeDetector::ExportDetectionResults, 
+                                    g_wormholeDetector,
+                                    "wormhole-detection-results.csv");
+            
+            std::cout << "Detection system initialized successfully" << std::endl;
+            std::cout << "================================================\n" << std::endl;
+        }
+        // ===== End of Detection System Initialization =====
     }
     else if (present_wormhole_attack_nodes) {
         // Use legacy wormhole implementation
@@ -142740,6 +142782,12 @@ int main(int argc, char *argv[])
       g_wormholeManager->ExportStatistics("wormhole-attack-results.csv");
       delete g_wormholeManager;
       g_wormholeManager = nullptr;
+  }
+  
+  // Cleanup detector if it was used
+  if (g_wormholeDetector != nullptr) {
+      delete g_wormholeDetector;
+      g_wormholeDetector = nullptr;
   }
   
   Simulator::Destroy();
