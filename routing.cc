@@ -94469,10 +94469,12 @@ void WormholeEndpointApp::StartApplication(void) {
     }
     
     std::cout << "✓ AODV interception ready on all network interfaces" << std::endl;
-    double attackInterval = 0.5;
-    Simulator::Schedule(Seconds(0.1), &WormholeEndpointApp::SendFakeRouteAdvertisement, this);
-    Simulator::Schedule(Seconds(attackInterval), &WormholeEndpointApp::PeriodicAttack, this);
-    std::cout << "✓ Route poisoning scheduled (interval: " << attackInterval << "s)" << std::endl;
+    
+    // NOTE: We do NOT send periodic fake route advertisements anymore!
+    // Instead, we intercept RREQs and respond with fake RREPs on-demand.
+    // This ensures we catch RREQs before routes are established.
+    
+    std::cout << "✓ Wormhole configured to intercept and respond to RREQs" << std::endl;
     std::cout << "=== Wormhole attack ACTIVE on node " << GetNode()->GetId() << " ===" << std::endl << std::endl;
 }
 
@@ -94575,13 +94577,24 @@ bool WormholeEndpointApp::ReceivePacket(Ptr<NetDevice> device,
               << " from " << sourceAddr << std::endl;
     
     if (msgType == 1) {  // RREQ intercepted
+        // Extract RREQ originator address (bytes 5-8 in AODV RREQ format)
+        if (payloadSize < 9) {
+            std::cout << "[WORMHOLE-DEBUG] RREQ too small, ignoring" << std::endl;
+            return false;
+        }
+        
+        uint32_t originatorIp;
+        memcpy(&originatorIp, &buffer[5], 4);
+        Ipv4Address originator(originatorIp);
+        
         m_stats.packetsIntercepted++;
         std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
-                  << " intercepted AODV RREQ from " << sourceAddr
+                  << " intercepted AODV RREQ from originator " << originator
+                  << " (forwarded by " << sourceAddr << ")"
                   << " (Total intercepted: " << m_stats.packetsIntercepted << ")" << std::endl;
         
-        // Send fake RREP
-        SendFakeRREP(sourceAddr);
+        // Send fake RREP to the originator
+        SendFakeRREP(originator);
         
         // Tunnel the RREQ to peer
         if (m_tunnelSocket && m_peerAddress != Ipv4Address::GetZero()) {
