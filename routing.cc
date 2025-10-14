@@ -394,7 +394,7 @@ bool present_routing_table_poisoning_attack_controllers = false;
 // Enhanced Wormhole Attack Configuration
 bool use_enhanced_wormhole = true;              // Use AODV-based wormhole attack (realistic)
 std::string wormhole_tunnel_bandwidth = "1000Mbps"; // Tunnel bandwidth
-uint32_t wormhole_tunnel_delay_us = 1;         // Tunnel delay in microseconds
+uint32_t wormhole_tunnel_delay_us = 50000;      // Tunnel delay in microseconds (50ms = realistic long-distance tunnel)
 bool wormhole_random_pairing = true;            // Random vs sequential pairing
 bool wormhole_drop_packets = false;             // Drop instead of tunnel
 bool wormhole_tunnel_routing = true;            // Tunnel routing packets
