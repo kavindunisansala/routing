@@ -141012,14 +141012,14 @@ protected:
             
             // Check for UDP data packets (protocol 17)
             if (ipProtocol == 17) {
-                if (g_blackholeManager->ShouldDropDataPacket(m_nodeId)) {
+                if (g_blackholeManager->ShouldDropDataPacket(m_nodeId, packet)) {
                     // Drop the packet silently
                     return true;
                 }
             }
             // Check for AODV routing packets (protocol 17, port 654)
             else if (ipProtocol == 17) {
-                if (g_blackholeManager->ShouldDropRoutingPacket(m_nodeId)) {
+                if (g_blackholeManager->ShouldDropRoutingPacket(m_nodeId, packet)) {
                     // Drop routing packet
                     return true;
                 }
