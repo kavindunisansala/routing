@@ -413,8 +413,8 @@ double wormhole_verification_start_offset = 0.5; // Seconds after attack start t
 uint16_t wormhole_verification_base_port = 50000; // Base UDP port for verification flows
 
 // Wormhole Detection and Mitigation Configuration
-bool enable_wormhole_detection = false;         // Enable latency-based wormhole detection
-bool enable_wormhole_mitigation = false;        // Enable automatic mitigation (route changes)
+bool enable_wormhole_detection = true;          // Enable latency-based wormhole detection
+bool enable_wormhole_mitigation = true;         // Enable automatic mitigation (route changes)
 double detection_latency_threshold = 2.0;       // Latency multiplier for detection (2.0 = 200% of baseline)
 double detection_check_interval = 1.0;          // Seconds between detection checks
 
