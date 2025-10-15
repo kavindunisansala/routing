@@ -140981,22 +140981,57 @@ void setup_wormhole_tunnels(AnimationInterface& anim) {
 
 class BlackholeApp : public Application {
 public:
-    BlackholeApp() {}
+    BlackholeApp() : m_nodeId(0) {}
     virtual ~BlackholeApp() {}
+    
+    void SetNodeId(uint32_t nodeId) {
+        m_nodeId = nodeId;
+    }
 
 protected:
     virtual void StartApplication() override {
-        // Listen for packets on all devices and drop them (do nothing)
+        // Listen for packets on all devices and intercept them
         for (uint32_t i = 0; i < GetNode()->GetNDevices(); ++i) {
             Ptr<NetDevice> dev = GetNode()->GetDevice(i);
-            dev->SetReceiveCallback(MakeCallback(&BlackholeApp::DropPacket, this));
+            dev->SetReceiveCallback(MakeCallback(&BlackholeApp::InterceptPacket, this));
         }
     }
 
-    bool DropPacket(Ptr<NetDevice> device, Ptr<const Packet> packet, uint16_t protocol, const Address &from) {
-        // Do nothing -- drop all received packets
-        return true;
+    bool InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet, uint16_t protocol, const Address &from) {
+        if (g_blackholeManager == nullptr) {
+            return true; // Pass through if manager not initialized
+        }
+        
+        // Check if this is a data packet (UDP)
+        if (protocol == 0x0800) { // IPv4
+            Ptr<Packet> copy = packet->Copy();
+            Ipv4Header ipv4Header;
+            copy->RemoveHeader(ipv4Header);
+            
+            uint8_t ipProtocol = ipv4Header.GetProtocol();
+            
+            // Check for UDP data packets (protocol 17)
+            if (ipProtocol == 17) {
+                if (g_blackholeManager->ShouldDropDataPacket(m_nodeId)) {
+                    // Drop the packet silently
+                    return true;
+                }
+            }
+            // Check for AODV routing packets (protocol 17, port 654)
+            else if (ipProtocol == 17) {
+                if (g_blackholeManager->ShouldDropRoutingPacket(m_nodeId)) {
+                    // Drop routing packet
+                    return true;
+                }
+            }
+        }
+        
+        // Pass through if not dropping
+        return false;
     }
+
+private:
+    uint32_t m_nodeId;
 };
 
 // ---- Blackhole Attack Setup Function ----
@@ -143324,6 +143359,18 @@ int main(int argc, char *argv[])
             // Activate attack
             g_blackholeManager->ActivateAttack(ns3::Seconds(blackhole_start_time), 
                                                ns3::Seconds(blackholeStopTime));
+            
+            // Install BlackholeApp on all malicious nodes
+            for (uint32_t i = 0; i < blackhole_malicious_nodes.size(); ++i) {
+                if (blackhole_malicious_nodes[i]) {
+                    Ptr<Node> node = ns3::NodeList::GetNode(i);
+                    Ptr<BlackholeApp> app = CreateObject<BlackholeApp>();
+                    app->SetNodeId(i);
+                    node->AddApplication(app);
+                    app->SetStartTime(Seconds(blackhole_start_time));
+                    app->SetStopTime(Seconds(blackholeStopTime));
+                }
+            }
             
             // Configure visualization (Black color)
             g_blackholeManager->ConfigureVisualization(anim, 0, 0, 0);
