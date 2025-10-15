@@ -343,6 +343,72 @@ private:
 };
 
 /**
+ * @brief Blackhole Mitigation Manager - Confirmation Packet Scheme
+ * 
+ * Implements a simplified confirmation-based detection:
+ * 1. Monitor packet delivery success rate per route
+ * 2. Detect suspicious nodes with low delivery ratio
+ * 3. Mark and avoid blacklisted nodes
+ * 4. Track statistics for evaluation
+ */
+class BlackholeMitigationManager {
+public:
+    BlackholeMitigationManager();
+    ~BlackholeMitigationManager();
+    
+    void Initialize(uint32_t totalNodes, double pdrThreshold = 0.5);
+    void EnableMitigation(bool enable);
+    
+    // Packet tracking
+    void RecordPacketSent(uint32_t srcNode, uint32_t dstNode, uint32_t nextHop, uint32_t packetId);
+    void RecordPacketReceived(uint32_t srcNode, uint32_t dstNode, uint32_t packetId);
+    void RecordPacketTimeout(uint32_t srcNode, uint32_t dstNode, uint32_t nextHop, uint32_t packetId);
+    
+    // Detection and blacklisting
+    bool IsNodeBlacklisted(uint32_t nodeId) const;
+    void CheckAndBlacklistNode(uint32_t nodeId);
+    
+    // Statistics
+    void PrintStatistics() const;
+    void ExportStatistics(const std::string& filename) const;
+    uint32_t GetBlacklistedNodeCount() const;
+    double GetOverallPDR() const;
+    
+private:
+    struct NodeStatistics {
+        uint32_t nodeId;
+        uint32_t packetsSentVia;      // Packets sent via this node as next hop
+        uint32_t packetsDelivered;     // Packets successfully delivered
+        uint32_t packetsDropped;       // Packets that timed out
+        double deliveryRatio;          // PDR for this node
+        bool isBlacklisted;
+        Time blacklistTime;
+    };
+    
+    struct FlowRecord {
+        uint32_t srcNode;
+        uint32_t dstNode;
+        uint32_t nextHop;
+        uint32_t packetId;
+        Time sentTime;
+        bool delivered;
+    };
+    
+    bool m_mitigationEnabled;
+    uint32_t m_totalNodes;
+    double m_pdrThreshold;  // PDR below this triggers blacklisting
+    
+    std::map<uint32_t, NodeStatistics> m_nodeStats;
+    std::map<uint32_t, FlowRecord> m_flowRecords;  // packetId -> FlowRecord
+    
+    uint32_t m_totalPacketsSent;
+    uint32_t m_totalPacketsDelivered;
+    uint32_t m_totalPacketsDropped;
+    
+    void UpdateNodeStatistics(uint32_t nodeId);
+};
+
+/**
  * @brief Wormhole Detector - Latency-based detection and mitigation
  */
 class WormholeDetector {
@@ -516,6 +582,11 @@ double blackhole_start_time = 0.0;              // When to start blackhole attac
 double blackhole_stop_time = 0.0;               // When to stop blackhole attack (0 = simTime)
 double blackhole_attack_percentage = 0.15;      // Percentage of nodes to make malicious (15%)
 
+// Blackhole mitigation parameters
+bool enable_blackhole_mitigation = false;       // Enable blackhole mitigation/detection
+double blackhole_pdr_threshold = 0.5;           // PDR threshold for blacklisting (50%)
+uint32_t blackhole_min_packets = 10;            // Minimum packets before blacklisting node
+
 // Number of controllers
 const int controllers = 6;
 
@@ -540,6 +611,9 @@ ns3::WormholeAttackManager* g_wormholeManager = nullptr;
 
 // Global blackhole attack manager instance
 ns3::BlackholeAttackManager* g_blackholeManager = nullptr;
+
+// Global blackhole mitigation manager instance
+ns3::BlackholeMitigationManager* g_blackholeMitigation = nullptr;
 
 // Global wormhole detector instance
 ns3::WormholeDetector* g_wormholeDetector = nullptr;
@@ -95845,6 +95919,210 @@ void BlackholeAttackManager::ExportStatistics(std::string filename) const {
 }
 
 // ============================================================================
+// Blackhole Mitigation Manager Implementation
+// ============================================================================
+
+BlackholeMitigationManager::BlackholeMitigationManager()
+    : m_mitigationEnabled(false),
+      m_totalNodes(0),
+      m_pdrThreshold(0.5),
+      m_totalPacketsSent(0),
+      m_totalPacketsDelivered(0),
+      m_totalPacketsDropped(0) {
+    std::cout << "[MITIGATION] BlackholeMitigationManager created\n";
+}
+
+BlackholeMitigationManager::~BlackholeMitigationManager() {
+    std::cout << "[MITIGATION] BlackholeMitigationManager destroyed\n";
+}
+
+void BlackholeMitigationManager::Initialize(uint32_t totalNodes, double pdrThreshold) {
+    m_totalNodes = totalNodes;
+    m_pdrThreshold = pdrThreshold;
+    
+    // Initialize statistics for all nodes
+    for (uint32_t i = 0; i < totalNodes; ++i) {
+        NodeStatistics stats;
+        stats.nodeId = i;
+        stats.packetsSentVia = 0;
+        stats.packetsDelivered = 0;
+        stats.packetsDropped = 0;
+        stats.deliveryRatio = 1.0;
+        stats.isBlacklisted = false;
+        m_nodeStats[i] = stats;
+    }
+    
+    std::cout << "[MITIGATION] Initialized for " << totalNodes << " nodes (PDR threshold: " 
+              << (pdrThreshold * 100) << "%)\n";
+}
+
+void BlackholeMitigationManager::EnableMitigation(bool enable) {
+    m_mitigationEnabled = enable;
+    std::cout << "[MITIGATION] Mitigation " << (enable ? "ENABLED" : "DISABLED") << "\n";
+}
+
+void BlackholeMitigationManager::RecordPacketSent(uint32_t srcNode, uint32_t dstNode, 
+                                                   uint32_t nextHop, uint32_t packetId) {
+    if (!m_mitigationEnabled) return;
+    
+    FlowRecord record;
+    record.srcNode = srcNode;
+    record.dstNode = dstNode;
+    record.nextHop = nextHop;
+    record.packetId = packetId;
+    record.sentTime = Simulator::Now();
+    record.delivered = false;
+    
+    m_flowRecords[packetId] = record;
+    m_nodeStats[nextHop].packetsSentVia++;
+    m_totalPacketsSent++;
+    
+    // Schedule timeout check (e.g., 2 seconds)
+    Simulator::Schedule(Seconds(2.0), &BlackholeMitigationManager::RecordPacketTimeout, 
+                       this, srcNode, dstNode, nextHop, packetId);
+}
+
+void BlackholeMitigationManager::RecordPacketReceived(uint32_t srcNode, uint32_t dstNode, uint32_t packetId) {
+    if (!m_mitigationEnabled) return;
+    
+    auto it = m_flowRecords.find(packetId);
+    if (it != m_flowRecords.end() && !it->second.delivered) {
+        it->second.delivered = true;
+        uint32_t nextHop = it->second.nextHop;
+        
+        m_nodeStats[nextHop].packetsDelivered++;
+        m_totalPacketsDelivered++;
+        
+        // Update statistics and check if node should be blacklisted
+        UpdateNodeStatistics(nextHop);
+    }
+}
+
+void BlackholeMitigationManager::RecordPacketTimeout(uint32_t srcNode, uint32_t dstNode, 
+                                                      uint32_t nextHop, uint32_t packetId) {
+    if (!m_mitigationEnabled) return;
+    
+    auto it = m_flowRecords.find(packetId);
+    if (it != m_flowRecords.end() && !it->second.delivered) {
+        // Packet was not delivered within timeout
+        m_nodeStats[nextHop].packetsDropped++;
+        m_totalPacketsDropped++;
+        
+        // Update statistics and check if node should be blacklisted
+        UpdateNodeStatistics(nextHop);
+        CheckAndBlacklistNode(nextHop);
+        
+        // Clean up record
+        m_flowRecords.erase(it);
+    }
+}
+
+void BlackholeMitigationManager::UpdateNodeStatistics(uint32_t nodeId) {
+    if (m_nodeStats.find(nodeId) == m_nodeStats.end()) return;
+    
+    NodeStatistics& stats = m_nodeStats[nodeId];
+    if (stats.packetsSentVia > 0) {
+        stats.deliveryRatio = static_cast<double>(stats.packetsDelivered) / stats.packetsSentVia;
+    }
+}
+
+void BlackholeMitigationManager::CheckAndBlacklistNode(uint32_t nodeId) {
+    if (m_nodeStats.find(nodeId) == m_nodeStats.end()) return;
+    
+    NodeStatistics& stats = m_nodeStats[nodeId];
+    
+    // Require minimum sample size before blacklisting
+    if (stats.packetsSentVia < 10) return;
+    
+    // Check if PDR is below threshold
+    if (stats.deliveryRatio < m_pdrThreshold && !stats.isBlacklisted) {
+        stats.isBlacklisted = true;
+        stats.blacklistTime = Simulator::Now();
+        
+        std::cout << "[MITIGATION] ⚠️  Node " << nodeId << " BLACKLISTED at " 
+                  << Simulator::Now().GetSeconds() << "s (PDR: " 
+                  << (stats.deliveryRatio * 100) << "%, " 
+                  << stats.packetsDropped << "/" << stats.packetsSentVia << " dropped)\n";
+    }
+}
+
+bool BlackholeMitigationManager::IsNodeBlacklisted(uint32_t nodeId) const {
+    auto it = m_nodeStats.find(nodeId);
+    if (it != m_nodeStats.end()) {
+        return it->second.isBlacklisted;
+    }
+    return false;
+}
+
+uint32_t BlackholeMitigationManager::GetBlacklistedNodeCount() const {
+    uint32_t count = 0;
+    for (const auto& pair : m_nodeStats) {
+        if (pair.second.isBlacklisted) {
+            count++;
+        }
+    }
+    return count;
+}
+
+double BlackholeMitigationManager::GetOverallPDR() const {
+    if (m_totalPacketsSent == 0) return 0.0;
+    return static_cast<double>(m_totalPacketsDelivered) / m_totalPacketsSent;
+}
+
+void BlackholeMitigationManager::PrintStatistics() const {
+    std::cout << "\n========== BLACKHOLE MITIGATION STATISTICS ==========\n";
+    std::cout << "Mitigation Status: " << (m_mitigationEnabled ? "ACTIVE" : "INACTIVE") << "\n";
+    std::cout << "PDR Threshold: " << (m_pdrThreshold * 100) << "%\n\n";
+    
+    std::cout << "OVERALL STATISTICS:\n";
+    std::cout << "  Total Packets Sent: " << m_totalPacketsSent << "\n";
+    std::cout << "  Total Packets Delivered: " << m_totalPacketsDelivered << "\n";
+    std::cout << "  Total Packets Dropped: " << m_totalPacketsDropped << "\n";
+    std::cout << "  Overall PDR: " << (GetOverallPDR() * 100) << "%\n";
+    std::cout << "  Blacklisted Nodes: " << GetBlacklistedNodeCount() << "\n\n";
+    
+    std::cout << "BLACKLISTED NODES:\n";
+    for (const auto& pair : m_nodeStats) {
+        const NodeStatistics& stats = pair.second;
+        if (stats.isBlacklisted) {
+            std::cout << "  Node " << stats.nodeId << ":\n";
+            std::cout << "    Packets via this node: " << stats.packetsSentVia << "\n";
+            std::cout << "    Delivered: " << stats.packetsDelivered << "\n";
+            std::cout << "    Dropped: " << stats.packetsDropped << "\n";
+            std::cout << "    PDR: " << (stats.deliveryRatio * 100) << "%\n";
+            std::cout << "    Blacklisted at: " << stats.blacklistTime.GetSeconds() << "s\n";
+        }
+    }
+    std::cout << "====================================================\n\n";
+}
+
+void BlackholeMitigationManager::ExportStatistics(const std::string& filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[MITIGATION] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "NodeID,PacketsSentVia,PacketsDelivered,PacketsDropped,PDR,Blacklisted,BlacklistTime\n";
+    
+    for (const auto& pair : m_nodeStats) {
+        const NodeStatistics& stats = pair.second;
+        if (stats.packetsSentVia > 0) {  // Only export nodes with traffic
+            outFile << stats.nodeId << ","
+                    << stats.packetsSentVia << ","
+                    << stats.packetsDelivered << ","
+                    << stats.packetsDropped << ","
+                    << (stats.deliveryRatio * 100) << ","
+                    << (stats.isBlacklisted ? "1" : "0") << ","
+                    << (stats.isBlacklisted ? stats.blacklistTime.GetSeconds() : 0) << "\n";
+        }
+    }
+    
+    outFile.close();
+    std::cout << "[MITIGATION] Statistics exported to " << filename << "\n";
+}
+
+// ============================================================================
 // Wormhole Detector Implementation
 // ============================================================================
 
@@ -141308,6 +141586,8 @@ int main(int argc, char *argv[])
 	cmd.AddValue ("blackhole_start_time", "Blackhole attack start time (seconds)", blackhole_start_time);
 	cmd.AddValue ("blackhole_stop_time", "Blackhole attack stop time (seconds, 0=simTime)", blackhole_stop_time);
 	cmd.AddValue ("blackhole_attack_percentage", "Percentage of nodes to make blackhole attackers", blackhole_attack_percentage);
+	cmd.AddValue ("enable_blackhole_mitigation", "Enable blackhole mitigation/detection", enable_blackhole_mitigation);
+	cmd.AddValue ("blackhole_pdr_threshold", "PDR threshold for blacklisting nodes", blackhole_pdr_threshold);
 	
 	cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
     cmd.AddValue ("routing_test", "routing_test", routing_test);
@@ -143363,6 +143643,22 @@ int main(int argc, char *argv[])
             std::cout << "============================================\n" << std::endl;
         }
         
+        // ===== Blackhole Mitigation System Initialization =====
+        if (enable_blackhole_mitigation) {
+            std::cout << "\n=== Blackhole Mitigation System Configuration ===" << std::endl;
+            std::cout << "Mitigation: " << (enable_blackhole_mitigation ? "ENABLED" : "DISABLED") << std::endl;
+            std::cout << "PDR Threshold: " << (blackhole_pdr_threshold * 100) << "%" << std::endl;
+            std::cout << "Minimum Packets for Blacklisting: " << blackhole_min_packets << std::endl;
+            
+            // Create global mitigation manager
+            g_blackholeMitigation = new ns3::BlackholeMitigationManager();
+            g_blackholeMitigation->Initialize(actual_node_count, blackhole_pdr_threshold);
+            g_blackholeMitigation->EnableMitigation(true);
+            
+            std::cout << "Blackhole mitigation system initialized for " << actual_node_count << " nodes" << std::endl;
+            std::cout << "============================================\n" << std::endl;
+        }
+        
         // ===== Wormhole Detection System Initialization =====
         if (enable_wormhole_detection) {
             std::cout << "\n=== Wormhole Detection System Configuration ===" << std::endl;
@@ -143445,6 +143741,14 @@ int main(int argc, char *argv[])
       g_blackholeManager->ExportStatistics("blackhole-attack-results.csv");
       delete g_blackholeManager;
       g_blackholeManager = nullptr;
+  }
+  
+  // Print blackhole mitigation statistics if mitigation was used
+  if (g_blackholeMitigation != nullptr) {
+      g_blackholeMitigation->PrintStatistics();
+      g_blackholeMitigation->ExportStatistics("blackhole-mitigation-results.csv");
+      delete g_blackholeMitigation;
+      g_blackholeMitigation = nullptr;
   }
   
   // Cleanup detector if it was used
