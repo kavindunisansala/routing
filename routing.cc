@@ -256,6 +256,92 @@ private:
 };
 
 /**
+ * @brief Blackhole Attack Statistics
+ */
+struct BlackholeStatistics {
+    uint32_t nodeId;
+    uint32_t rrepsDropped;
+    uint32_t dataPacketsDropped;
+    uint32_t fakeRrepsGenerated;
+    uint32_t routesAttracted;
+    Time attackStartTime;
+    Time attackStopTime;
+    bool isActive;
+    
+    BlackholeStatistics() 
+        : nodeId(0), rrepsDropped(0), dataPacketsDropped(0), 
+          fakeRrepsGenerated(0), routesAttracted(0),
+          attackStartTime(Seconds(0)), attackStopTime(Seconds(0)), 
+          isActive(false) {}
+};
+
+/**
+ * @brief Blackhole Attack Manager - Manages blackhole attacks
+ * 
+ * A blackhole attack in AODV routing:
+ * 1. Malicious node advertises fake routes with high sequence numbers
+ * 2. Attracts traffic by claiming to have fresh routes to destinations
+ * 3. Drops all received data packets (creates a "black hole")
+ * 4. Can drop routing packets (RREP) to disrupt network further
+ */
+class BlackholeAttackManager {
+public:
+    BlackholeAttackManager();
+    ~BlackholeAttackManager();
+    
+    // Configuration
+    void Initialize(std::vector<bool>& maliciousNodes, double attackPercentage, 
+                    uint32_t totalNodes);
+    void SetBlackholeBehavior(bool dropData, bool dropRouting, bool advertiseFakeRoutes);
+    void SetFakeRouteParameters(uint32_t fakeSeqNum, uint8_t fakeHopCount);
+    
+    // Attack lifecycle
+    void ActivateAttack(Time startTime, Time stopTime);
+    void DeactivateAttack();
+    void ConfigureVisualization(AnimationInterface& anim, 
+                                uint8_t r = 0, uint8_t g = 0, uint8_t b = 0);
+    
+    // Node-specific attack control
+    void ActivateBlackholeOnNode(uint32_t nodeId, Time startTime, Time stopTime);
+    void DeactivateBlackholeOnNode(uint32_t nodeId);
+    bool IsNodeBlackhole(uint32_t nodeId) const;
+    
+    // Packet interception (called from routing protocol)
+    bool ShouldDropDataPacket(uint32_t nodeId, Ptr<const Packet> packet);
+    bool ShouldDropRoutingPacket(uint32_t nodeId, Ptr<const Packet> packet);
+    bool ShouldGenerateFakeRREP(uint32_t nodeId, Ipv4Address dest);
+    
+    // Statistics
+    uint32_t GetBlackholeNodeCount() const { return m_blackholeNodes.size(); }
+    BlackholeStatistics GetNodeStatistics(uint32_t nodeId) const;
+    BlackholeStatistics GetAggregateStatistics() const;
+    std::vector<uint32_t> GetMaliciousNodeIds() const;
+    void ExportStatistics(std::string filename) const;
+    void PrintStatistics() const;
+    
+private:
+    void SelectMaliciousNodes(double attackPercentage);
+    void ScheduleNodeActivation(uint32_t nodeId, Time startTime, Time stopTime);
+    void RecordPacketDrop(uint32_t nodeId, bool isDataPacket);
+    void RecordFakeRREP(uint32_t nodeId);
+    
+    std::vector<bool> m_maliciousNodes;
+    std::map<uint32_t, BlackholeStatistics> m_blackholeNodes;
+    uint32_t m_totalNodes;
+    
+    // Attack behavior configuration
+    bool m_dropDataPackets;        // Drop data packets (main blackhole behavior)
+    bool m_dropRoutingPackets;     // Drop RREP packets to disrupt routing
+    bool m_advertiseFakeRoutes;    // Send fake RREPs to attract traffic
+    uint32_t m_fakeSequenceNumber; // Fake high sequence number for RREP
+    uint8_t m_fakeHopCount;        // Fake low hop count for RREP
+    
+    Time m_attackStartTime;
+    Time m_attackStopTime;
+    bool m_attackActive;
+};
+
+/**
  * @brief Wormhole Detector - Latency-based detection and mitigation
  */
 class WormholeDetector {
@@ -418,6 +504,17 @@ bool enable_wormhole_mitigation = true;         // Enable automatic mitigation (
 double detection_latency_threshold = 2.0;       // Latency multiplier for detection (2.0 = 200% of baseline)
 double detection_check_interval = 1.0;          // Seconds between detection checks
 
+// Blackhole Attack Configuration
+bool enable_blackhole_attack = false;           // Enable blackhole attack
+bool blackhole_drop_data = true;                // Drop data packets (main blackhole behavior)
+bool blackhole_drop_routing = false;            // Drop RREP routing packets
+bool blackhole_advertise_fake_routes = true;    // Advertise fake routes with high sequence numbers
+uint32_t blackhole_fake_sequence_number = 999999; // Fake sequence number for RREP
+uint8_t blackhole_fake_hop_count = 1;           // Fake hop count for RREP (1 = claim direct route)
+double blackhole_start_time = 0.0;              // When to start blackhole attack (seconds)
+double blackhole_stop_time = 0.0;               // When to stop blackhole attack (0 = simTime)
+double blackhole_attack_percentage = 0.15;      // Percentage of nodes to make malicious (15%)
+
 // Number of controllers
 const int controllers = 6;
 
@@ -439,6 +536,9 @@ std::vector<bool> routing_table_poisoning_malicious_controllers(controllers, fal
 
 // Global wormhole attack manager instance
 ns3::WormholeAttackManager* g_wormholeManager = nullptr;
+
+// Global blackhole attack manager instance
+ns3::BlackholeAttackManager* g_blackholeManager = nullptr;
 
 // Global wormhole detector instance
 ns3::WormholeDetector* g_wormholeDetector = nullptr;
@@ -95454,6 +95554,295 @@ std::vector<uint32_t> WormholeAttackManager::GetMaliciousNodeIds() const {
 }
 
 // ============================================================================
+// Blackhole Attack Manager Implementation
+// ============================================================================
+
+BlackholeAttackManager::BlackholeAttackManager()
+    : m_totalNodes(0),
+      m_dropDataPackets(true),
+      m_dropRoutingPackets(false),
+      m_advertiseFakeRoutes(true),
+      m_fakeSequenceNumber(999999),
+      m_fakeHopCount(1),
+      m_attackActive(false)
+{
+    m_attackStartTime = Seconds(0);
+    m_attackStopTime = Seconds(0);
+}
+
+BlackholeAttackManager::~BlackholeAttackManager() {
+    m_blackholeNodes.clear();
+    m_maliciousNodes.clear();
+}
+
+void BlackholeAttackManager::Initialize(std::vector<bool>& maliciousNodes,
+                                        double attackPercentage,
+                                        uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    m_maliciousNodes.resize(totalNodes, false);
+    
+    if (maliciousNodes.size() == totalNodes) {
+        m_maliciousNodes = maliciousNodes;
+    } else {
+        SelectMaliciousNodes(attackPercentage);
+        maliciousNodes = m_maliciousNodes;
+    }
+    
+    // Initialize statistics for each malicious node
+    for (uint32_t i = 0; i < m_maliciousNodes.size(); ++i) {
+        if (m_maliciousNodes[i]) {
+            BlackholeStatistics stats;
+            stats.nodeId = i;
+            m_blackholeNodes[i] = stats;
+        }
+    }
+}
+
+void BlackholeAttackManager::SelectMaliciousNodes(double attackPercentage) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    
+    for (uint32_t i = 0; i < m_totalNodes; ++i) {
+        m_maliciousNodes[i] = (dis(gen) < attackPercentage);
+    }
+}
+
+void BlackholeAttackManager::SetBlackholeBehavior(bool dropData, bool dropRouting, 
+                                                   bool advertiseFakeRoutes) {
+    m_dropDataPackets = dropData;
+    m_dropRoutingPackets = dropRouting;
+    m_advertiseFakeRoutes = advertiseFakeRoutes;
+    
+    std::cout << "[BLACKHOLE] Attack behavior configured:\n";
+    std::cout << "  Drop Data Packets: " << (dropData ? "YES" : "NO") << "\n";
+    std::cout << "  Drop Routing Packets: " << (dropRouting ? "YES" : "NO") << "\n";
+    std::cout << "  Advertise Fake Routes: " << (advertiseFakeRoutes ? "YES" : "NO") << "\n";
+}
+
+void BlackholeAttackManager::SetFakeRouteParameters(uint32_t fakeSeqNum, uint8_t fakeHopCount) {
+    m_fakeSequenceNumber = fakeSeqNum;
+    m_fakeHopCount = fakeHopCount;
+    
+    std::cout << "[BLACKHOLE] Fake route parameters:\n";
+    std::cout << "  Sequence Number: " << fakeSeqNum << "\n";
+    std::cout << "  Hop Count: " << (uint32_t)fakeHopCount << "\n";
+}
+
+void BlackholeAttackManager::ActivateAttack(Time startTime, Time stopTime) {
+    m_attackStartTime = startTime;
+    m_attackStopTime = stopTime;
+    
+    for (auto& pair : m_blackholeNodes) {
+        ScheduleNodeActivation(pair.first, startTime, stopTime);
+    }
+    
+    std::cout << "[BLACKHOLE] Attack scheduled for " << m_blackholeNodes.size() 
+              << " nodes from " << startTime.GetSeconds() << "s to " 
+              << stopTime.GetSeconds() << "s\n";
+}
+
+void BlackholeAttackManager::ScheduleNodeActivation(uint32_t nodeId, Time startTime, Time stopTime) {
+    Simulator::Schedule(startTime, [this, nodeId, stopTime]() {
+        if (m_blackholeNodes.find(nodeId) != m_blackholeNodes.end()) {
+            m_blackholeNodes[nodeId].isActive = true;
+            m_blackholeNodes[nodeId].attackStartTime = Simulator::Now();
+            m_attackActive = true;
+            
+            std::cout << "[BLACKHOLE] Node " << nodeId << " activated at " 
+                      << Simulator::Now().GetSeconds() << "s\n";
+            
+            // Schedule deactivation
+            Simulator::Schedule(stopTime - startTime, [this, nodeId]() {
+                DeactivateBlackholeOnNode(nodeId);
+            });
+        }
+    });
+}
+
+void BlackholeAttackManager::ActivateBlackholeOnNode(uint32_t nodeId, Time startTime, Time stopTime) {
+    if (m_blackholeNodes.find(nodeId) == m_blackholeNodes.end()) {
+        BlackholeStatistics stats;
+        stats.nodeId = nodeId;
+        m_blackholeNodes[nodeId] = stats;
+        m_maliciousNodes[nodeId] = true;
+    }
+    
+    ScheduleNodeActivation(nodeId, startTime, stopTime);
+}
+
+void BlackholeAttackManager::DeactivateBlackholeOnNode(uint32_t nodeId) {
+    if (m_blackholeNodes.find(nodeId) != m_blackholeNodes.end()) {
+        m_blackholeNodes[nodeId].isActive = false;
+        m_blackholeNodes[nodeId].attackStopTime = Simulator::Now();
+        
+        std::cout << "[BLACKHOLE] Node " << nodeId << " deactivated at " 
+                  << Simulator::Now().GetSeconds() << "s\n";
+    }
+}
+
+void BlackholeAttackManager::DeactivateAttack() {
+    for (auto& pair : m_blackholeNodes) {
+        DeactivateBlackholeOnNode(pair.first);
+    }
+    m_attackActive = false;
+    std::cout << "[BLACKHOLE] Attack deactivated for all nodes\n";
+}
+
+bool BlackholeAttackManager::IsNodeBlackhole(uint32_t nodeId) const {
+    auto it = m_blackholeNodes.find(nodeId);
+    if (it != m_blackholeNodes.end()) {
+        return it->second.isActive;
+    }
+    return false;
+}
+
+bool BlackholeAttackManager::ShouldDropDataPacket(uint32_t nodeId, Ptr<const Packet> packet) {
+    if (!m_dropDataPackets || !IsNodeBlackhole(nodeId)) {
+        return false;
+    }
+    
+    RecordPacketDrop(nodeId, true);
+    return true;
+}
+
+bool BlackholeAttackManager::ShouldDropRoutingPacket(uint32_t nodeId, Ptr<const Packet> packet) {
+    if (!m_dropRoutingPackets || !IsNodeBlackhole(nodeId)) {
+        return false;
+    }
+    
+    RecordPacketDrop(nodeId, false);
+    return true;
+}
+
+bool BlackholeAttackManager::ShouldGenerateFakeRREP(uint32_t nodeId, Ipv4Address dest) {
+    if (!m_advertiseFakeRoutes || !IsNodeBlackhole(nodeId)) {
+        return false;
+    }
+    
+    RecordFakeRREP(nodeId);
+    return true;
+}
+
+void BlackholeAttackManager::RecordPacketDrop(uint32_t nodeId, bool isDataPacket) {
+    auto it = m_blackholeNodes.find(nodeId);
+    if (it != m_blackholeNodes.end()) {
+        if (isDataPacket) {
+            it->second.dataPacketsDropped++;
+        } else {
+            it->second.rrepsDropped++;
+        }
+    }
+}
+
+void BlackholeAttackManager::RecordFakeRREP(uint32_t nodeId) {
+    auto it = m_blackholeNodes.find(nodeId);
+    if (it != m_blackholeNodes.end()) {
+        it->second.fakeRrepsGenerated++;
+    }
+}
+
+void BlackholeAttackManager::ConfigureVisualization(AnimationInterface& anim,
+                                                    uint8_t r, uint8_t g, uint8_t b) {
+    for (const auto& pair : m_blackholeNodes) {
+        uint32_t nodeId = pair.first;
+        anim.UpdateNodeColor(nodeId, r, g, b);
+        anim.UpdateNodeSize(nodeId, 4.0, 4.0);
+        anim.UpdateNodeDescription(nodeId, "BLACKHOLE-" + std::to_string(nodeId));
+    }
+    
+    std::cout << "[BLACKHOLE] Visualization configured for " 
+              << m_blackholeNodes.size() << " blackhole nodes (RGB: " 
+              << (uint32_t)r << "," << (uint32_t)g << "," << (uint32_t)b << ")\n";
+}
+
+std::vector<uint32_t> BlackholeAttackManager::GetMaliciousNodeIds() const {
+    std::vector<uint32_t> nodeIds;
+    for (uint32_t i = 0; i < m_maliciousNodes.size(); ++i) {
+        if (m_maliciousNodes[i]) {
+            nodeIds.push_back(i);
+        }
+    }
+    return nodeIds;
+}
+
+BlackholeStatistics BlackholeAttackManager::GetNodeStatistics(uint32_t nodeId) const {
+    auto it = m_blackholeNodes.find(nodeId);
+    if (it != m_blackholeNodes.end()) {
+        return it->second;
+    }
+    return BlackholeStatistics();
+}
+
+BlackholeStatistics BlackholeAttackManager::GetAggregateStatistics() const {
+    BlackholeStatistics aggregate;
+    
+    for (const auto& pair : m_blackholeNodes) {
+        const BlackholeStatistics& stats = pair.second;
+        aggregate.dataPacketsDropped += stats.dataPacketsDropped;
+        aggregate.rrepsDropped += stats.rrepsDropped;
+        aggregate.fakeRrepsGenerated += stats.fakeRrepsGenerated;
+        aggregate.routesAttracted += stats.routesAttracted;
+    }
+    
+    return aggregate;
+}
+
+void BlackholeAttackManager::PrintStatistics() const {
+    std::cout << "\n========== BLACKHOLE ATTACK STATISTICS ==========\n";
+    std::cout << "Total Blackhole Nodes: " << m_blackholeNodes.size() << "\n";
+    std::cout << "Attack Period: " << m_attackStartTime.GetSeconds() 
+              << "s to " << m_attackStopTime.GetSeconds() << "s\n";
+    std::cout << "Attack Status: " << (m_attackActive ? "ACTIVE" : "INACTIVE") << "\n\n";
+    
+    BlackholeStatistics aggregate = GetAggregateStatistics();
+    std::cout << "AGGREGATE STATISTICS:\n";
+    std::cout << "  Data Packets Dropped: " << aggregate.dataPacketsDropped << "\n";
+    std::cout << "  RREP Packets Dropped: " << aggregate.rrepsDropped << "\n";
+    std::cout << "  Fake RREPs Generated: " << aggregate.fakeRrepsGenerated << "\n";
+    std::cout << "  Routes Attracted: " << aggregate.routesAttracted << "\n\n";
+    
+    std::cout << "PER-NODE STATISTICS:\n";
+    for (const auto& pair : m_blackholeNodes) {
+        const BlackholeStatistics& stats = pair.second;
+        std::cout << "  Node " << stats.nodeId << ":\n";
+        std::cout << "    Status: " << (stats.isActive ? "ACTIVE" : "INACTIVE") << "\n";
+        std::cout << "    Data Packets Dropped: " << stats.dataPacketsDropped << "\n";
+        std::cout << "    RREP Packets Dropped: " << stats.rrepsDropped << "\n";
+        std::cout << "    Fake RREPs Generated: " << stats.fakeRrepsGenerated << "\n";
+        std::cout << "    Duration: " << (stats.attackStopTime - stats.attackStartTime).GetSeconds() << "s\n";
+    }
+    std::cout << "================================================\n\n";
+}
+
+void BlackholeAttackManager::ExportStatistics(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "Failed to open file for export: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "NodeID,Active,DataPacketsDropped,RREPsDropped,FakeRREPsGenerated,"
+            << "RoutesAttracted,StartTime,StopTime,Duration\n";
+    
+    for (const auto& pair : m_blackholeNodes) {
+        const BlackholeStatistics& stats = pair.second;
+        outFile << stats.nodeId << ","
+                << (stats.isActive ? "1" : "0") << ","
+                << stats.dataPacketsDropped << ","
+                << stats.rrepsDropped << ","
+                << stats.fakeRrepsGenerated << ","
+                << stats.routesAttracted << ","
+                << stats.attackStartTime.GetSeconds() << ","
+                << stats.attackStopTime.GetSeconds() << ","
+                << (stats.attackStopTime - stats.attackStartTime).GetSeconds() << "\n";
+    }
+    
+    outFile.close();
+    std::cout << "[BLACKHOLE] Statistics exported to " << filename << "\n";
+}
+
+// ============================================================================
 // Wormhole Detector Implementation
 // ============================================================================
 
@@ -140890,6 +141279,18 @@ int main(int argc, char *argv[])
 	cmd.AddValue ("enable_wormhole_mitigation", "Enable automatic mitigation (route changes)", enable_wormhole_mitigation);
 	cmd.AddValue ("detection_latency_threshold", "Latency multiplier for detection (e.g., 2.0 = 200%)", detection_latency_threshold);
 	cmd.AddValue ("detection_check_interval", "Seconds between detection checks", detection_check_interval);
+	
+	// Blackhole Attack Parameters
+	cmd.AddValue ("enable_blackhole_attack", "Enable blackhole attack", enable_blackhole_attack);
+	cmd.AddValue ("blackhole_drop_data", "Blackhole drops data packets", blackhole_drop_data);
+	cmd.AddValue ("blackhole_drop_routing", "Blackhole drops RREP routing packets", blackhole_drop_routing);
+	cmd.AddValue ("blackhole_advertise_fake_routes", "Blackhole advertises fake routes", blackhole_advertise_fake_routes);
+	cmd.AddValue ("blackhole_fake_sequence_number", "Fake sequence number for RREP", blackhole_fake_sequence_number);
+	cmd.AddValue ("blackhole_fake_hop_count", "Fake hop count for RREP", blackhole_fake_hop_count);
+	cmd.AddValue ("blackhole_start_time", "Blackhole attack start time (seconds)", blackhole_start_time);
+	cmd.AddValue ("blackhole_stop_time", "Blackhole attack stop time (seconds, 0=simTime)", blackhole_stop_time);
+	cmd.AddValue ("blackhole_attack_percentage", "Percentage of nodes to make blackhole attackers", blackhole_attack_percentage);
+	
 	cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
     cmd.AddValue ("routing_test", "routing_test", routing_test);
     cmd.AddValue ("routing_algorithm", "routing_algorithm", routing_algorithm);
@@ -142875,6 +143276,63 @@ int main(int argc, char *argv[])
                   << "s to " << stopTime << "s" << std::endl;
         std::cout << "============================================\n" << std::endl;
         
+        // ===== Blackhole Attack Configuration =====
+        if (enable_blackhole_attack) {
+            std::cout << "\n============================================" << std::endl;
+            std::cout << "=== Enhanced Blackhole Attack Configuration ===" << std::endl;
+            
+            // Count malicious nodes
+            uint32_t malicious_count = 0;
+            for (bool isMalicious : blackhole_malicious_nodes) {
+                if (isMalicious) malicious_count++;
+            }
+            
+            // Ensure we have at least some blackhole nodes
+            if (malicious_count == 0) {
+                std::cout << "Warning: No malicious nodes selected. Selecting based on percentage..." << std::endl;
+            }
+            
+            std::cout << "Total Nodes (actual): " << actual_node_count << std::endl;
+            std::cout << "Malicious Nodes Selected: " << malicious_count << std::endl;
+            std::cout << "Attack Percentage: " << (blackhole_attack_percentage * 100) << "%" << std::endl;
+            std::cout << "Drop Data Packets: " << (blackhole_drop_data ? "Yes" : "No") << std::endl;
+            std::cout << "Drop Routing Packets: " << (blackhole_drop_routing ? "Yes" : "No") << std::endl;
+            std::cout << "Advertise Fake Routes: " << (blackhole_advertise_fake_routes ? "Yes" : "No") << std::endl;
+            std::cout << "Fake Sequence Number: " << blackhole_fake_sequence_number << std::endl;
+            std::cout << "Fake Hop Count: " << (uint32_t)blackhole_fake_hop_count << std::endl;
+            
+            // Create blackhole manager
+            g_blackholeManager = new ns3::BlackholeAttackManager();
+            
+            // Initialize with malicious nodes
+            g_blackholeManager->Initialize(blackhole_malicious_nodes, blackhole_attack_percentage, actual_node_count);
+            
+            // Set blackhole behavior
+            g_blackholeManager->SetBlackholeBehavior(blackhole_drop_data, 
+                                                     blackhole_drop_routing, 
+                                                     blackhole_advertise_fake_routes);
+            
+            // Set fake route parameters
+            g_blackholeManager->SetFakeRouteParameters(blackhole_fake_sequence_number, 
+                                                       blackhole_fake_hop_count);
+            
+            // Determine stop time
+            double blackholeStopTime = (blackhole_stop_time > 0) ? blackhole_stop_time : simTime;
+            
+            // Activate attack
+            g_blackholeManager->ActivateAttack(ns3::Seconds(blackhole_start_time), 
+                                               ns3::Seconds(blackholeStopTime));
+            
+            // Configure visualization (Black color)
+            g_blackholeManager->ConfigureVisualization(anim, 0, 0, 0);
+            
+            std::cout << "Configured " << g_blackholeManager->GetBlackholeNodeCount() 
+                      << " blackhole nodes" << std::endl;
+            std::cout << "Attack active from " << blackhole_start_time 
+                      << "s to " << blackholeStopTime << "s" << std::endl;
+            std::cout << "============================================\n" << std::endl;
+        }
+        
         // ===== Wormhole Detection System Initialization =====
         if (enable_wormhole_detection) {
             std::cout << "\n=== Wormhole Detection System Configuration ===" << std::endl;
@@ -142949,6 +143407,14 @@ int main(int argc, char *argv[])
       g_wormholeManager->ExportStatistics("wormhole-attack-results.csv");
       delete g_wormholeManager;
       g_wormholeManager = nullptr;
+  }
+  
+  // Print blackhole statistics if blackhole attack was used
+  if (g_blackholeManager != nullptr) {
+      g_blackholeManager->PrintStatistics();
+      g_blackholeManager->ExportStatistics("blackhole-attack-results.csv");
+      delete g_blackholeManager;
+      g_blackholeManager = nullptr;
   }
   
   // Cleanup detector if it was used
