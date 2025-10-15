@@ -140990,43 +140990,24 @@ public:
 
 protected:
     virtual void StartApplication() override {
-        // Listen for packets on all devices and intercept them
+        // Drop ALL packets by consuming them at the device level
+        // This is the simplest blackhole - just drop everything that arrives
         for (uint32_t i = 0; i < GetNode()->GetNDevices(); ++i) {
             Ptr<NetDevice> dev = GetNode()->GetDevice(i);
-            dev->SetReceiveCallback(MakeCallback(&BlackholeApp::InterceptPacket, this));
+            // Set receive callback to drop - return false means "don't pass up the stack"
+            dev->SetReceiveCallback(MakeCallback(&BlackholeApp::DropAllPackets, this));
         }
+        
+        std::cout << "[BLACKHOLE-APP] Node " << m_nodeId << " now dropping ALL packets" << std::endl;
     }
-
-    bool InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet, uint16_t protocol, const Address &from) {
-        if (g_blackholeManager == nullptr) {
-            return true; // Pass through if manager not initialized
+    
+    bool DropAllPackets(Ptr<NetDevice> device, Ptr<const Packet> packet, uint16_t protocol, const Address &from) {
+        // Notify the manager that we dropped a packet
+        if (g_blackholeManager) {
+            g_blackholeManager->ShouldDropDataPacket(m_nodeId, packet);
         }
         
-        // Check if this is a data packet (UDP)
-        if (protocol == 0x0800) { // IPv4
-            Ptr<Packet> copy = packet->Copy();
-            Ipv4Header ipv4Header;
-            copy->RemoveHeader(ipv4Header);
-            
-            uint8_t ipProtocol = ipv4Header.GetProtocol();
-            
-            // Check for UDP data packets (protocol 17)
-            if (ipProtocol == 17) {
-                if (g_blackholeManager->ShouldDropDataPacket(m_nodeId, packet)) {
-                    // Drop the packet silently
-                    return true;
-                }
-            }
-            // Check for AODV routing packets (protocol 17, port 654)
-            else if (ipProtocol == 17) {
-                if (g_blackholeManager->ShouldDropRoutingPacket(m_nodeId, packet)) {
-                    // Drop routing packet
-                    return true;
-                }
-            }
-        }
-        
-        // Pass through if not dropping
+        // Return false = drop the packet (don't pass it up)
         return false;
     }
 
