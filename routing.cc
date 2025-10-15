@@ -322,6 +322,7 @@ public:
 private:
     void SelectMaliciousNodes(double attackPercentage);
     void ScheduleNodeActivation(uint32_t nodeId, Time startTime, Time stopTime);
+    void ActivateBlackholeNodeInternal(uint32_t nodeId);
     void RecordPacketDrop(uint32_t nodeId, bool isDataPacket);
     void RecordFakeRREP(uint32_t nodeId);
     
@@ -95643,21 +95644,22 @@ void BlackholeAttackManager::ActivateAttack(Time startTime, Time stopTime) {
 }
 
 void BlackholeAttackManager::ScheduleNodeActivation(uint32_t nodeId, Time startTime, Time stopTime) {
-    Simulator::Schedule(startTime, [this, nodeId, startTime, stopTime]() {
-        if (m_blackholeNodes.find(nodeId) != m_blackholeNodes.end()) {
-            m_blackholeNodes[nodeId].isActive = true;
-            m_blackholeNodes[nodeId].attackStartTime = Simulator::Now();
-            m_attackActive = true;
-            
-            std::cout << "[BLACKHOLE] Node " << nodeId << " activated at " 
-                      << Simulator::Now().GetSeconds() << "s\n";
-            
-            // Schedule deactivation
-            Simulator::Schedule(stopTime - startTime, [this, nodeId]() {
-                DeactivateBlackholeOnNode(nodeId);
-            });
-        }
-    });
+    // Schedule activation
+    Simulator::Schedule(startTime, &BlackholeAttackManager::ActivateBlackholeNodeInternal, this, nodeId);
+    
+    // Schedule deactivation
+    Simulator::Schedule(stopTime, &BlackholeAttackManager::DeactivateBlackholeOnNode, this, nodeId);
+}
+
+void BlackholeAttackManager::ActivateBlackholeNodeInternal(uint32_t nodeId) {
+    if (m_blackholeNodes.find(nodeId) != m_blackholeNodes.end()) {
+        m_blackholeNodes[nodeId].isActive = true;
+        m_blackholeNodes[nodeId].attackStartTime = Simulator::Now();
+        m_attackActive = true;
+        
+        std::cout << "[BLACKHOLE] Node " << nodeId << " activated at " 
+                  << Simulator::Now().GetSeconds() << "s\n";
+    }
 }
 
 void BlackholeAttackManager::ActivateBlackholeOnNode(uint32_t nodeId, Time startTime, Time stopTime) {
