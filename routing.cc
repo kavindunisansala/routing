@@ -95491,8 +95491,10 @@ void WormholeDetector::EnableMitigation(bool enable) {
 
 void WormholeDetector::SetKnownMaliciousNodes(const std::vector<uint32_t>& maliciousNodes) {
     m_knownMaliciousNodes.clear();
+    std::cout << "[DETECTOR] SetKnownMaliciousNodes called with " << maliciousNodes.size() << " nodes\n";
     for (uint32_t nodeId : maliciousNodes) {
         m_knownMaliciousNodes.insert(nodeId);
+        std::cout << "[DETECTOR]   - Node " << nodeId << " marked as malicious\n";
     }
     std::cout << "[DETECTOR] Loaded " << m_knownMaliciousNodes.size() 
               << " known malicious nodes for reference\n";
@@ -95697,13 +95699,19 @@ uint32_t WormholeDetector::IpToNodeId(Ipv4Address ip) const {
 }
 
 void WormholeDetector::IdentifyAndBlacklistSuspiciousNodes(Ipv4Address src, Ipv4Address dst) {
+    std::cout << "[DETECTOR] IdentifyAndBlacklistSuspiciousNodes called for flow " << src << " -> " << dst << "\n";
+    std::cout << "[DETECTOR] m_knownMaliciousNodes.size() = " << m_knownMaliciousNodes.size() << "\n";
+    
     // Strategy 1: If we have known malicious nodes from attack manager, blacklist them
     if (!m_knownMaliciousNodes.empty()) {
+        std::cout << "[DETECTOR] Using Strategy 1: Blacklisting confirmed malicious nodes\n";
         for (uint32_t nodeId : m_knownMaliciousNodes) {
             if (m_blacklistedNodes.find(nodeId) == m_blacklistedNodes.end()) {
                 BlacklistNode(nodeId);
                 std::cout << "[DETECTOR] MITIGATION: Node " << nodeId 
                           << " blacklisted (confirmed wormhole endpoint)\n";
+            } else {
+                std::cout << "[DETECTOR] Node " << nodeId << " already blacklisted\n";
             }
         }
         return;
@@ -142884,11 +142892,19 @@ int main(int argc, char *argv[])
             g_wormholeDetector->EnableMitigation(enable_wormhole_mitigation);
             
             // Connect detector with attack manager to enable accurate blacklisting
+            std::cout << "[DETECTOR] Attempting to connect with attack manager...\n";
+            std::cout << "[DETECTOR] g_wormholeManager = " << (g_wormholeManager != nullptr ? "NOT NULL" : "NULL") << "\n";
             if (g_wormholeManager != nullptr) {
                 std::vector<uint32_t> maliciousNodes = g_wormholeManager->GetMaliciousNodeIds();
+                std::cout << "[DETECTOR] GetMaliciousNodeIds() returned " << maliciousNodes.size() << " nodes\n";
+                for (uint32_t nodeId : maliciousNodes) {
+                    std::cout << "[DETECTOR]   Malicious node: " << nodeId << "\n";
+                }
                 g_wormholeDetector->SetKnownMaliciousNodes(maliciousNodes);
                 std::cout << "Detector linked with attack manager: " << maliciousNodes.size() 
                           << " known malicious nodes" << std::endl;
+            } else {
+                std::cout << "[DETECTOR] WARNING: g_wormholeManager is NULL! Cannot link detector with attack manager.\n";
             }
             
             // Schedule periodic detection checks
