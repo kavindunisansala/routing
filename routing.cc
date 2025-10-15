@@ -95643,7 +95643,7 @@ void BlackholeAttackManager::ActivateAttack(Time startTime, Time stopTime) {
 }
 
 void BlackholeAttackManager::ScheduleNodeActivation(uint32_t nodeId, Time startTime, Time stopTime) {
-    Simulator::Schedule(startTime, [this, nodeId, stopTime]() {
+    Simulator::Schedule(startTime, [this, nodeId, startTime, stopTime]() {
         if (m_blackholeNodes.find(nodeId) != m_blackholeNodes.end()) {
             m_blackholeNodes[nodeId].isActive = true;
             m_blackholeNodes[nodeId].attackStartTime = Simulator::Now();
