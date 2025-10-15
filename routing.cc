@@ -141280,9 +141280,24 @@ protected:
     }
     
     bool DropAllPackets(Ptr<NetDevice> device, Ptr<const Packet> packet, uint16_t protocol, const Address &from) {
-        // Notify the manager that we dropped a packet
+        // Notify the attack manager that we dropped a packet
         if (g_blackholeManager) {
             g_blackholeManager->ShouldDropDataPacket(m_nodeId, packet);
+        }
+        
+        // Notify the mitigation manager about the drop
+        // We'll simulate this as a packet that was "sent via" this node and failed
+        if (g_blackholeMitigation) {
+            static uint32_t packetCounter = 0;
+            uint32_t packetId = packetCounter++;
+            
+            // Record as sent via this node
+            g_blackholeMitigation->RecordPacketSent(0, 0, m_nodeId, packetId);
+            
+            // Immediately mark as timeout (dropped)
+            // Schedule very short timeout to simulate delivery failure
+            Simulator::Schedule(MilliSeconds(1), &ns3::BlackholeMitigationManager::RecordPacketTimeout,
+                              g_blackholeMitigation, 0, 0, m_nodeId, packetId);
         }
         
         // Return false = drop the packet (don't pass it up)
