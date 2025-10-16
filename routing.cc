@@ -95144,6 +95144,13 @@ bool WormholeEndpointApp::InterceptPacket(Ptr<NetDevice> device,
         m_stats.packetsIntercepted++;
         m_stats.dataPacketsAffected++;
         
+        // Mark packet as going through wormhole for tracking
+        // Do this BEFORE tunneling so we mark all intercepted packets
+        if (g_packetTracker != nullptr && enable_packet_tracking) {
+            uint32_t packetId = packet->GetUid();
+            g_packetTracker->MarkWormholePath(packetId);
+        }
+        
         if (m_stats.packetsIntercepted <= 10) {
             std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
                       << " intercepted packet: " << srcAddr << " -> " << dstAddr
@@ -95157,6 +95164,13 @@ bool WormholeEndpointApp::InterceptPacket(Ptr<NetDevice> device,
             
             if (sent > 0) {
                 m_stats.packetsTunneled++;
+                
+                // Mark packet as going through wormhole for tracking
+                if (g_packetTracker != nullptr && enable_packet_tracking) {
+                    uint32_t packetId = packet->GetUid();
+                    g_packetTracker->MarkWormholePath(packetId);
+                }
+                
                 if (m_stats.packetsTunneled <= 10) {
                     std::cout << "[WORMHOLE] Node " << GetNode()->GetId()
                               << " tunneled packet to peer (Tunnel #" << m_stats.packetsTunneled << ")" << std::endl;
@@ -95184,6 +95198,12 @@ void WormholeEndpointApp::HandleTunneledPacket(Ptr<Socket> socket) {
     Address from;
     while ((packet = socket->RecvFrom(from))) {
         m_stats.packetsTunneled++;
+        
+        // Mark packet as going through wormhole for tracking
+        if (g_packetTracker != nullptr && enable_packet_tracking) {
+            uint32_t packetId = packet->GetUid();
+            g_packetTracker->MarkWormholePath(packetId);
+        }
         
         if (m_stats.packetsTunneled <= 10) {
             std::cout << "[WORMHOLE] Node " << GetNode()->GetId() 
