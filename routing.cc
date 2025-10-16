@@ -144089,19 +144089,19 @@ int main(int argc, char *argv[])
   
   // Print summary of all generated CSV files
   std::cout << "\n========== CSV FILES GENERATED ==========\n";
-  if (g_wormholeManager != nullptr || enable_wormhole_attack) {
+  if (g_wormholeManager != nullptr) {
       std::cout << "  ✓ wormhole-attack-results.csv\n";
   }
-  if (enable_wormhole_detection) {
+  if (g_wormholeDetector != nullptr || enable_wormhole_detection) {
       std::cout << "  ✓ wormhole-detection-results.csv\n";
   }
-  if (g_blackholeManager != nullptr || enable_blackhole_attack) {
+  if (g_blackholeManager != nullptr) {
       std::cout << "  ✓ blackhole-attack-results.csv\n";
   }
-  if (enable_blackhole_mitigation) {
+  if (g_blackholeMitigation != nullptr || enable_blackhole_mitigation) {
       std::cout << "  ✓ blackhole-mitigation-results.csv\n";
   }
-  if (enable_packet_tracking) {
+  if (g_packetTracker != nullptr || enable_packet_tracking) {
       std::cout << "  ✓ packet-delivery-analysis.csv\n";
   }
   std::cout << "=========================================\n\n";
