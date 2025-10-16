@@ -411,6 +411,45 @@ private:
 };
 
 /**
+ * @brief Packet Tracker - Tracks delivery time and performance metrics
+ * 
+ * Records detailed packet information for CSV export and analysis
+ */
+class PacketTracker {
+public:
+    PacketTracker();
+    ~PacketTracker();
+    
+    struct PacketRecord {
+        uint32_t packetId;
+        uint32_t srcNode;
+        uint32_t dstNode;
+        Time sendTime;
+        Time receiveTime;
+        double delayMs;
+        bool delivered;
+        bool wormholeOnPath;  // Was wormhole tunnel on the path
+        bool blackholeOnPath; // Was blackhole node on the path
+    };
+    
+    void RecordPacketSent(uint32_t packetId, uint32_t srcNode, uint32_t dstNode, Time sendTime);
+    void RecordPacketReceived(uint32_t packetId, Time receiveTime);
+    void MarkWormholePath(uint32_t packetId);
+    void MarkBlackholePath(uint32_t packetId);
+    
+    void ExportToCSV(const std::string& filename) const;
+    void PrintSummary() const;
+    
+    double GetAverageDelay() const;
+    double GetPacketDeliveryRatio() const;
+    uint32_t GetTotalPacketsSent() const { return m_packets.size(); }
+    uint32_t GetTotalPacketsDelivered() const;
+    
+private:
+    std::map<uint32_t, PacketRecord> m_packets;
+};
+
+/**
  * @brief Wormhole Detector - Latency-based detection and mitigation
  */
 class WormholeDetector {
@@ -589,6 +628,9 @@ bool enable_blackhole_mitigation = false;       // Enable blackhole mitigation/d
 double blackhole_pdr_threshold = 0.5;           // PDR threshold for blacklisting (50%)
 uint32_t blackhole_min_packets = 10;            // Minimum packets before blacklisting node
 
+// Packet tracking and analysis
+bool enable_packet_tracking = false;            // Enable detailed packet tracking and CSV export
+
 // Number of controllers
 const int controllers = 6;
 
@@ -616,6 +658,9 @@ ns3::BlackholeAttackManager* g_blackholeManager = nullptr;
 
 // Global blackhole mitigation manager instance
 ns3::BlackholeMitigationManager* g_blackholeMitigation = nullptr;
+
+// Global packet tracker instance
+ns3::PacketTracker* g_packetTracker = nullptr;
 
 // Global wormhole detector instance
 ns3::WormholeDetector* g_wormholeDetector = nullptr;
@@ -96163,6 +96208,135 @@ void BlackholeMitigationManager::ExportStatistics(const std::string& filename) c
 }
 
 // ============================================================================
+// Packet Tracker Implementation
+// ============================================================================
+
+PacketTracker::PacketTracker() {
+    std::cout << "[TRACKER] PacketTracker created\n";
+}
+
+PacketTracker::~PacketTracker() {
+    std::cout << "[TRACKER] PacketTracker destroyed\n";
+}
+
+void PacketTracker::RecordPacketSent(uint32_t packetId, uint32_t srcNode, uint32_t dstNode, Time sendTime) {
+    PacketRecord record;
+    record.packetId = packetId;
+    record.srcNode = srcNode;
+    record.dstNode = dstNode;
+    record.sendTime = sendTime;
+    record.receiveTime = Seconds(0);
+    record.delayMs = 0.0;
+    record.delivered = false;
+    record.wormholeOnPath = false;
+    record.blackholeOnPath = false;
+    
+    m_packets[packetId] = record;
+}
+
+void PacketTracker::RecordPacketReceived(uint32_t packetId, Time receiveTime) {
+    auto it = m_packets.find(packetId);
+    if (it != m_packets.end()) {
+        it->second.delivered = true;
+        it->second.receiveTime = receiveTime;
+        it->second.delayMs = (receiveTime - it->second.sendTime).GetMilliSeconds();
+    }
+}
+
+void PacketTracker::MarkWormholePath(uint32_t packetId) {
+    auto it = m_packets.find(packetId);
+    if (it != m_packets.end()) {
+        it->second.wormholeOnPath = true;
+    }
+}
+
+void PacketTracker::MarkBlackholePath(uint32_t packetId) {
+    auto it = m_packets.find(packetId);
+    if (it != m_packets.end()) {
+        it->second.blackholeOnPath = true;
+    }
+}
+
+double PacketTracker::GetAverageDelay() const {
+    if (m_packets.empty()) return 0.0;
+    
+    double totalDelay = 0.0;
+    uint32_t deliveredCount = 0;
+    
+    for (const auto& pair : m_packets) {
+        if (pair.second.delivered) {
+            totalDelay += pair.second.delayMs;
+            deliveredCount++;
+        }
+    }
+    
+    return deliveredCount > 0 ? (totalDelay / deliveredCount) : 0.0;
+}
+
+double PacketTracker::GetPacketDeliveryRatio() const {
+    if (m_packets.empty()) return 0.0;
+    
+    uint32_t delivered = GetTotalPacketsDelivered();
+    return static_cast<double>(delivered) / m_packets.size();
+}
+
+uint32_t PacketTracker::GetTotalPacketsDelivered() const {
+    uint32_t count = 0;
+    for (const auto& pair : m_packets) {
+        if (pair.second.delivered) {
+            count++;
+        }
+    }
+    return count;
+}
+
+void PacketTracker::PrintSummary() const {
+    std::cout << "\n========== PACKET TRACKER STATISTICS ==========\n";
+    std::cout << "Total Packets Sent: " << m_packets.size() << "\n";
+    std::cout << "Total Packets Delivered: " << GetTotalPacketsDelivered() << "\n";
+    std::cout << "Packet Delivery Ratio: " << (GetPacketDeliveryRatio() * 100) << "%\n";
+    std::cout << "Average Delay: " << GetAverageDelay() << " ms\n";
+    
+    uint32_t wormholeAffected = 0;
+    uint32_t blackholeAffected = 0;
+    
+    for (const auto& pair : m_packets) {
+        if (pair.second.wormholeOnPath) wormholeAffected++;
+        if (pair.second.blackholeOnPath) blackholeAffected++;
+    }
+    
+    std::cout << "Packets through Wormhole: " << wormholeAffected << "\n";
+    std::cout << "Packets through Blackhole: " << blackholeAffected << "\n";
+    std::cout << "================================================\n\n";
+}
+
+void PacketTracker::ExportToCSV(const std::string& filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[TRACKER] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "PacketID,SourceNode,DestNode,SendTime,ReceiveTime,DelayMs,Delivered,WormholeOnPath,BlackholeOnPath\n";
+    
+    for (const auto& pair : m_packets) {
+        const PacketRecord& record = pair.second;
+        outFile << record.packetId << ","
+                << record.srcNode << ","
+                << record.dstNode << ","
+                << record.sendTime.GetSeconds() << ","
+                << (record.delivered ? record.receiveTime.GetSeconds() : 0) << ","
+                << record.delayMs << ","
+                << (record.delivered ? "1" : "0") << ","
+                << (record.wormholeOnPath ? "1" : "0") << ","
+                << (record.blackholeOnPath ? "1" : "0") << "\n";
+    }
+    
+    outFile.close();
+    std::cout << "[TRACKER] Packet data exported to " << filename << "\n";
+}
+
+// ============================================================================
 // Wormhole Detector Implementation
 // ============================================================================
 
@@ -97406,6 +97580,17 @@ bool X_nodes[total_size+2];
               }
           } catch (...) {
               // Silently ignore
+          }
+      }
+      
+      // Add packet tracking hook for successful packet reception
+      if (g_packetTracker != nullptr && enable_packet_tracking) {
+          try {
+              uint32_t packetId = packet->GetUid();
+              // Record successful packet delivery with current simulation time
+              g_packetTracker->RecordPacketReceived(packetId, Simulator::Now());
+          } catch (...) {
+              // Silently ignore tracking errors
           }
       }
       
@@ -114224,6 +114409,36 @@ bool X_nodes[total_size+2];
             }
         } catch (...) {
             // Silently ignore
+        }
+    }
+    
+    // Add packet tracking hook for detailed per-packet analysis
+    if (g_packetTracker != nullptr && enable_packet_tracking) {
+        try {
+            uint32_t packetId = packet->GetUid();
+            Ptr<Node> node = m_send_socket->GetNode();
+            if (node != nullptr) {
+                uint32_t srcNode = node->GetId();
+                
+                // Get destination node ID from IP address
+                uint32_t dstNode = 0;
+                for (uint32_t i = 0; i < NodeList::GetNNodes(); ++i) {
+                    Ptr<Node> n = NodeList::GetNode(i);
+                    Ptr<Ipv4> ip = n->GetObject<Ipv4>();
+                    if (ip && ip->GetNInterfaces() > 1) {
+                        Ipv4Address addr = ip->GetAddress(1, 0).GetLocal();
+                        if (addr == destination) {
+                            dstNode = i;
+                            break;
+                        }
+                    }
+                }
+                
+                // Record packet sent with current simulation time
+                g_packetTracker->RecordPacketSent(packetId, srcNode, dstNode, Simulator::Now());
+            }
+        } catch (...) {
+            // Silently ignore tracking errors
         }
     }
     
@@ -141677,6 +141892,7 @@ int main(int argc, char *argv[])
 	cmd.AddValue ("blackhole_attack_percentage", "Percentage of nodes to make blackhole attackers", blackhole_attack_percentage);
 	cmd.AddValue ("enable_blackhole_mitigation", "Enable blackhole mitigation/detection", enable_blackhole_mitigation);
 	cmd.AddValue ("blackhole_pdr_threshold", "PDR threshold for blacklisting nodes", blackhole_pdr_threshold);
+	cmd.AddValue ("enable_packet_tracking", "Enable detailed packet tracking and CSV export", enable_packet_tracking);
 	
 	cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
     cmd.AddValue ("routing_test", "routing_test", routing_test);
@@ -143748,6 +143964,15 @@ int main(int argc, char *argv[])
             std::cout << "============================================\n" << std::endl;
         }
         
+        // ===== Packet Tracking System Initialization =====
+        if (enable_packet_tracking) {
+            std::cout << "\n=== Packet Tracking System Configuration ===" << std::endl;
+            g_packetTracker = new ns3::PacketTracker();
+            std::cout << "Packet tracking ENABLED - detailed per-packet metrics will be recorded" << std::endl;
+            std::cout << "CSV output will be generated at simulation end" << std::endl;
+            std::cout << "============================================\n" << std::endl;
+        }
+        
         // ===== Wormhole Detection System Initialization =====
         if (enable_wormhole_detection) {
             std::cout << "\n=== Wormhole Detection System Configuration ===" << std::endl;
@@ -143840,13 +144065,46 @@ int main(int argc, char *argv[])
       g_blackholeMitigation = nullptr;
   }
   
-  // Cleanup detector if it was used
+  // Export packet tracking data if tracking was enabled
+  if (g_packetTracker != nullptr) {
+      std::cout << "\n=== Packet Tracking Summary ===" << std::endl;
+      g_packetTracker->PrintSummary();
+      g_packetTracker->ExportToCSV("packet-delivery-analysis.csv");
+      delete g_packetTracker;
+      g_packetTracker = nullptr;
+      std::cout << "Packet tracking data exported to packet-delivery-analysis.csv" << std::endl;
+  }
+  
+  // Export wormhole detection results if detector was used
   if (g_wormholeDetector != nullptr) {
+      std::cout << "\n=== Wormhole Detection Summary ===" << std::endl;
+      g_wormholeDetector->PrintDetectionReport();
+      g_wormholeDetector->ExportDetectionResults("wormhole-detection-results.csv");
+      std::cout << "Wormhole detection results exported to wormhole-detection-results.csv" << std::endl;
       delete g_wormholeDetector;
       g_wormholeDetector = nullptr;
   }
   
   Simulator::Destroy();
+  
+  // Print summary of all generated CSV files
+  std::cout << "\n========== CSV FILES GENERATED ==========\n";
+  if (g_wormholeManager != nullptr || enable_wormhole_attack) {
+      std::cout << "  ✓ wormhole-attack-results.csv\n";
+  }
+  if (enable_wormhole_detection) {
+      std::cout << "  ✓ wormhole-detection-results.csv\n";
+  }
+  if (g_blackholeManager != nullptr || enable_blackhole_attack) {
+      std::cout << "  ✓ blackhole-attack-results.csv\n";
+  }
+  if (enable_blackhole_mitigation) {
+      std::cout << "  ✓ blackhole-mitigation-results.csv\n";
+  }
+  if (enable_packet_tracking) {
+      std::cout << "  ✓ packet-delivery-analysis.csv\n";
+  }
+  std::cout << "=========================================\n\n";
   
  
   //apb.SetFinish();
