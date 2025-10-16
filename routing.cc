@@ -133705,4 +133705,242 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					uint32_t new_neighborset4[4];
 					for(uint32_t i=0;i<4;i++)
 					{
-						new_neighborset4[i] = neighbor_set[2].neighbor
+						new_neighborset4[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN34.Setneighborid(new_neighborset4);
+					tagN34.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN34);
+					break;
+				case (5):
+					uint32_t new_neighborset5[5];
+					for(uint32_t i=0;i<5;i++)
+					{
+						new_neighborset5[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN35.Setneighborid(new_neighborset5);
+					tagN35.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN35);
+					break;
+				case (6):
+					uint32_t new_neighborset6[6];
+					for(uint32_t i=0;i<6;i++)
+					{
+						new_neighborset6[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN36.Setneighborid(new_neighborset6);
+					tagN36.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN36);
+					break;
+				case (7):
+					uint32_t new_neighborset7[7];
+					for(uint32_t i=0;i<7;i++)
+					{
+						new_neighborset7[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN37.Setneighborid(new_neighborset7);
+					tagN37.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN37);
+					break;
+				case (8):
+					uint32_t new_neighborset8[8];
+					for(uint32_t i=0;i<8;i++)
+					{
+						new_neighborset8[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN38.Setneighborid(new_neighborset8);
+					tagN38.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN38);
+					break;
+				case (9):
+					uint32_t new_neighborset9[9];
+					for(uint32_t i=0;i<9;i++)
+					{
+						new_neighborset9[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN39.Setneighborid(new_neighborset9);
+					tagN39.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN39);
+					break;
+				case (10):
+					uint32_t new_neighborset10[10];
+					for(uint32_t i=0;i<10;i++)
+					{
+						new_neighborset10[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN310.Setneighborid(new_neighborset10);
+					tagN310.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN310);
+					break;
+				case (11):
+					uint32_t new_neighborset11[11];
+					for(uint32_t i=0;i<11;i++)
+					{
+						new_neighborset11[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN311.Setneighborid(new_neighborset11);
+					tagN311.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN311);
+					break;
+				case (12):
+					uint32_t new_neighborset12[12];
+					for(uint32_t i=0;i<12;i++)
+					{
+						new_neighborset12[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN312.Setneighborid(new_neighborset12);
+					tagN312.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN312);
+					break;
+				case (13):
+					uint32_t new_neighborset13[13];
+					for(uint32_t i=0;i<13;i++)
+					{
+						new_neighborset13[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN313.Setneighborid(new_neighborset13);
+					tagN313.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN313);
+					break;
+				case (14):
+					uint32_t new_neighborset14[14];
+					for(uint32_t i=0;i<14;i++)
+					{
+						new_neighborset14[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN314.Setneighborid(new_neighborset14);
+					tagN314.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN314);
+					break;
+				case (15):
+					uint32_t new_neighborset15[15];
+					for(uint32_t i=0;i<15;i++)
+					{
+						new_neighborset15[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN315.Setneighborid(new_neighborset15);
+					tagN315.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN315);
+					break;
+				case (16):
+					uint32_t new_neighborset16[16];
+					for(uint32_t i=0;i<16;i++)
+					{
+						new_neighborset16[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN316.Setneighborid(new_neighborset16);
+					tagN316.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN316);
+					break;
+				case (17):
+					uint32_t new_neighborset17[17];
+					for(uint32_t i=0;i<17;i++)
+					{
+						new_neighborset17[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN317.Setneighborid(new_neighborset17);
+					tagN317.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN317);
+					break;
+				case (18):
+					uint32_t new_neighborset18[18];
+					for(uint32_t i=0;i<18;i++)
+					{
+						new_neighborset18[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN318.Setneighborid(new_neighborset18);
+					tagN318.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN318);
+					break;
+				case (19):
+					uint32_t new_neighborset19[19];
+					for(uint32_t i=0;i<19;i++)
+					{
+						new_neighborset19[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN319.Setneighborid(new_neighborset19);
+					tagN319.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN319);
+					break;
+				case (20):
+					uint32_t new_neighborset20[20];
+					for(uint32_t i=0;i<20;i++)
+					{
+						new_neighborset20[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN320.Setneighborid(new_neighborset20);
+					tagN320.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN320);
+					break;
+				case (21):
+					uint32_t new_neighborset21[21];
+					for(uint32_t i=0;i<21;i++)
+					{
+						new_neighborset21[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN321.Setneighborid(new_neighborset21);
+					tagN321.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN321);
+					break;
+				case (22):
+					uint32_t new_neighborset22[22];
+					for(uint32_t i=0;i<22;i++)
+					{
+						new_neighborset22[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN322.Setneighborid(new_neighborset22);
+					tagN322.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN322);
+					break;
+				case (23):
+					uint32_t new_neighborset23[23];
+					for(uint32_t i=0;i<23;i++)
+					{
+						new_neighborset23[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN323.Setneighborid(new_neighborset23);
+					tagN323.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN323);
+					break;
+				case (24):
+					uint32_t new_neighborset24[24];
+					for(uint32_t i=0;i<24;i++)
+					{
+						new_neighborset24[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN324.Setneighborid(new_neighborset24);
+					tagN324.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN324);
+					break;
+				case (25):
+					uint32_t new_neighborset25[25];
+					for(uint32_t i=0;i<25;i++)
+					{
+						new_neighborset25[i] = neighbor_set[2].neighbors[i];
+					}
+					tagN325.Setneighborid(new_neighborset25);
+					tagN325.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN325);
+					break;
+				default:
+					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[2]<<endl;
+					uint32_t new_neighborsetmax[max];
+					for(uint32_t i=0;i<max;i++)
+					{
+						if(i<nei_sizes[2])
+						{
+							new_neighborsetmax[i] = neighbor_set[2].neighbors[i];
+						}
+						else
+						{
+							new_neighborsetmax[i] = large;
+						}
+					}
+					tagN3max.Setneighborid(new_neighborsetmax);
+					tagN3max.Setnodeid(nodeid[2]);
+					packet1->AddPacketTag(tagN3max);
+					break;
+			}
+		
+		}
+	}
+}
