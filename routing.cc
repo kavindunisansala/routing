@@ -709,6 +709,7 @@ public:
     void BlacklistFakeIdentity(Ipv4Address ip);
     bool IsNodeBlacklisted(uint32_t nodeId) const;
     bool IsIpBlacklisted(Ipv4Address ip) const;
+    bool IsSybilNode(uint32_t nodeId) const;
     
     // Statistics and reporting
     SybilDetectionMetrics GetMetrics() const { return m_metrics; }
@@ -989,6 +990,17 @@ public:
     bool VerifyNodeIdentity(uint32_t nodeId, Ipv4Address ip, Vector position, double rssi);
     void MitigateSybilNode(uint32_t nodeId);
     
+    // Runtime detection and monitoring
+    void PeriodicRuntimeCheck();
+    void MonitorNodeBehavior(uint32_t nodeId, Ipv4Address ip, Mac48Address mac);
+    void RecordPacketActivity(uint32_t nodeId, bool isFake);
+    void RecordRouteAdvertisement(uint32_t nodeId);
+    bool DetectAbnormalBehavior(uint32_t nodeId);
+    void IntegrateWithSybilDetector(SybilDetector* detector);
+    
+    // RSSI monitoring
+    void CaptureRSSIMeasurement(uint32_t nodeId, double rssi, Vector position);
+    
     // Statistics
     SybilMitigationMetrics GetMetrics() const { return m_metrics; }
     void PrintComprehensiveReport() const;
@@ -1008,6 +1020,21 @@ private:
     uint32_t m_totalNodes;
     SybilMitigationMetrics m_metrics;
     std::set<uint32_t> m_mitigatedNodes;
+    
+    // Behavioral monitoring data
+    SybilDetector* m_linkedDetector;
+    std::map<uint32_t, uint32_t> m_packetCounts;
+    std::map<uint32_t, uint32_t> m_fakePacketCounts;
+    std::map<uint32_t, uint32_t> m_routeAdvertisementCounts;
+    std::map<uint32_t, double> m_lastAuthenticationTime;
+    std::map<uint32_t, std::pair<Ipv4Address, Mac48Address>> m_nodeIdentities;
+    
+    // Thresholds for behavioral detection
+    static constexpr uint32_t MAX_PACKETS_PER_INTERVAL = 50;
+    static constexpr uint32_t MAX_ROUTES_PER_INTERVAL = 20;
+    static constexpr double REAUTHENTICATION_INTERVAL = 5.0; // seconds
+    static constexpr double FAKE_PACKET_RATIO_THRESHOLD = 0.3; // 30%
+
 };
 
 } // namespace ns3
@@ -97845,6 +97872,25 @@ bool SybilDetector::IsIpBlacklisted(Ipv4Address ip) const {
     return m_blacklistedIps.find(ip) != m_blacklistedIps.end();
 }
 
+bool SybilDetector::IsSybilNode(uint32_t nodeId) const {
+    // Check if node is blacklisted
+    if (IsNodeBlacklisted(nodeId)) {
+        return true;
+    }
+    
+    // Check if node is in detected Sybil nodes list
+    if (m_detectedSybilNodes.find(nodeId) != m_detectedSybilNodes.end()) {
+        return true;
+    }
+    
+    // Check if node is in known malicious nodes list
+    if (m_knownMaliciousNodes.find(nodeId) != m_knownMaliciousNodes.end()) {
+        return true;
+    }
+    
+    return false;
+}
+
 void SybilDetector::PrintDetectionReport() const {
     std::cout << "\n=== SYBIL DETECTION REPORT ===\n";
     std::cout << "Detection Enabled: " << (m_detectionEnabled ? "Yes" : "No") << "\n";
@@ -98353,7 +98399,7 @@ SybilMitigationManager::SybilMitigationManager()
       m_resourceTester(nullptr), m_incentiveScheme(nullptr),
       m_useTrustedCert(false), m_useRSSI(false),
       m_useResourceTest(false), m_useIncentive(false),
-      m_totalNodes(0) {
+      m_totalNodes(0), m_linkedDetector(nullptr) {
 }
 
 SybilMitigationManager::~SybilMitigationManager() {
@@ -98552,6 +98598,162 @@ void SybilMitigationManager::ExportMitigationResults(std::string filename) const
     if (m_incentiveScheme != nullptr) {
         m_incentiveScheme->ExportStatistics("incentive-scheme-results.csv");
         std::cout << "[MITIGATION MGR] Incentive scheme results exported to incentive-scheme-results.csv\n";
+    }
+}
+
+// ============================================================================
+// Runtime Detection and Behavioral Monitoring Methods
+// ============================================================================
+
+void SybilMitigationManager::IntegrateWithSybilDetector(SybilDetector* detector) {
+    m_linkedDetector = detector;
+    std::cout << "[MITIGATION MGR] Integrated with SybilDetector for enhanced detection\n";
+}
+
+void SybilMitigationManager::PeriodicRuntimeCheck() {
+    std::cout << "\n[MITIGATION MGR] === Periodic Runtime Check ===\n";
+    
+    double currentTime = Simulator::Now().GetSeconds();
+    uint32_t nodesChecked = 0;
+    uint32_t suspiciousNodes = 0;
+    
+    // Re-authenticate nodes that haven't been checked recently
+    for (uint32_t nodeId = 0; nodeId < m_totalNodes; ++nodeId) {
+        // Skip already mitigated nodes
+        if (m_mitigatedNodes.find(nodeId) != m_mitigatedNodes.end()) {
+            continue;
+        }
+        
+        // Check if node needs re-authentication
+        double lastAuthTime = m_lastAuthenticationTime[nodeId];
+        if (currentTime - lastAuthTime >= REAUTHENTICATION_INTERVAL) {
+            // Get node information
+            Ptr<Node> node = NodeList::GetNode(nodeId);
+            if (!node) continue;
+            
+            Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+            if (!ipv4 || ipv4->GetNInterfaces() <= 1) continue;
+            
+            Ipv4Address ip = ipv4->GetAddress(1, 0).GetLocal();
+            Mac48Address mac = Mac48Address::Allocate();
+            
+            // Monitor behavior
+            MonitorNodeBehavior(nodeId, ip, mac);
+            nodesChecked++;
+            
+            // Check for abnormal behavior
+            if (DetectAbnormalBehavior(nodeId)) {
+                std::cout << "[MITIGATION MGR] Node " << nodeId << " shows abnormal behavior - marking as suspicious\n";
+                suspiciousNodes++;
+                MitigateSybilNode(nodeId);
+            }
+            
+            m_lastAuthenticationTime[nodeId] = currentTime;
+        }
+    }
+    
+    std::cout << "[MITIGATION MGR] Runtime check complete: " << nodesChecked 
+              << " nodes checked, " << suspiciousNodes << " suspicious\n";
+}
+
+void SybilMitigationManager::MonitorNodeBehavior(uint32_t nodeId, Ipv4Address ip, Mac48Address mac) {
+    // Store node identity for comparison
+    auto it = m_nodeIdentities.find(nodeId);
+    if (it != m_nodeIdentities.end()) {
+        // Check if identity has changed (suspicious!)
+        if (it->second.first != ip || it->second.second != mac) {
+            std::cout << "[MITIGATION MGR] WARNING: Node " << nodeId 
+                      << " identity changed! Previous IP: " << it->second.first 
+                      << ", New IP: " << ip << "\n";
+            MitigateSybilNode(nodeId);
+            return;
+        }
+    } else {
+        m_nodeIdentities[nodeId] = std::make_pair(ip, mac);
+    }
+    
+    // Re-verify with all enabled techniques
+    if (m_useTrustedCert && m_certAuthority) {
+        if (!m_certAuthority->AuthenticateNode(nodeId, ip, mac)) {
+            std::cout << "[MITIGATION MGR] Node " << nodeId << " failed certificate verification\n";
+            MitigateSybilNode(nodeId);
+        }
+    }
+    
+    if (m_useResourceTest && m_resourceTester) {
+        ResourceTestResult result = m_resourceTester->ConductResourceTest(nodeId);
+        if (!result.passedTest) {
+            std::cout << "[MITIGATION MGR] Node " << nodeId << " failed resource test\n";
+            MitigateSybilNode(nodeId);
+        }
+    }
+}
+
+void SybilMitigationManager::RecordPacketActivity(uint32_t nodeId, bool isFake) {
+    m_packetCounts[nodeId]++;
+    if (isFake) {
+        m_fakePacketCounts[nodeId]++;
+    }
+}
+
+void SybilMitigationManager::RecordRouteAdvertisement(uint32_t nodeId) {
+    m_routeAdvertisementCounts[nodeId]++;
+}
+
+bool SybilMitigationManager::DetectAbnormalBehavior(uint32_t nodeId) {
+    bool abnormal = false;
+    
+    // Check packet volume
+    uint32_t totalPackets = m_packetCounts[nodeId];
+    if (totalPackets > MAX_PACKETS_PER_INTERVAL) {
+        std::cout << "[MITIGATION MGR] Node " << nodeId << " exceeds packet threshold: " 
+                  << totalPackets << " > " << MAX_PACKETS_PER_INTERVAL << "\n";
+        abnormal = true;
+    }
+    
+    // Check route advertisement volume
+    uint32_t routeAds = m_routeAdvertisementCounts[nodeId];
+    if (routeAds > MAX_ROUTES_PER_INTERVAL) {
+        std::cout << "[MITIGATION MGR] Node " << nodeId << " exceeds route advertisement threshold: " 
+                  << routeAds << " > " << MAX_ROUTES_PER_INTERVAL << "\n";
+        abnormal = true;
+    }
+    
+    // Check fake packet ratio
+    uint32_t fakePackets = m_fakePacketCounts[nodeId];
+    if (totalPackets > 0) {
+        double fakeRatio = static_cast<double>(fakePackets) / totalPackets;
+        if (fakeRatio > FAKE_PACKET_RATIO_THRESHOLD) {
+            std::cout << "[MITIGATION MGR] Node " << nodeId << " has high fake packet ratio: " 
+                      << (fakeRatio * 100) << "%\n";
+            abnormal = true;
+        }
+    }
+    
+    // Cross-check with linked detector if available
+    if (m_linkedDetector != nullptr) {
+        // The detector might have additional intelligence
+        if (m_linkedDetector->IsSybilNode(nodeId)) {
+            std::cout << "[MITIGATION MGR] Node " << nodeId 
+                      << " confirmed as Sybil by linked detector\n";
+            abnormal = true;
+        }
+    }
+    
+    return abnormal;
+}
+
+void SybilMitigationManager::CaptureRSSIMeasurement(uint32_t nodeId, double rssi, Vector position) {
+    if (m_useRSSI && m_rssiDetector) {
+        m_rssiDetector->RecordRSSI(nodeId, rssi, position);
+        m_metrics.rssiMeasurementsTaken++;
+        
+        // Check for RSSI anomalies
+        if (m_rssiDetector->DetectSybilByRSSI(nodeId)) {
+            std::cout << "[MITIGATION MGR] RSSI anomaly detected for node " << nodeId << "\n";
+            m_metrics.rssiAnomaliesDetected++;
+            MitigateSybilNode(nodeId);
+        }
     }
 }
 
