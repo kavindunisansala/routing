@@ -962,7 +962,7 @@ private:
     std::map<uint32_t, std::vector<uint32_t>> m_revealedIdentities;
     uint32_t m_totalNodes;
     double m_incentiveAmount;
-    uint32_t m_incentivesOffered;
+    uint32_t m_incentivesOfferedCount;
     uint32_t m_identitiesRevealed;
     double m_economicOverhead;
 };
@@ -98266,7 +98266,7 @@ void ResourceTester::ExportStatistics(std::string filename) const {
 
 // Incentive Based Mitigation Implementation
 IncentiveBasedMitigation::IncentiveBasedMitigation()
-    : m_totalNodes(0), m_incentiveAmount(10.0), m_incentivesOffered(0),
+    : m_totalNodes(0), m_incentiveAmount(10.0), m_incentivesOfferedCount(0),
       m_identitiesRevealed(0), m_economicOverhead(0.0) {
 }
 
@@ -98288,7 +98288,7 @@ double IncentiveBasedMitigation::CalculateIncentive(uint32_t identityCount) {
 void IncentiveBasedMitigation::OfferIncentive(uint32_t nodeId) {
     double incentive = m_incentiveAmount;
     m_incentivesOffered[nodeId] = incentive;
-    m_incentivesOffered++;
+    m_incentivesOfferedCount++;
     m_economicOverhead += incentive;
     
     std::cout << "[INCENTIVE SCHEME] Offered " << incentive 
@@ -98317,13 +98317,13 @@ bool IncentiveBasedMitigation::NodeRevealsIdentities(
 }
 
 double IncentiveBasedMitigation::GetRevelationRate() const {
-    return (m_incentivesOffered > 0) ? 
-           (static_cast<double>(m_revealedIdentities.size()) / m_incentivesOffered) : 0.0;
+    return (m_incentivesOfferedCount > 0) ? 
+           (static_cast<double>(m_revealedIdentities.size()) / m_incentivesOfferedCount) : 0.0;
 }
 
 void IncentiveBasedMitigation::PrintStatistics() const {
     std::cout << "\n=== INCENTIVE-BASED MITIGATION STATISTICS ===\n";
-    std::cout << "Incentives Offered: " << m_incentivesOffered << "\n";
+    std::cout << "Incentives Offered: " << m_incentivesOfferedCount << "\n";
     std::cout << "Identities Revealed: " << m_identitiesRevealed << "\n";
     std::cout << "Revelation Rate: " << (GetRevelationRate() * 100) << "%\n";
     std::cout << "Economic Overhead: " << m_economicOverhead << " units\n";
@@ -98338,7 +98338,7 @@ void IncentiveBasedMitigation::ExportStatistics(std::string filename) const {
     }
     
     outFile << "Metric,Value\n";
-    outFile << "IncentivesOffered," << m_incentivesOffered << "\n";
+    outFile << "IncentivesOffered," << m_incentivesOfferedCount << "\n";
     outFile << "IdentitiesRevealed," << m_identitiesRevealed << "\n";
     outFile << "RevelationRate," << GetRevelationRate() << "\n";
     outFile << "EconomicOverhead," << m_economicOverhead << "\n";
