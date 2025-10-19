@@ -145903,8 +145903,17 @@ int main(int argc, char *argv[])
             std::cout << "================================================\n" << std::endl;
         }
         // ===== End of Detection System Initialization =====
+    }
+    else if (present_wormhole_attack_nodes) {
+        // Use legacy wormhole implementation
+        setup_wormhole_tunnels(anim);
+    }
+    
+    // ===== Sybil Attack Configuration (Independent) =====
+    if (!present_wormhole_attack_nodes || !use_enhanced_wormhole) {
+        // Get actual node count from NS-3
+        uint32_t actual_node_count = ns3::NodeList::GetNNodes();
         
-        // ===== Sybil Attack Configuration =====
         if (enable_sybil_attack) {
             std::cout << "\n============================================" << std::endl;
             std::cout << "=== Sybil Attack Configuration ===" << std::endl;
@@ -145935,137 +145944,65 @@ int main(int argc, char *argv[])
             std::cout << "Malicious Nodes Selected: " << malicious_count << std::endl;
             std::cout << "Attack Percentage: " << (sybil_attack_percentage * 100) << "%" << std::endl;
             std::cout << "Identities Per Node: " << sybil_identities_per_node << std::endl;
-            std::cout << "Clone Legitimate Nodes: " << (sybil_clone_legitimate_nodes ? "Yes" : "No") << std::endl;
-            std::cout << "Advertise Fake Routes: " << (sybil_advertise_fake_routes ? "Yes" : "No") << std::endl;
-            std::cout << "Inject Fake Packets: " << (sybil_inject_fake_packets ? "Yes" : "No") << std::endl;
-            std::cout << "Broadcast Interval: " << sybil_broadcast_interval << " seconds" << std::endl;
             
             // Create Sybil manager
             g_sybilManager = new ns3::SybilAttackManager();
-            
-            // Initialize with malicious nodes
             g_sybilManager->Initialize(sybil_malicious_nodes, sybil_attack_percentage, actual_node_count);
-            
-            // Set Sybil behavior
             g_sybilManager->SetSybilBehavior(sybil_identities_per_node,
                                             sybil_clone_legitimate_nodes,
                                             sybil_advertise_fake_routes,
                                             sybil_inject_fake_packets);
-            
-            // Set broadcast interval
             g_sybilManager->SetBroadcastInterval(sybil_broadcast_interval);
             
-            // Determine stop time
             double sybilStopTime = (sybil_stop_time > 0) ? sybil_stop_time : simTime;
-            
-            // Activate attack
-            g_sybilManager->ActivateAttack(ns3::Seconds(sybil_start_time), 
-                                          ns3::Seconds(sybilStopTime));
-            
-            // Configure visualization (Purple color for Sybil nodes)
+            g_sybilManager->ActivateAttack(ns3::Seconds(sybil_start_time), ns3::Seconds(sybilStopTime));
             g_sybilManager->ConfigureVisualization(anim, 128, 0, 128);
             
-            uint32_t totalFakeIdentities = malicious_count * sybil_identities_per_node;
             std::cout << "Configured " << malicious_count << " Sybil nodes\n";
-            std::cout << "Total fake identities: " << totalFakeIdentities << std::endl;
-            std::cout << "Attack active from " << sybil_start_time 
-                      << "s to " << sybilStopTime << "s" << std::endl;
             std::cout << "============================================\n" << std::endl;
         }
         
-        // ===== Sybil Detection System Initialization =====
         if (enable_sybil_detection) {
             std::cout << "\n=== Sybil Detection System Configuration ===" << std::endl;
-            std::cout << "Detection: " << (enable_sybil_detection ? "ENABLED" : "DISABLED") << std::endl;
-            std::cout << "Mitigation: " << (enable_sybil_mitigation ? "ENABLED" : "DISABLED") << std::endl;
-            std::cout << "Similarity Threshold: " << sybil_detection_threshold << std::endl;
-            std::cout << "Detection Check Interval: " << sybil_detection_check_interval << " seconds" << std::endl;
-            
-            // Create global detector
             g_sybilDetector = new ns3::SybilDetector();
-            
-            // Initialize detector
             g_sybilDetector->Initialize(actual_node_count, sybil_detection_threshold);
             g_sybilDetector->EnableDetection(enable_sybil_detection);
             g_sybilDetector->EnableMitigation(enable_sybil_mitigation);
             
-            // Connect detector with attack manager if attack is enabled
             if (g_sybilManager != nullptr) {
                 std::vector<uint32_t> maliciousNodes = g_sybilManager->GetMaliciousNodeIds();
                 g_sybilDetector->SetKnownMaliciousNodes(maliciousNodes);
-                std::cout << "Detector linked with attack manager: " << maliciousNodes.size() 
-                          << " known malicious nodes" << std::endl;
             }
             
-            // Determine stop time
             double sybilStopTime = (sybil_stop_time > 0) ? sybil_stop_time : simTime;
-            
-            // Schedule periodic detection checks
             for (double t = sybil_detection_check_interval; t < sybilStopTime; t += sybil_detection_check_interval) {
-                ns3::Simulator::Schedule(ns3::Seconds(t), 
-                                        &ns3::SybilDetector::PeriodicDetectionCheck, 
-                                        g_sybilDetector);
+                ns3::Simulator::Schedule(ns3::Seconds(t), &ns3::SybilDetector::PeriodicDetectionCheck, g_sybilDetector);
             }
-            
-            // Schedule detection report printing before simulation ends
-            ns3::Simulator::Schedule(ns3::Seconds(sybilStopTime - 0.1), 
-                                    &ns3::SybilDetector::PrintDetectionReport, 
-                                    g_sybilDetector);
-            
-            // Schedule CSV export
-            ns3::Simulator::Schedule(ns3::Seconds(sybilStopTime - 0.05), 
-                                    &ns3::SybilDetector::ExportDetectionResults, 
-                                    g_sybilDetector,
-                                    "sybil-detection-results.csv");
             
             std::cout << "Sybil detection system initialized successfully" << std::endl;
-            std::cout << "================================================\n" << std::endl;
         }
-        // ===== End of Sybil Detection System Initialization =====
         
-        // ===== Advanced Sybil Mitigation System Initialization =====
         if (enable_sybil_mitigation_advanced) {
             std::cout << "\n=== Advanced Sybil Mitigation System Configuration ===" << std::endl;
-            std::cout << "Trusted Certification: " << (use_trusted_certification ? "ENABLED" : "DISABLED") << std::endl;
-            std::cout << "RSSI-Based Detection: " << (use_rssi_detection ? "ENABLED" : "DISABLED") << std::endl;
-            std::cout << "Resource Testing: " << (use_resource_testing ? "ENABLED" : "DISABLED") << std::endl;
-            std::cout << "Incentive Scheme: " << (use_incentive_scheme ? "ENABLED" : "DISABLED") << std::endl;
-            
-            // Create global mitigation manager
             g_sybilMitigationManager = new ns3::SybilMitigationManager();
             g_sybilMitigationManager->Initialize(actual_node_count);
-            
-            // Enable selected mitigation techniques
             g_sybilMitigationManager->EnableTrustedCertification(use_trusted_certification);
             g_sybilMitigationManager->EnableRSSIDetection(use_rssi_detection);
             g_sybilMitigationManager->EnableResourceTesting(use_resource_testing);
             g_sybilMitigationManager->EnableIncentiveScheme(use_incentive_scheme);
             
-            // Authenticate all nodes using enabled techniques
             for (uint32_t i = 0; i < actual_node_count; ++i) {
                 Ptr<Node> node = ns3::NodeList::GetNode(i);
                 Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
                 if (ipv4 && ipv4->GetNInterfaces() > 1) {
                     Ipv4Address ip = ipv4->GetAddress(1, 0).GetLocal();
                     Mac48Address mac = Mac48Address::Allocate();
-                    
-                    // Authenticate node
-                    bool authenticated = g_sybilMitigationManager->AuthenticateNode(i, ip, mac);
-                    
-                    if (!authenticated) {
-                        std::cout << "[MITIGATION] Node " << i << " failed authentication (possible Sybil)\n";
-                    }
+                    g_sybilMitigationManager->AuthenticateNode(i, ip, mac);
                 }
             }
             
             std::cout << "Advanced Sybil mitigation system initialized successfully" << std::endl;
-            std::cout << "========================================================\n" << std::endl;
         }
-        // ===== End of Advanced Sybil Mitigation System Initialization =====
-    }
-    else if (present_wormhole_attack_nodes) {
-        // Use legacy wormhole implementation
-        setup_wormhole_tunnels(anim);
     }
     
 
