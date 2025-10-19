@@ -70,6 +70,14 @@ class WormholeEndpointApp;
 class WormholeAttackManager;
 class WormholeDetector;
 
+// Forward declarations for Sybil attack classes
+struct SybilIdentity;
+struct SybilStatistics;
+struct SybilDetectionMetrics;
+class SybilAttackApp;
+class SybilAttackManager;
+class SybilDetector;
+
 /**
  * @brief Statistics for wormhole attack monitoring
  */
@@ -507,6 +515,217 @@ private:
     Time m_lastDetectionCheck;
 };
 
+/**
+ * @brief Sybil Identity - Represents a fake identity created by malicious node
+ */
+struct SybilIdentity {
+    uint32_t realNodeId;              // Real node ID that created this fake identity
+    uint32_t fakeNodeId;              // Fake node ID (virtual identity)
+    Ipv4Address fakeIpAddress;        // Fake IP address for this identity
+    Mac48Address fakeMacAddress;      // Fake MAC address for this identity
+    uint32_t fakeSequenceNumber;      // Fake AODV sequence number
+    std::string fakeName;             // Name of fake identity
+    bool isClone;                     // Is this a clone of real node?
+    uint32_t clonedNodeId;            // If clone, which node is being cloned
+    Time creationTime;                // When this identity was created
+    uint32_t packetsGenerated;        // Packets sent from this fake identity
+    uint32_t routesAdvertised;        // Routes advertised from this identity
+    
+    SybilIdentity() 
+        : realNodeId(0), fakeNodeId(0), fakeSequenceNumber(999999),
+          isClone(false), clonedNodeId(0), packetsGenerated(0), 
+          routesAdvertised(0) {}
+};
+
+/**
+ * @brief Sybil Attack Statistics
+ */
+struct SybilStatistics {
+    uint32_t realNodeId;              // Real node ID performing attack
+    uint32_t fakeIdentitiesCreated;   // Number of fake identities created
+    uint32_t clonedIdentities;        // Number of cloned identities
+    uint32_t fakePacketsInjected;     // Fake packets injected into network
+    uint32_t fakeRoutesAdvertised;    // Fake routes advertised
+    uint32_t legitimatePacketsDropped; // Legitimate packets dropped
+    Time attackStartTime;
+    Time attackStopTime;
+    bool isActive;
+    std::vector<SybilIdentity> identities;  // All fake identities
+    
+    SybilStatistics() 
+        : realNodeId(0), fakeIdentitiesCreated(0), clonedIdentities(0),
+          fakePacketsInjected(0), fakeRoutesAdvertised(0), 
+          legitimatePacketsDropped(0), isActive(false) {}
+};
+
+/**
+ * @brief Sybil Detection Metrics
+ */
+struct SybilDetectionMetrics {
+    uint32_t totalNodesMonitored;     // Total nodes being monitored
+    uint32_t sybilNodesDetected;      // Sybil nodes detected
+    uint32_t fakeIdentitiesDetected;  // Fake identities detected
+    uint32_t clonedIdentitiesDetected; // Cloned identities detected
+    uint32_t truePositives;           // Correctly detected Sybil nodes
+    uint32_t falsePositives;          // Normal nodes flagged as Sybil
+    uint32_t falseNegatives;          // Missed Sybil detections
+    double detectionAccuracy;         // Detection accuracy percentage
+    uint32_t nodesBlacklisted;        // Nodes blacklisted due to Sybil
+    
+    SybilDetectionMetrics() 
+        : totalNodesMonitored(0), sybilNodesDetected(0), 
+          fakeIdentitiesDetected(0), clonedIdentitiesDetected(0),
+          truePositives(0), falsePositives(0), falseNegatives(0),
+          detectionAccuracy(0.0), nodesBlacklisted(0) {}
+};
+
+/**
+ * @brief Sybil Attack Application - Creates and manages fake identities
+ */
+class SybilAttackApp : public Application {
+public:
+    static TypeId GetTypeId(void);
+    
+    SybilAttackApp();
+    virtual ~SybilAttackApp();
+    
+    void SetIdentitiesCount(uint32_t count);
+    void SetCloneLegitimateNodes(bool clone);
+    void SetAdvertiseFakeRoutes(bool advertise);
+    void SetInjectFakePackets(bool inject);
+    void SetBroadcastInterval(double interval);
+    SybilStatistics GetStatistics() const { return m_stats; }
+    
+protected:
+    virtual void StartApplication(void);
+    virtual void StopApplication(void);
+    
+private:
+    void CreateFakeIdentities();
+    void CloneLegitimateNode(uint32_t targetNodeId);
+    void BroadcastFakeIdentities();
+    void AdvertiseFakeRoutes();
+    void InjectFakePacket(const SybilIdentity& identity);
+    void PeriodicBroadcast();
+    bool InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet,
+                        uint16_t protocol, const Address &from,
+                        const Address &to, NetDevice::PacketType packetType);
+    
+    uint32_t m_identitiesCount;
+    bool m_cloneLegitimateNodes;
+    bool m_advertiseFakeRoutes;
+    bool m_injectFakePackets;
+    double m_broadcastInterval;
+    SybilStatistics m_stats;
+    Ptr<Socket> m_broadcastSocket;
+    std::vector<Ipv4Address> m_legitimateNodeIps;
+};
+
+/**
+ * @brief Sybil Attack Manager - Manages all Sybil attack nodes
+ */
+class SybilAttackManager {
+public:
+    SybilAttackManager();
+    ~SybilAttackManager();
+    
+    // Configuration
+    void Initialize(std::vector<bool>& maliciousNodes, double attackPercentage, 
+                    uint32_t totalNodes);
+    void SetSybilBehavior(uint32_t identitiesPerNode, bool cloneNodes, 
+                         bool advertiseFakeRoutes, bool injectFakePackets);
+    void SetBroadcastInterval(double interval);
+    
+    // Attack lifecycle
+    void ActivateAttack(Time startTime, Time stopTime);
+    void DeactivateAttack();
+    void ConfigureVisualization(AnimationInterface& anim, 
+                                uint8_t r = 255, uint8_t g = 165, uint8_t b = 0);
+    
+    // Statistics
+    uint32_t GetSybilNodeCount() const { return m_sybilNodes.size(); }
+    uint32_t GetTotalFakeIdentities() const;
+    SybilStatistics GetNodeStatistics(uint32_t nodeId) const;
+    SybilStatistics GetAggregateStatistics() const;
+    std::vector<uint32_t> GetMaliciousNodeIds() const;
+    void ExportStatistics(std::string filename) const;
+    void PrintStatistics() const;
+    
+private:
+    void SelectMaliciousNodes(double attackPercentage);
+    void ScheduleNodeActivation(uint32_t nodeId, Time startTime, Time stopTime);
+    
+    std::vector<bool> m_maliciousNodes;
+    std::map<uint32_t, Ptr<SybilAttackApp>> m_sybilNodes;
+    uint32_t m_totalNodes;
+    uint32_t m_identitiesPerNode;
+    bool m_cloneLegitimateNodes;
+    bool m_advertiseFakeRoutes;
+    bool m_injectFakePackets;
+    double m_broadcastInterval;
+    Time m_attackStartTime;
+    Time m_attackStopTime;
+    bool m_attackActive;
+};
+
+/**
+ * @brief Sybil Detector - Detects fake identities and clone attacks
+ */
+class SybilDetector {
+public:
+    SybilDetector();
+    ~SybilDetector();
+    
+    void Initialize(uint32_t totalNodes, double similarityThreshold = 0.8);
+    void EnableDetection(bool enable);
+    void EnableMitigation(bool enable);
+    void SetSimilarityThreshold(double threshold);
+    void SetKnownMaliciousNodes(const std::vector<uint32_t>& maliciousNodes);
+    
+    // Node identity monitoring
+    void RecordNodeIdentity(uint32_t nodeId, Ipv4Address ip, Mac48Address mac);
+    void RecordPacketFromNode(uint32_t nodeId, Ipv4Address srcIp);
+    void UpdateNodeBehavior(uint32_t nodeId, const std::string& behavior);
+    
+    // Detection
+    bool DetectSybilNode(uint32_t nodeId);
+    bool DetectClonedIdentity(Ipv4Address ip, Mac48Address mac);
+    void PeriodicDetectionCheck();
+    double CalculateIdentitySimilarity(uint32_t nodeId1, uint32_t nodeId2);
+    
+    // Mitigation
+    void BlacklistNode(uint32_t nodeId);
+    void BlacklistFakeIdentity(Ipv4Address ip);
+    bool IsNodeBlacklisted(uint32_t nodeId) const;
+    bool IsIpBlacklisted(Ipv4Address ip) const;
+    
+    // Statistics and reporting
+    SybilDetectionMetrics GetMetrics() const { return m_metrics; }
+    void PrintDetectionReport() const;
+    void ExportDetectionResults(std::string filename) const;
+    
+private:
+    void AnalyzeNodeBehavior();
+    void DetectAnomalousIdentities();
+    bool CheckForDuplicateIdentities(uint32_t nodeId);
+    
+    bool m_detectionEnabled;
+    bool m_mitigationEnabled;
+    uint32_t m_totalNodes;
+    double m_similarityThreshold;
+    
+    std::map<uint32_t, std::vector<Ipv4Address>> m_nodeIdentities;
+    std::map<uint32_t, std::vector<Mac48Address>> m_nodeMacAddresses;
+    std::map<uint32_t, uint32_t> m_packetCounts;
+    std::set<uint32_t> m_blacklistedNodes;
+    std::set<Ipv4Address> m_blacklistedIps;
+    std::set<uint32_t> m_knownMaliciousNodes;
+    SybilDetectionMetrics m_metrics;
+    
+    Time m_detectionStartTime;
+    Time m_lastDetectionCheck;
+};
+
 } // namespace ns3
 
 // End of wormhole attack class declarations
@@ -628,6 +847,24 @@ bool enable_blackhole_mitigation = false;       // Enable blackhole mitigation/d
 double blackhole_pdr_threshold = 0.5;           // PDR threshold for blacklisting (50%)
 uint32_t blackhole_min_packets = 10;            // Minimum packets before blacklisting node
 
+// Sybil Attack Configuration
+bool enable_sybil_attack = false;               // Enable Sybil attack
+uint32_t sybil_identities_per_node = 3;         // Number of fake identities per malicious node
+bool sybil_advertise_fake_routes = true;        // Advertise routes from fake identities
+bool sybil_clone_legitimate_nodes = true;       // Clone identities of legitimate nodes
+bool sybil_inject_fake_packets = true;          // Inject packets from fake identities
+double sybil_start_time = 0.0;                  // When to start Sybil attack (seconds)
+double sybil_stop_time = 0.0;                   // When to stop Sybil attack (0 = simTime)
+double sybil_attack_percentage = 0.15;          // Percentage of nodes to make malicious (15%)
+double sybil_broadcast_interval = 2.0;          // Interval between fake identity broadcasts (seconds)
+uint32_t sybil_fake_sequence_number = 999999;   // Fake sequence number for fake identities
+
+// Sybil Detection and Mitigation Configuration
+bool enable_sybil_detection = false;            // Enable Sybil detection
+bool enable_sybil_mitigation = false;           // Enable automatic mitigation
+double sybil_detection_threshold = 0.8;         // Similarity threshold for detecting clones
+double sybil_detection_check_interval = 2.0;    // Seconds between detection checks
+
 // Packet tracking and analysis
 bool enable_packet_tracking = false;            // Enable detailed packet tracking and CSV export
 
@@ -664,6 +901,12 @@ ns3::PacketTracker* g_packetTracker = nullptr;
 
 // Global wormhole detector instance
 ns3::WormholeDetector* g_wormholeDetector = nullptr;
+
+// Global Sybil attack manager instance
+ns3::SybilAttackManager* g_sybilManager = nullptr;
+
+// Global Sybil detector instance
+ns3::SybilDetector* g_sybilDetector = nullptr;
 
 int maxspeed = 80;	
 
@@ -96733,8 +96976,615 @@ void WormholeDetector::ExportDetectionResults(std::string filename) const {
     std::cout << "[DETECTOR] Detection results exported to " << filename << "\n";
 }
 
+// ============================================================================
+// SYBIL ATTACK IMPLEMENTATION
+// ============================================================================
+
+// SybilAttackApp Implementation
+TypeId SybilAttackApp::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SybilAttackApp")
+        .SetParent<Application>()
+        .AddConstructor<SybilAttackApp>();
+    return tid;
+}
+
+SybilAttackApp::SybilAttackApp()
+    : m_identitiesCount(3),
+      m_cloneLegitimateNodes(true),
+      m_advertiseFakeRoutes(true),
+      m_injectFakePackets(false),
+      m_broadcastInterval(2.0) {
+}
+
+SybilAttackApp::~SybilAttackApp() {
+}
+
+void SybilAttackApp::SetIdentitiesCount(uint32_t count) {
+    m_identitiesCount = count;
+}
+
+void SybilAttackApp::SetCloneLegitimateNodes(bool clone) {
+    m_cloneLegitimateNodes = clone;
+}
+
+void SybilAttackApp::SetAdvertiseFakeRoutes(bool advertise) {
+    m_advertiseFakeRoutes = advertise;
+}
+
+void SybilAttackApp::SetInjectFakePackets(bool inject) {
+    m_injectFakePackets = inject;
+}
+
+void SybilAttackApp::SetBroadcastInterval(double interval) {
+    m_broadcastInterval = interval;
+}
+
+void SybilAttackApp::StartApplication(void) {
+    m_stats.realNodeId = GetNode()->GetId();
+    m_stats.isActive = true;
+    m_stats.attackStartTime = Simulator::Now();
+    
+    std::cout << "[SYBIL] Node " << m_stats.realNodeId << " starting Sybil attack\n";
+    
+    // Create broadcast socket
+    TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+    m_broadcastSocket = Socket::CreateSocket(GetNode(), tid);
+    InetSocketAddress broadcastAddr = InetSocketAddress(Ipv4Address("255.255.255.255"), 654);
+    m_broadcastSocket->SetAllowBroadcast(true);
+    m_broadcastSocket->Bind();
+    
+    // Create fake identities
+    CreateFakeIdentities();
+    
+    // Enable promiscuous mode to intercept packets
+    Ptr<Node> node = GetNode();
+    for (uint32_t i = 0; i < node->GetNDevices(); ++i) {
+        Ptr<NetDevice> device = node->GetDevice(i);
+        if (!device->IsPointToPoint()) {
+            device->SetPromiscuousReceiveCallback(
+                MakeCallback(&SybilAttackApp::InterceptPacket, this));
+        }
+    }
+    
+    // Schedule periodic broadcasts
+    PeriodicBroadcast();
+}
+
+void SybilAttackApp::StopApplication(void) {
+    m_stats.isActive = false;
+    m_stats.attackStopTime = Simulator::Now();
+    
+    if (m_broadcastSocket) {
+        m_broadcastSocket->Close();
+    }
+    
+    std::cout << "[SYBIL] Node " << m_stats.realNodeId << " stopped Sybil attack\n";
+    std::cout << "[SYBIL] Created " << m_stats.fakeIdentitiesCreated 
+              << " fake identities (" << m_stats.clonedIdentities << " cloned)\n";
+}
+
+void SybilAttackApp::CreateFakeIdentities() {
+    Ptr<Node> realNode = GetNode();
+    uint32_t realNodeId = realNode->GetId();
+    
+    // Get real node's IP for base address
+    Ptr<Ipv4> ipv4 = realNode->GetObject<Ipv4>();
+    Ipv4Address baseIp;
+    if (ipv4 && ipv4->GetNInterfaces() > 1) {
+        baseIp = ipv4->GetAddress(1, 0).GetLocal();
+    }
+    
+    // Collect legitimate node IPs for cloning
+    for (uint32_t i = 0; i < NodeList::GetNNodes(); ++i) {
+        if (i != realNodeId) {
+            Ptr<Node> node = NodeList::GetNode(i);
+            Ptr<Ipv4> ip = node->GetObject<Ipv4>();
+            if (ip && ip->GetNInterfaces() > 1) {
+                m_legitimateNodeIps.push_back(ip->GetAddress(1, 0).GetLocal());
+            }
+        }
+    }
+    
+    // Create fake identities
+    for (uint32_t i = 0; i < m_identitiesCount; ++i) {
+        SybilIdentity identity;
+        identity.realNodeId = realNodeId;
+        identity.fakeNodeId = 1000 + (realNodeId * 100) + i; // Virtual node ID
+        identity.creationTime = Simulator::Now();
+        identity.fakeSequenceNumber = sybil_fake_sequence_number + i;
+        
+        // Generate fake name
+        std::ostringstream nameStream;
+        nameStream << "Fake_" << realNodeId << "_" << i;
+        identity.fakeName = nameStream.str();
+        
+        // Decide if this should be a clone or new identity
+        if (m_cloneLegitimateNodes && !m_legitimateNodeIps.empty() && i < m_legitimateNodeIps.size()) {
+            // Clone an existing legitimate node
+            identity.isClone = true;
+            identity.clonedNodeId = i + 2; // Assuming node IDs start from 2
+            identity.fakeIpAddress = m_legitimateNodeIps[i];
+            
+            // Generate similar MAC address to cloned node
+            Mac48Address realMac = Mac48Address::Allocate();
+            identity.fakeMacAddress = realMac;
+            
+            m_stats.clonedIdentities++;
+            
+            std::cout << "[SYBIL] Node " << realNodeId << " created CLONED identity " 
+                      << identity.fakeName << " mimicking Node " << identity.clonedNodeId << "\n";
+        } else {
+            // Create new fake identity
+            identity.isClone = false;
+            
+            // Generate fake IP (192.168.X.Y range to avoid conflict)
+            std::ostringstream ipStream;
+            ipStream << "192.168." << (realNodeId % 256) << "." << ((i + 1) % 256);
+            identity.fakeIpAddress = Ipv4Address(ipStream.str().c_str());
+            
+            // Generate fake MAC address
+            identity.fakeMacAddress = Mac48Address::Allocate();
+            
+            std::cout << "[SYBIL] Node " << realNodeId << " created NEW fake identity " 
+                      << identity.fakeName << " with IP " << identity.fakeIpAddress << "\n";
+        }
+        
+        m_stats.identities.push_back(identity);
+        m_stats.fakeIdentitiesCreated++;
+    }
+    
+    std::cout << "[SYBIL] Node " << realNodeId << " created " << m_stats.fakeIdentitiesCreated 
+              << " identities (" << m_stats.clonedIdentities << " clones)\n";
+}
+
+void SybilAttackApp::PeriodicBroadcast() {
+    if (!m_stats.isActive) return;
+    
+    // Broadcast fake identities
+    BroadcastFakeIdentities();
+    
+    // Advertise fake routes if enabled
+    if (m_advertiseFakeRoutes) {
+        AdvertiseFakeRoutes();
+    }
+    
+    // Inject fake packets if enabled
+    if (m_injectFakePackets) {
+        for (const auto& identity : m_stats.identities) {
+            InjectFakePacket(identity);
+        }
+    }
+    
+    // Schedule next broadcast
+    Simulator::Schedule(Seconds(m_broadcastInterval), 
+                       &SybilAttackApp::PeriodicBroadcast, this);
+}
+
+void SybilAttackApp::BroadcastFakeIdentities() {
+    // Broadcast presence messages from each fake identity
+    for (auto& identity : m_stats.identities) {
+        // Create a simple beacon packet announcing this identity
+        Ptr<Packet> packet = Create<Packet>(100);
+        
+        // In a real implementation, would add proper headers here
+        // For now, just broadcast to announce presence
+        
+        if (m_broadcastSocket) {
+            m_broadcastSocket->SendTo(packet, 0, 
+                InetSocketAddress(Ipv4Address("255.255.255.255"), 654));
+        }
+        
+        identity.packetsGenerated++;
+        m_stats.fakePacketsInjected++;
+    }
+}
+
+void SybilAttackApp::AdvertiseFakeRoutes() {
+    // Each fake identity advertises routes to random destinations
+    for (auto& identity : m_stats.identities) {
+        // Create fake RREP packet
+        Ptr<Packet> fakeRREP = Create<Packet>(100);
+        
+        // In a real implementation, would construct proper AODV RREP header
+        // For now, just broadcast
+        
+        if (m_broadcastSocket) {
+            m_broadcastSocket->SendTo(fakeRREP, 0, 
+                InetSocketAddress(Ipv4Address("255.255.255.255"), 654));
+        }
+        
+        identity.routesAdvertised++;
+        m_stats.fakeRoutesAdvertised++;
+    }
+    
+    if (m_stats.fakeRoutesAdvertised % 10 == 0) {
+        std::cout << "[SYBIL] Node " << m_stats.realNodeId 
+                  << " advertised " << m_stats.fakeRoutesAdvertised << " fake routes\n";
+    }
+}
+
+void SybilAttackApp::InjectFakePacket(const SybilIdentity& identity) {
+    // Create fake data packet from this identity
+    Ptr<Packet> fakePacket = Create<Packet>(512);
+    
+    // Choose random destination
+    if (!m_legitimateNodeIps.empty()) {
+        uint32_t randomIdx = rand() % m_legitimateNodeIps.empty();
+        Ipv4Address dest = m_legitimateNodeIps[randomIdx];
+        
+        if (m_broadcastSocket) {
+            m_broadcastSocket->SendTo(fakePacket, 0, 
+                InetSocketAddress(dest, 7777));
+        }
+    }
+}
+
+bool SybilAttackApp::InterceptPacket(Ptr<NetDevice> device,
+                                    Ptr<const Packet> packet,
+                                    uint16_t protocol,
+                                    const Address &from,
+                                    const Address &to,
+                                    NetDevice::PacketType packetType) {
+    // Optionally drop legitimate packets to disrupt network
+    // For now, just observe
+    return false; // Don't consume packet
+}
+
+// SybilAttackManager Implementation
+SybilAttackManager::SybilAttackManager()
+    : m_totalNodes(0),
+      m_identitiesPerNode(3),
+      m_cloneLegitimateNodes(true),
+      m_advertiseFakeRoutes(true),
+      m_injectFakePackets(false),
+      m_broadcastInterval(2.0),
+      m_attackActive(false) {
+}
+
+SybilAttackManager::~SybilAttackManager() {
+}
+
+void SybilAttackManager::Initialize(std::vector<bool>& maliciousNodes, 
+                                    double attackPercentage,
+                                    uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    m_maliciousNodes.resize(totalNodes, false);
+    
+    if (maliciousNodes.size() == totalNodes) {
+        m_maliciousNodes = maliciousNodes;
+    } else {
+        // Randomly select malicious nodes
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_real_distribution<> dis(0.0, 1.0);
+        
+        for (uint32_t i = 0; i < totalNodes; ++i) {
+            m_maliciousNodes[i] = (dis(gen) < attackPercentage);
+            maliciousNodes.push_back(m_maliciousNodes[i]);
+        }
+    }
+    
+    std::cout << "[SYBIL MANAGER] Initialized with " << totalNodes << " nodes\n";
+}
+
+void SybilAttackManager::SetSybilBehavior(uint32_t identitiesPerNode, 
+                                         bool cloneNodes, 
+                                         bool advertiseFakeRoutes, 
+                                         bool injectFakePackets) {
+    m_identitiesPerNode = identitiesPerNode;
+    m_cloneLegitimateNodes = cloneNodes;
+    m_advertiseFakeRoutes = advertiseFakeRoutes;
+    m_injectFakePackets = injectFakePackets;
+}
+
+void SybilAttackManager::SetBroadcastInterval(double interval) {
+    m_broadcastInterval = interval;
+}
+
+void SybilAttackManager::ActivateAttack(Time startTime, Time stopTime) {
+    std::cout << "=== ACTIVATING SYBIL ATTACK ===" << std::endl;
+    std::cout << "Start time: " << startTime.GetSeconds() << "s, Stop time: " << stopTime.GetSeconds() << "s" << std::endl;
+    
+    uint32_t sybilCount = 0;
+    for (uint32_t i = 0; i < m_maliciousNodes.size(); ++i) {
+        if (m_maliciousNodes[i]) {
+            Ptr<Node> node = NodeList::GetNode(i);
+            Ptr<SybilAttackApp> app = CreateObject<SybilAttackApp>();
+            
+            app->SetIdentitiesCount(m_identitiesPerNode);
+            app->SetCloneLegitimateNodes(m_cloneLegitimateNodes);
+            app->SetAdvertiseFakeRoutes(m_advertiseFakeRoutes);
+            app->SetInjectFakePackets(m_injectFakePackets);
+            app->SetBroadcastInterval(m_broadcastInterval);
+            
+            node->AddApplication(app);
+            app->SetStartTime(startTime);
+            app->SetStopTime(stopTime);
+            
+            m_sybilNodes[i] = app;
+            sybilCount++;
+        }
+    }
+    
+    m_attackStartTime = startTime;
+    m_attackStopTime = stopTime;
+    m_attackActive = true;
+    
+    std::cout << "[SYBIL MANAGER] Activated " << sybilCount << " Sybil nodes\n";
+    std::cout << "[SYBIL MANAGER] Each node will create " << m_identitiesPerNode << " fake identities\n";
+    std::cout << "[SYBIL MANAGER] Total fake identities: " << (sybilCount * m_identitiesPerNode) << "\n";
+}
+
+void SybilAttackManager::DeactivateAttack() {
+    m_attackActive = false;
+    std::cout << "[SYBIL MANAGER] Attack deactivated\n";
+}
+
+void SybilAttackManager::ConfigureVisualization(AnimationInterface& anim, 
+                                               uint8_t r, uint8_t g, uint8_t b) {
+    for (const auto& pair : m_sybilNodes) {
+        uint32_t nodeId = pair.first;
+        anim.UpdateNodeColor(nodeId, r, g, b);
+        anim.UpdateNodeSize(nodeId, 12.0, 12.0);
+        
+        std::ostringstream desc;
+        desc << "Sybil Node " << nodeId << " (" << m_identitiesPerNode << " identities)";
+        anim.UpdateNodeDescription(nodeId, desc.str());
+    }
+}
+
+uint32_t SybilAttackManager::GetTotalFakeIdentities() const {
+    uint32_t total = 0;
+    for (const auto& pair : m_sybilNodes) {
+        total += pair.second->GetStatistics().fakeIdentitiesCreated;
+    }
+    return total;
+}
+
+SybilStatistics SybilAttackManager::GetNodeStatistics(uint32_t nodeId) const {
+    auto it = m_sybilNodes.find(nodeId);
+    if (it != m_sybilNodes.end()) {
+        return it->second->GetStatistics();
+    }
+    return SybilStatistics();
+}
+
+SybilStatistics SybilAttackManager::GetAggregateStatistics() const {
+    SybilStatistics aggregate;
+    
+    for (const auto& pair : m_sybilNodes) {
+        const SybilStatistics& stats = pair.second->GetStatistics();
+        aggregate.fakeIdentitiesCreated += stats.fakeIdentitiesCreated;
+        aggregate.clonedIdentities += stats.clonedIdentities;
+        aggregate.fakePacketsInjected += stats.fakePacketsInjected;
+        aggregate.fakeRoutesAdvertised += stats.fakeRoutesAdvertised;
+        aggregate.legitimatePacketsDropped += stats.legitimatePacketsDropped;
+    }
+    
+    aggregate.isActive = m_attackActive;
+    aggregate.attackStartTime = m_attackStartTime;
+    aggregate.attackStopTime = m_attackStopTime;
+    
+    return aggregate;
+}
+
+std::vector<uint32_t> SybilAttackManager::GetMaliciousNodeIds() const {
+    std::vector<uint32_t> ids;
+    for (const auto& pair : m_sybilNodes) {
+        ids.push_back(pair.first);
+    }
+    return ids;
+}
+
+void SybilAttackManager::PrintStatistics() const {
+    std::cout << "\n=== SYBIL ATTACK STATISTICS ===\n";
+    
+    SybilStatistics aggregate = GetAggregateStatistics();
+    
+    std::cout << "Total Sybil Nodes: " << m_sybilNodes.size() << "\n";
+    std::cout << "Total Fake Identities Created: " << aggregate.fakeIdentitiesCreated << "\n";
+    std::cout << "Cloned Identities: " << aggregate.clonedIdentities << "\n";
+    std::cout << "New Fake Identities: " << (aggregate.fakeIdentitiesCreated - aggregate.clonedIdentities) << "\n";
+    std::cout << "Fake Packets Injected: " << aggregate.fakePacketsInjected << "\n";
+    std::cout << "Fake Routes Advertised: " << aggregate.fakeRoutesAdvertised << "\n";
+    std::cout << "Legitimate Packets Dropped: " << aggregate.legitimatePacketsDropped << "\n";
+    std::cout << "Attack Duration: " << (aggregate.attackStopTime - aggregate.attackStartTime).GetSeconds() << "s\n";
+    std::cout << "=================================\n\n";
+}
+
+void SybilAttackManager::ExportStatistics(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[SYBIL MANAGER] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    SybilStatistics aggregate = GetAggregateStatistics();
+    
+    outFile << "Metric,Value\n";
+    outFile << "TotalSybilNodes," << m_sybilNodes.size() << "\n";
+    outFile << "IdentitiesPerNode," << m_identitiesPerNode << "\n";
+    outFile << "TotalFakeIdentities," << aggregate.fakeIdentitiesCreated << "\n";
+    outFile << "ClonedIdentities," << aggregate.clonedIdentities << "\n";
+    outFile << "NewFakeIdentities," << (aggregate.fakeIdentitiesCreated - aggregate.clonedIdentities) << "\n";
+    outFile << "FakePacketsInjected," << aggregate.fakePacketsInjected << "\n";
+    outFile << "FakeRoutesAdvertised," << aggregate.fakeRoutesAdvertised << "\n";
+    outFile << "LegitimatePacketsDropped," << aggregate.legitimatePacketsDropped << "\n";
+    outFile << "AttackDuration_s," << (aggregate.attackStopTime - aggregate.attackStartTime).GetSeconds() << "\n";
+    
+    outFile.close();
+    std::cout << "[SYBIL MANAGER] Statistics exported to " << filename << "\n";
+}
+
+// SybilDetector Implementation
+SybilDetector::SybilDetector()
+    : m_detectionEnabled(false),
+      m_mitigationEnabled(false),
+      m_totalNodes(0),
+      m_similarityThreshold(0.8) {
+}
+
+SybilDetector::~SybilDetector() {
+}
+
+void SybilDetector::Initialize(uint32_t totalNodes, double similarityThreshold) {
+    m_totalNodes = totalNodes;
+    m_similarityThreshold = similarityThreshold;
+    m_detectionStartTime = Simulator::Now();
+    m_lastDetectionCheck = Simulator::Now();
+    
+    std::cout << "[SYBIL DETECTOR] Initialized for " << totalNodes 
+              << " nodes with similarity threshold " << similarityThreshold << "\n";
+}
+
+void SybilDetector::EnableDetection(bool enable) {
+    m_detectionEnabled = enable;
+    std::cout << "[SYBIL DETECTOR] Detection " << (enable ? "ENABLED" : "DISABLED") << "\n";
+}
+
+void SybilDetector::EnableMitigation(bool enable) {
+    m_mitigationEnabled = enable;
+    std::cout << "[SYBIL DETECTOR] Mitigation " << (enable ? "ENABLED" : "DISABLED") << "\n";
+}
+
+void SybilDetector::SetSimilarityThreshold(double threshold) {
+    m_similarityThreshold = threshold;
+}
+
+void SybilDetector::SetKnownMaliciousNodes(const std::vector<uint32_t>& maliciousNodes) {
+    m_knownMaliciousNodes.clear();
+    for (uint32_t nodeId : maliciousNodes) {
+        m_knownMaliciousNodes.insert(nodeId);
+    }
+    std::cout << "[SYBIL DETECTOR] Loaded " << m_knownMaliciousNodes.size() 
+              << " known malicious nodes\n";
+}
+
+void SybilDetector::RecordNodeIdentity(uint32_t nodeId, Ipv4Address ip, Mac48Address mac) {
+    if (!m_detectionEnabled) return;
+    
+    m_nodeIdentities[nodeId].push_back(ip);
+    m_nodeMacAddresses[nodeId].push_back(mac);
+    
+    // Check for duplicate identities
+    if (CheckForDuplicateIdentities(nodeId)) {
+        m_metrics.fakeIdentitiesDetected++;
+    }
+}
+
+void SybilDetector::RecordPacketFromNode(uint32_t nodeId, Ipv4Address srcIp) {
+    if (!m_detectionEnabled) return;
+    m_packetCounts[nodeId]++;
+}
+
+bool SybilDetector::DetectSybilNode(uint32_t nodeId) {
+    if (!m_detectionEnabled) return false;
+    
+    // Check if node has multiple identities
+    if (m_nodeIdentities.find(nodeId) != m_nodeIdentities.end()) {
+        if (m_nodeIdentities[nodeId].size() > 1) {
+            m_metrics.sybilNodesDetected++;
+            
+            if (m_mitigationEnabled) {
+                BlacklistNode(nodeId);
+            }
+            
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+bool SybilDetector::CheckForDuplicateIdentities(uint32_t nodeId) {
+    // Check if this node's identities match any other node's identities
+    if (m_nodeIdentities.find(nodeId) == m_nodeIdentities.end()) return false;
+    
+    for (const auto& pair : m_nodeIdentities) {
+        if (pair.first == nodeId) continue;
+        
+        // Check for IP address overlap
+        for (const auto& ip : m_nodeIdentities[nodeId]) {
+            for (const auto& otherIp : pair.second) {
+                if (ip == otherIp) {
+                    std::cout << "[SYBIL DETECTOR] Detected duplicate IP " << ip 
+                              << " between Node " << nodeId << " and Node " << pair.first << "\n";
+                    m_metrics.clonedIdentitiesDetected++;
+                    return true;
+                }
+            }
+        }
+    }
+    
+    return false;
+}
+
+void SybilDetector::PeriodicDetectionCheck() {
+    if (!m_detectionEnabled) return;
+    
+    m_lastDetectionCheck = Simulator::Now();
+    
+    std::cout << "[SYBIL DETECTOR] Periodic check - Nodes monitored: " << m_nodeIdentities.size()
+              << ", Sybil nodes detected: " << m_metrics.sybilNodesDetected << "\n";
+}
+
+void SybilDetector::BlacklistNode(uint32_t nodeId) {
+    m_blacklistedNodes.insert(nodeId);
+    m_metrics.nodesBlacklisted++;
+    std::cout << "[SYBIL DETECTOR] Node " << nodeId << " blacklisted\n";
+}
+
+void SybilDetector::BlacklistFakeIdentity(Ipv4Address ip) {
+    m_blacklistedIps.insert(ip);
+    std::cout << "[SYBIL DETECTOR] IP " << ip << " blacklisted\n";
+}
+
+bool SybilDetector::IsNodeBlacklisted(uint32_t nodeId) const {
+    return m_blacklistedNodes.find(nodeId) != m_blacklistedNodes.end();
+}
+
+bool SybilDetector::IsIpBlacklisted(Ipv4Address ip) const {
+    return m_blacklistedIps.find(ip) != m_blacklistedIps.end();
+}
+
+void SybilDetector::PrintDetectionReport() const {
+    std::cout << "\n=== SYBIL DETECTION REPORT ===\n";
+    std::cout << "Detection Enabled: " << (m_detectionEnabled ? "Yes" : "No") << "\n";
+    std::cout << "Mitigation Enabled: " << (m_mitigationEnabled ? "Yes" : "No") << "\n";
+    std::cout << "Similarity Threshold: " << m_similarityThreshold << "\n";
+    std::cout << "Total Nodes Monitored: " << m_metrics.totalNodesMonitored << "\n";
+    std::cout << "Sybil Nodes Detected: " << m_metrics.sybilNodesDetected << "\n";
+    std::cout << "Fake Identities Detected: " << m_metrics.fakeIdentitiesDetected << "\n";
+    std::cout << "Cloned Identities Detected: " << m_metrics.clonedIdentitiesDetected << "\n";
+    std::cout << "Nodes Blacklisted: " << m_metrics.nodesBlacklisted << "\n";
+    std::cout << "================================\n\n";
+}
+
+void SybilDetector::ExportDetectionResults(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[SYBIL DETECTOR] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "DetectionEnabled," << (m_detectionEnabled ? "true" : "false") << "\n";
+    outFile << "MitigationEnabled," << (m_mitigationEnabled ? "true" : "false") << "\n";
+    outFile << "SimilarityThreshold," << m_similarityThreshold << "\n";
+    outFile << "TotalNodesMonitored," << m_metrics.totalNodesMonitored << "\n";
+    outFile << "SybilNodesDetected," << m_metrics.sybilNodesDetected << "\n";
+    outFile << "FakeIdentitiesDetected," << m_metrics.fakeIdentitiesDetected << "\n";
+    outFile << "ClonedIdentitiesDetected," << m_metrics.clonedIdentitiesDetected << "\n";
+    outFile << "NodesBlacklisted," << m_metrics.nodesBlacklisted << "\n";
+    
+    outFile.close();
+    std::cout << "[SYBIL DETECTOR] Detection results exported to " << filename << "\n";
+}
+
 } // namespace ns3
 
+// End of inline Sybil attack implementation
+// ============================================================================
 // End of inline wormhole attack implementation
 // ============================================================================
 
@@ -141914,6 +142764,24 @@ int main(int argc, char *argv[])
 	cmd.AddValue ("blackhole_pdr_threshold", "PDR threshold for blacklisting nodes", blackhole_pdr_threshold);
 	cmd.AddValue ("enable_packet_tracking", "Enable detailed packet tracking and CSV export", enable_packet_tracking);
 	
+	// Sybil Attack Parameters
+	cmd.AddValue ("enable_sybil_attack", "Enable Sybil attack", enable_sybil_attack);
+	cmd.AddValue ("sybil_identities_per_node", "Number of fake identities per Sybil node", sybil_identities_per_node);
+	cmd.AddValue ("sybil_advertise_fake_routes", "Sybil nodes advertise fake routes", sybil_advertise_fake_routes);
+	cmd.AddValue ("sybil_clone_legitimate_nodes", "Sybil nodes clone legitimate node identities", sybil_clone_legitimate_nodes);
+	cmd.AddValue ("sybil_inject_fake_packets", "Sybil nodes inject fake packets", sybil_inject_fake_packets);
+	cmd.AddValue ("sybil_start_time", "Sybil attack start time (seconds)", sybil_start_time);
+	cmd.AddValue ("sybil_stop_time", "Sybil attack stop time (seconds, 0=simTime)", sybil_stop_time);
+	cmd.AddValue ("sybil_attack_percentage", "Percentage of nodes to make Sybil attackers", sybil_attack_percentage);
+	cmd.AddValue ("sybil_broadcast_interval", "Interval for broadcasting fake identities (seconds)", sybil_broadcast_interval);
+	cmd.AddValue ("sybil_fake_sequence_number", "Fake sequence number for Sybil RREP", sybil_fake_sequence_number);
+	
+	// Sybil Detection and Mitigation Parameters
+	cmd.AddValue ("enable_sybil_detection", "Enable Sybil attack detection", enable_sybil_detection);
+	cmd.AddValue ("enable_sybil_mitigation", "Enable Sybil attack mitigation (blacklisting)", enable_sybil_mitigation);
+	cmd.AddValue ("sybil_detection_threshold", "Similarity threshold for Sybil detection (0.0-1.0)", sybil_detection_threshold);
+	cmd.AddValue ("sybil_detection_check_interval", "Interval for Sybil detection checks (seconds)", sybil_detection_check_interval);
+	
 	cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
     cmd.AddValue ("routing_test", "routing_test", routing_test);
     cmd.AddValue ("routing_algorithm", "routing_algorithm", routing_algorithm);
@@ -144047,16 +144915,131 @@ int main(int argc, char *argv[])
             std::cout << "================================================\n" << std::endl;
         }
         // ===== End of Detection System Initialization =====
+        
+        // ===== Sybil Attack Configuration =====
+        if (enable_sybil_attack) {
+            std::cout << "\n============================================" << std::endl;
+            std::cout << "=== Sybil Attack Configuration ===" << std::endl;
+            
+            // Initialize malicious nodes vector
+            std::vector<bool> sybil_malicious_nodes(actual_node_count, false);
+            
+            // Randomly select malicious nodes based on percentage
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_real_distribution<> dis(0.0, 1.0);
+            
+            uint32_t malicious_count = 0;
+            for (uint32_t i = 0; i < actual_node_count; ++i) {
+                if (dis(gen) < sybil_attack_percentage) {
+                    sybil_malicious_nodes[i] = true;
+                    malicious_count++;
+                }
+            }
+            
+            // Ensure at least one malicious node
+            if (malicious_count == 0 && actual_node_count > 0) {
+                sybil_malicious_nodes[0] = true;
+                malicious_count = 1;
+            }
+            
+            std::cout << "Total Nodes: " << actual_node_count << std::endl;
+            std::cout << "Malicious Nodes Selected: " << malicious_count << std::endl;
+            std::cout << "Attack Percentage: " << (sybil_attack_percentage * 100) << "%" << std::endl;
+            std::cout << "Identities Per Node: " << sybil_identities_per_node << std::endl;
+            std::cout << "Clone Legitimate Nodes: " << (sybil_clone_legitimate_nodes ? "Yes" : "No") << std::endl;
+            std::cout << "Advertise Fake Routes: " << (sybil_advertise_fake_routes ? "Yes" : "No") << std::endl;
+            std::cout << "Inject Fake Packets: " << (sybil_inject_fake_packets ? "Yes" : "No") << std::endl;
+            std::cout << "Broadcast Interval: " << sybil_broadcast_interval << " seconds" << std::endl;
+            
+            // Create Sybil manager
+            g_sybilManager = new ns3::SybilAttackManager();
+            
+            // Initialize with malicious nodes
+            g_sybilManager->Initialize(sybil_malicious_nodes, sybil_attack_percentage, actual_node_count);
+            
+            // Set Sybil behavior
+            g_sybilManager->SetSybilBehavior(sybil_identities_per_node,
+                                            sybil_clone_legitimate_nodes,
+                                            sybil_advertise_fake_routes,
+                                            sybil_inject_fake_packets);
+            
+            // Set broadcast interval
+            g_sybilManager->SetBroadcastInterval(sybil_broadcast_interval);
+            
+            // Determine stop time
+            double sybilStopTime = (sybil_stop_time > 0) ? sybil_stop_time : simTime;
+            
+            // Activate attack
+            g_sybilManager->ActivateAttack(ns3::Seconds(sybil_start_time), 
+                                          ns3::Seconds(sybilStopTime));
+            
+            // Configure visualization (Purple color for Sybil nodes)
+            g_sybilManager->ConfigureVisualization(anim, 128, 0, 128);
+            
+            uint32_t totalFakeIdentities = malicious_count * sybil_identities_per_node;
+            std::cout << "Configured " << malicious_count << " Sybil nodes\n";
+            std::cout << "Total fake identities: " << totalFakeIdentities << std::endl;
+            std::cout << "Attack active from " << sybil_start_time 
+                      << "s to " << sybilStopTime << "s" << std::endl;
+            std::cout << "============================================\n" << std::endl;
+        }
+        
+        // ===== Sybil Detection System Initialization =====
+        if (enable_sybil_detection) {
+            std::cout << "\n=== Sybil Detection System Configuration ===" << std::endl;
+            std::cout << "Detection: " << (enable_sybil_detection ? "ENABLED" : "DISABLED") << std::endl;
+            std::cout << "Mitigation: " << (enable_sybil_mitigation ? "ENABLED" : "DISABLED") << std::endl;
+            std::cout << "Similarity Threshold: " << sybil_detection_threshold << std::endl;
+            std::cout << "Detection Check Interval: " << sybil_detection_check_interval << " seconds" << std::endl;
+            
+            // Create global detector
+            g_sybilDetector = new ns3::SybilDetector();
+            
+            // Initialize detector
+            g_sybilDetector->Initialize(actual_node_count, sybil_detection_threshold);
+            g_sybilDetector->EnableDetection(enable_sybil_detection);
+            g_sybilDetector->EnableMitigation(enable_sybil_mitigation);
+            
+            // Connect detector with attack manager if attack is enabled
+            if (g_sybilManager != nullptr) {
+                std::vector<uint32_t> maliciousNodes = g_sybilManager->GetMaliciousNodeIds();
+                g_sybilDetector->SetKnownMaliciousNodes(maliciousNodes);
+                std::cout << "Detector linked with attack manager: " << maliciousNodes.size() 
+                          << " known malicious nodes" << std::endl;
+            }
+            
+            // Determine stop time
+            double sybilStopTime = (sybil_stop_time > 0) ? sybil_stop_time : simTime;
+            
+            // Schedule periodic detection checks
+            for (double t = sybil_detection_check_interval; t < sybilStopTime; t += sybil_detection_check_interval) {
+                ns3::Simulator::Schedule(ns3::Seconds(t), 
+                                        &ns3::SybilDetector::PeriodicDetectionCheck, 
+                                        g_sybilDetector);
+            }
+            
+            // Schedule detection report printing before simulation ends
+            ns3::Simulator::Schedule(ns3::Seconds(sybilStopTime - 0.1), 
+                                    &ns3::SybilDetector::PrintDetectionReport, 
+                                    g_sybilDetector);
+            
+            // Schedule CSV export
+            ns3::Simulator::Schedule(ns3::Seconds(sybilStopTime - 0.05), 
+                                    &ns3::SybilDetector::ExportDetectionResults, 
+                                    g_sybilDetector,
+                                    "sybil-detection-results.csv");
+            
+            std::cout << "Sybil detection system initialized successfully" << std::endl;
+            std::cout << "================================================\n" << std::endl;
+        }
+        // ===== End of Sybil Detection System Initialization =====
     }
     else if (present_wormhole_attack_nodes) {
         // Use legacy wormhole implementation
         setup_wormhole_tunnels(anim);
     }
     
-	setup_blackhole_attack(blackhole_malicious_nodes, total_size, simTime, anim,blackhole_malicious_controllers, controllers, getControllerNode);
-	setup_replay_attack(reply_malicious_nodes,total_size,simTime,anim,reply_malicious_controllers,controllers,getControllerNode,1.0); // Replay delay in seconds
-	setup_sybil_attack(sybil_malicious_nodes,total_size,simTime,anim,sybil_malicious_controllers,controllers,getControllerNode,3 );
-	setup_routing_table_poisoning_attack(routing_table_poisoning_malicious_nodes,total_size,simTime,anim,routing_table_poisoning_malicious_controllers,controllers,getControllerNode,Ipv4Address("99.99.99.0"),Ipv4Mask("255.255.255.0"),1);
 
   Simulator::Stop(Seconds(simTime));
   Simulator::Run();
@@ -144105,6 +145088,24 @@ int main(int argc, char *argv[])
       g_wormholeDetector = nullptr;
   }
   
+  // Print Sybil attack statistics if Sybil attack was used
+  if (g_sybilManager != nullptr) {
+      g_sybilManager->PrintStatistics();
+      g_sybilManager->ExportStatistics("sybil-attack-results.csv");
+      delete g_sybilManager;
+      g_sybilManager = nullptr;
+  }
+  
+  // Export Sybil detection results if detector was used
+  if (g_sybilDetector != nullptr) {
+      std::cout << "\n=== Sybil Detection Summary ===" << std::endl;
+      g_sybilDetector->PrintDetectionReport();
+      g_sybilDetector->ExportDetectionResults("sybil-detection-results.csv");
+      std::cout << "Sybil detection results exported to sybil-detection-results.csv" << std::endl;
+      delete g_sybilDetector;
+      g_sybilDetector = nullptr;
+  }
+  
   Simulator::Destroy();
   
   // Print summary of all generated CSV files
@@ -144120,6 +145121,12 @@ int main(int argc, char *argv[])
   }
   if (g_blackholeMitigation != nullptr || enable_blackhole_mitigation) {
       std::cout << "  ✓ blackhole-mitigation-results.csv\n";
+  }
+  if (g_sybilManager != nullptr || enable_sybil_attack) {
+      std::cout << "  ✓ sybil-attack-results.csv\n";
+  }
+  if (g_sybilDetector != nullptr || enable_sybil_detection) {
+      std::cout << "  ✓ sybil-detection-results.csv\n";
   }
   if (g_packetTracker != nullptr || enable_packet_tracking) {
       std::cout << "  ✓ packet-delivery-analysis.csv\n";
