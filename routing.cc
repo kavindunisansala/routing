@@ -1079,21 +1079,21 @@ double attack_percentage=0.2; //percentage of attackers (20%)
 
 // Attack presence flags
 bool present_blackhole_attack_nodes = false;
-bool present_wormhole_attack_nodes = true;
+bool present_wormhole_attack_nodes = false;
 bool present_sybil_attack_nodes = false;
 bool present_reply_attack_nodes = false;
 bool present_replay_attack_nodes = false;  // Alias for reply attack
 bool present_routing_table_poisoning_attack_nodes = false;
 
 bool present_blackhole_attack_controllers = false;
-bool present_wormhole_attack_controllers = true;
+bool present_wormhole_attack_controllers = false;
 bool present_sybil_attack_controllers = false;
 bool present_reply_attack_controllers = false;
 bool present_replay_attack_controllers = false;  // Alias for reply attack
 bool present_routing_table_poisoning_attack_controllers = false;
 
 // Enhanced Wormhole Attack Configuration
-bool use_enhanced_wormhole = true;              // Use AODV-based wormhole attack (realistic)
+bool use_enhanced_wormhole = false;              // Use AODV-based wormhole attack (realistic)
 std::string wormhole_tunnel_bandwidth = "1000Mbps"; // Tunnel bandwidth
 uint32_t wormhole_tunnel_delay_us = 50000;      // Tunnel delay in microseconds (50ms = realistic long-distance tunnel)
 bool wormhole_random_pairing = true;            // Random vs sequential pairing
@@ -1110,8 +1110,8 @@ double wormhole_verification_start_offset = 0.5; // Seconds after attack start t
 uint16_t wormhole_verification_base_port = 50000; // Base UDP port for verification flows
 
 // Wormhole Detection and Mitigation Configuration
-bool enable_wormhole_detection = true;          // Enable latency-based wormhole detection
-bool enable_wormhole_mitigation = true;         // Enable automatic mitigation (route changes)
+bool enable_wormhole_detection = false;          // Enable latency-based wormhole detection
+bool enable_wormhole_mitigation = false;         // Enable automatic mitigation (route changes)
 double detection_latency_threshold = 2.0;       // Latency multiplier for detection (2.0 = 200% of baseline)
 double detection_check_interval = 1.0;          // Seconds between detection checks
 
