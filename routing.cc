@@ -97208,7 +97208,7 @@ void SybilAttackApp::InjectFakePacket(const SybilIdentity& identity) {
     
     // Choose random destination
     if (!m_legitimateNodeIps.empty()) {
-        uint32_t randomIdx = rand() % m_legitimateNodeIps.empty();
+        uint32_t randomIdx = rand() % m_legitimateNodeIps.size();
         Ipv4Address dest = m_legitimateNodeIps[randomIdx];
         
         if (m_broadcastSocket) {
