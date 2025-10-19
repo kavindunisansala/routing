@@ -822,6 +822,14 @@ struct SybilMitigationMetrics {
     double revelationRate;
     double economicOverhead;
     
+    // Runtime Detection & Behavioral Monitoring (NEW)
+    uint32_t runtimeAuthenticationChecks;
+    uint32_t behavioralAnomaliesDetected;
+    uint32_t identityChangesDetected;
+    uint32_t abnormalPacketActivityDetected;
+    uint32_t abnormalRouteAdvertisementDetected;
+    uint32_t highFakePacketRatioDetected;
+    
     // Overall
     uint32_t totalSybilNodesMitigated;
     uint32_t totalFakeIdentitiesBlocked;
@@ -835,8 +843,11 @@ struct SybilMitigationMetrics {
           resourceTestPassed(0), resourceTestFailed(0),
           resourceTestOverhead(0.0), incentivesOffered(0),
           sybilIdentitiesRevealed(0), revelationRate(0.0),
-          economicOverhead(0.0), totalSybilNodesMitigated(0),
-          totalFakeIdentitiesBlocked(0) {}
+          economicOverhead(0.0), 
+          runtimeAuthenticationChecks(0), behavioralAnomaliesDetected(0),
+          identityChangesDetected(0), abnormalPacketActivityDetected(0),
+          abnormalRouteAdvertisementDetected(0), highFakePacketRatioDetected(0),
+          totalSybilNodesMitigated(0), totalFakeIdentitiesBlocked(0) {}
 };
 
 /**
@@ -98546,6 +98557,14 @@ void SybilMitigationManager::PrintComprehensiveReport() const {
     std::cout << "=== OVERALL MITIGATION SUMMARY ===\n";
     std::cout << "Total Sybil Nodes Mitigated: " << m_metrics.totalSybilNodesMitigated << "\n";
     std::cout << "Total Fake Identities Blocked: " << m_metrics.totalFakeIdentitiesBlocked << "\n";
+    
+    std::cout << "\n=== RUNTIME DETECTION METRICS ===\n";
+    std::cout << "Runtime Authentication Checks: " << m_metrics.runtimeAuthenticationChecks << "\n";
+    std::cout << "Behavioral Anomalies Detected: " << m_metrics.behavioralAnomaliesDetected << "\n";
+    std::cout << "Identity Changes Detected: " << m_metrics.identityChangesDetected << "\n";
+    std::cout << "Abnormal Packet Activity: " << m_metrics.abnormalPacketActivityDetected << "\n";
+    std::cout << "Abnormal Route Advertisements: " << m_metrics.abnormalRouteAdvertisementDetected << "\n";
+    std::cout << "High Fake Packet Ratio Detections: " << m_metrics.highFakePacketRatioDetected << "\n";
     std::cout << "==================================\n\n";
     std::cout << "===========================================================\n\n";
 }
@@ -98575,6 +98594,14 @@ void SybilMitigationManager::ExportMitigationResults(std::string filename) const
     outFile << "RSSIAnomaliesDetected," << m_metrics.rssiAnomaliesDetected << "\n";
     outFile << "ResourceTestsConducted," << m_metrics.resourceTestsConducted << "\n";
     outFile << "IncentivesOffered," << m_metrics.incentivesOffered << "\n";
+    
+    // Runtime Detection & Behavioral Monitoring Metrics (NEW)
+    outFile << "RuntimeAuthenticationChecks," << m_metrics.runtimeAuthenticationChecks << "\n";
+    outFile << "BehavioralAnomaliesDetected," << m_metrics.behavioralAnomaliesDetected << "\n";
+    outFile << "IdentityChangesDetected," << m_metrics.identityChangesDetected << "\n";
+    outFile << "AbnormalPacketActivityDetected," << m_metrics.abnormalPacketActivityDetected << "\n";
+    outFile << "AbnormalRouteAdvertisementDetected," << m_metrics.abnormalRouteAdvertisementDetected << "\n";
+    outFile << "HighFakePacketRatioDetected," << m_metrics.highFakePacketRatioDetected << "\n";
     
     outFile.close();
     std::cout << "[MITIGATION MGR] Mitigation results exported to " << filename << "\n";
@@ -98617,6 +98644,8 @@ void SybilMitigationManager::PeriodicRuntimeCheck() {
     uint32_t nodesChecked = 0;
     uint32_t suspiciousNodes = 0;
     
+    m_metrics.runtimeAuthenticationChecks++;
+    
     // Re-authenticate nodes that haven't been checked recently
     for (uint32_t nodeId = 0; nodeId < m_totalNodes; ++nodeId) {
         // Skip already mitigated nodes
@@ -98645,6 +98674,7 @@ void SybilMitigationManager::PeriodicRuntimeCheck() {
             if (DetectAbnormalBehavior(nodeId)) {
                 std::cout << "[MITIGATION MGR] Node " << nodeId << " shows abnormal behavior - marking as suspicious\n";
                 suspiciousNodes++;
+                m_metrics.behavioralAnomaliesDetected++;
                 MitigateSybilNode(nodeId);
             }
             
@@ -98665,6 +98695,7 @@ void SybilMitigationManager::MonitorNodeBehavior(uint32_t nodeId, Ipv4Address ip
             std::cout << "[MITIGATION MGR] WARNING: Node " << nodeId 
                       << " identity changed! Previous IP: " << it->second.first 
                       << ", New IP: " << ip << "\n";
+            m_metrics.identityChangesDetected++;
             MitigateSybilNode(nodeId);
             return;
         }
@@ -98708,6 +98739,7 @@ bool SybilMitigationManager::DetectAbnormalBehavior(uint32_t nodeId) {
     if (totalPackets > MAX_PACKETS_PER_INTERVAL) {
         std::cout << "[MITIGATION MGR] Node " << nodeId << " exceeds packet threshold: " 
                   << totalPackets << " > " << MAX_PACKETS_PER_INTERVAL << "\n";
+        m_metrics.abnormalPacketActivityDetected++;
         abnormal = true;
     }
     
@@ -98716,6 +98748,7 @@ bool SybilMitigationManager::DetectAbnormalBehavior(uint32_t nodeId) {
     if (routeAds > MAX_ROUTES_PER_INTERVAL) {
         std::cout << "[MITIGATION MGR] Node " << nodeId << " exceeds route advertisement threshold: " 
                   << routeAds << " > " << MAX_ROUTES_PER_INTERVAL << "\n";
+        m_metrics.abnormalRouteAdvertisementDetected++;
         abnormal = true;
     }
     
@@ -98726,6 +98759,7 @@ bool SybilMitigationManager::DetectAbnormalBehavior(uint32_t nodeId) {
         if (fakeRatio > FAKE_PACKET_RATIO_THRESHOLD) {
             std::cout << "[MITIGATION MGR] Node " << nodeId << " has high fake packet ratio: " 
                       << (fakeRatio * 100) << "%\n";
+            m_metrics.highFakePacketRatioDetected++;
             abnormal = true;
         }
     }
@@ -146202,6 +146236,20 @@ int main(int argc, char *argv[])
                     g_sybilMitigationManager->AuthenticateNode(i, ip, mac);
                 }
             }
+            
+            // Integrate with SybilDetector if available
+            if (g_sybilDetector != nullptr) {
+                g_sybilMitigationManager->IntegrateWithSybilDetector(g_sybilDetector);
+                std::cout << "[MAIN] SybilMitigationManager integrated with SybilDetector" << std::endl;
+            }
+
+            // Schedule periodic runtime re-authentication
+            double sybilReauthInterval = 5.0; // REAUTHENTICATION_INTERVAL
+            double sybilStopTime = (sybil_stop_time > 0) ? sybil_stop_time : simTime;
+            for (double t = sybilReauthInterval; t < sybilStopTime; t += sybilReauthInterval) {
+                ns3::Simulator::Schedule(ns3::Seconds(t), &ns3::SybilMitigationManager::PeriodicRuntimeCheck, g_sybilMitigationManager);
+            }
+            std::cout << "[MAIN] Scheduled periodic runtime checks every " << sybilReauthInterval << "s" << std::endl;
             
             std::cout << "Advanced Sybil mitigation system initialized successfully" << std::endl;
         }
