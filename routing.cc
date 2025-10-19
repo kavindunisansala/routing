@@ -98532,6 +98532,27 @@ void SybilMitigationManager::ExportMitigationResults(std::string filename) const
     
     outFile.close();
     std::cout << "[MITIGATION MGR] Mitigation results exported to " << filename << "\n";
+    
+    // Export component-specific statistics
+    if (m_certificationAuthority != nullptr) {
+        m_certificationAuthority->ExportStatistics("trusted-certification-results.csv");
+        std::cout << "[MITIGATION MGR] Trusted certification results exported to trusted-certification-results.csv\n";
+    }
+    
+    if (m_rssiDetector != nullptr) {
+        m_rssiDetector->ExportStatistics("rssi-detection-results.csv");
+        std::cout << "[MITIGATION MGR] RSSI detection results exported to rssi-detection-results.csv\n";
+    }
+    
+    if (m_resourceTester != nullptr) {
+        m_resourceTester->ExportStatistics("resource-testing-results.csv");
+        std::cout << "[MITIGATION MGR] Resource testing results exported to resource-testing-results.csv\n";
+    }
+    
+    if (m_incentiveMitigation != nullptr) {
+        m_incentiveMitigation->ExportStatistics("incentive-scheme-results.csv");
+        std::cout << "[MITIGATION MGR] Incentive scheme results exported to incentive-scheme-results.csv\n";
+    }
 }
 
 } // namespace ns3
