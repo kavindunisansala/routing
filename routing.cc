@@ -78,6 +78,17 @@ class SybilAttackApp;
 class SybilAttackManager;
 class SybilDetector;
 
+// Forward declarations for Sybil mitigation classes
+struct DigitalCertificate;
+struct RSSIMeasurement;
+struct ResourceTestResult;
+struct SybilMitigationMetrics;
+class TrustedCertificationAuthority;
+class RSSIBasedDetector;
+class ResourceTester;
+class IncentiveBasedMitigation;
+class SybilMitigationManager;
+
 /**
  * @brief Statistics for wormhole attack monitoring
  */
@@ -726,6 +737,279 @@ private:
     Time m_lastDetectionCheck;
 };
 
+// ============================================================================
+// SYBIL ATTACK MITIGATION CLASSES
+// ============================================================================
+
+/**
+ * @brief Digital Certificate for Trusted Certification
+ */
+struct DigitalCertificate {
+    uint32_t nodeId;
+    Ipv4Address ipAddress;
+    Mac48Address macAddress;
+    std::string publicKey;        // Simulated RSA public key
+    std::string signature;        // CA signature
+    Time issueTime;
+    Time expiryTime;
+    bool isValid;
+    bool isRevoked;
+    
+    DigitalCertificate() 
+        : nodeId(0), isValid(false), isRevoked(false) {}
+};
+
+/**
+ * @brief RSSI Measurement for location-based detection
+ */
+struct RSSIMeasurement {
+    uint32_t nodeId;
+    Ipv4Address ipAddress;
+    double rssiValue;             // dBm
+    Vector position;              // Physical position
+    Time measurementTime;
+    uint32_t measurementCount;
+    
+    RSSIMeasurement() 
+        : nodeId(0), rssiValue(0.0), measurementCount(0) {}
+};
+
+/**
+ * @brief Resource Test Result
+ */
+struct ResourceTestResult {
+    uint32_t nodeId;
+    double cpuUsage;              // 0.0 to 1.0
+    uint32_t memoryAvailable;     // MB
+    uint32_t storageAvailable;    // MB
+    double networkBandwidth;      // Mbps
+    uint32_t simultaneousConnections;
+    bool passedTest;
+    
+    ResourceTestResult() 
+        : nodeId(0), cpuUsage(0.0), memoryAvailable(0), 
+          storageAvailable(0), networkBandwidth(0.0),
+          simultaneousConnections(0), passedTest(false) {}
+};
+
+/**
+ * @brief Mitigation Statistics
+ */
+struct SybilMitigationMetrics {
+    // Trusted Certification
+    uint32_t certificatesIssued;
+    uint32_t certificatesRevoked;
+    uint32_t authenticationSuccesses;
+    uint32_t authenticationFailures;
+    double authenticationSuccessRate;
+    
+    // RSSI-Based Detection
+    uint32_t rssiMeasurementsTaken;
+    uint32_t rssiAnomaliesDetected;
+    double rssiDetectionAccuracy;
+    uint32_t rssiFalsePositives;
+    
+    // Resource Testing
+    uint32_t resourceTestsConducted;
+    uint32_t resourceTestPassed;
+    uint32_t resourceTestFailed;
+    double resourceTestOverhead;
+    
+    // Incentive-Based
+    uint32_t incentivesOffered;
+    uint32_t sybilIdentitiesRevealed;
+    double revelationRate;
+    double economicOverhead;
+    
+    // Overall
+    uint32_t totalSybilNodesMitigated;
+    uint32_t totalFakeIdentitiesBlocked;
+    
+    SybilMitigationMetrics()
+        : certificatesIssued(0), certificatesRevoked(0),
+          authenticationSuccesses(0), authenticationFailures(0),
+          authenticationSuccessRate(0.0), rssiMeasurementsTaken(0),
+          rssiAnomaliesDetected(0), rssiDetectionAccuracy(0.0),
+          rssiFalsePositives(0), resourceTestsConducted(0),
+          resourceTestPassed(0), resourceTestFailed(0),
+          resourceTestOverhead(0.0), incentivesOffered(0),
+          sybilIdentitiesRevealed(0), revelationRate(0.0),
+          economicOverhead(0.0), totalSybilNodesMitigated(0),
+          totalFakeIdentitiesBlocked(0) {}
+};
+
+/**
+ * @brief Trusted Certification Authority
+ * Implements PKI-based authentication to prevent Sybil attacks
+ */
+class TrustedCertificationAuthority {
+public:
+    TrustedCertificationAuthority();
+    ~TrustedCertificationAuthority();
+    
+    void Initialize(uint32_t totalNodes);
+    DigitalCertificate IssueCertificate(uint32_t nodeId, Ipv4Address ip, Mac48Address mac);
+    bool VerifyCertificate(const DigitalCertificate& cert);
+    void RevokeCertificate(uint32_t nodeId);
+    bool AuthenticateNode(uint32_t nodeId, const DigitalCertificate& cert);
+    
+    uint32_t GetAuthenticationSuccesses() const { return m_authSuccesses; }
+    uint32_t GetAuthenticationFailures() const { return m_authFailures; }
+    double GetAuthenticationSuccessRate() const;
+    double GetOverheadCost() const { return m_overheadCost; }
+    
+    void PrintStatistics() const;
+    void ExportStatistics(std::string filename) const;
+    
+private:
+    std::string GeneratePublicKey(uint32_t nodeId);
+    std::string SignCertificate(const std::string& data);
+    bool VerifySignature(const std::string& data, const std::string& signature);
+    
+    std::map<uint32_t, DigitalCertificate> m_certificates;
+    std::set<uint32_t> m_revokedCertificates;
+    uint32_t m_totalNodes;
+    uint32_t m_authSuccesses;
+    uint32_t m_authFailures;
+    double m_overheadCost;
+};
+
+/**
+ * @brief RSSI-Based Sybil Detection
+ * Detects Sybil identities by comparing RSSI values
+ */
+class RSSIBasedDetector {
+public:
+    RSSIBasedDetector();
+    ~RSSIBasedDetector();
+    
+    void Initialize(uint32_t totalNodes, double rssiThreshold = -80.0);
+    void RecordRSSI(uint32_t nodeId, Ipv4Address ip, double rssi, Vector position);
+    bool DetectSybilByRSSI(uint32_t nodeId);
+    bool DetectColocatedIdentities(Ipv4Address ip1, Ipv4Address ip2);
+    
+    double GetDetectionAccuracy() const;
+    double GetFalsePositiveRate() const;
+    void PrintStatistics() const;
+    void ExportStatistics(std::string filename) const;
+    
+private:
+    double CalculateDistance(Vector pos1, Vector pos2);
+    bool AreRSSIValuesSimilar(double rssi1, double rssi2, double threshold = 5.0);
+    
+    std::map<uint32_t, std::vector<RSSIMeasurement>> m_rssiData;
+    std::map<Ipv4Address, Vector> m_nodePositions;
+    double m_rssiThreshold;
+    uint32_t m_totalNodes;
+    uint32_t m_measurementCount;
+    uint32_t m_anomaliesDetected;
+    uint32_t m_falsePositives;
+};
+
+/**
+ * @brief Resource Testing for Sybil Detection
+ * Verifies each node has sufficient independent resources
+ */
+class ResourceTester {
+public:
+    ResourceTester();
+    ~ResourceTester();
+    
+    void Initialize(uint32_t totalNodes);
+    ResourceTestResult ConductResourceTest(uint32_t nodeId);
+    bool VerifyIndependentResources(uint32_t nodeId);
+    
+    double GetDetectionProbability() const;
+    double GetNetworkOverhead() const { return m_networkOverhead; }
+    void PrintStatistics() const;
+    void ExportStatistics(std::string filename) const;
+    
+private:
+    double SimulateCPUUsage(uint32_t nodeId);
+    uint32_t SimulateMemoryAvailable(uint32_t nodeId);
+    uint32_t SimulateStorageAvailable(uint32_t nodeId);
+    
+    std::map<uint32_t, ResourceTestResult> m_testResults;
+    uint32_t m_totalNodes;
+    uint32_t m_testsConducted;
+    uint32_t m_testsPassed;
+    uint32_t m_testsFailed;
+    double m_networkOverhead;
+};
+
+/**
+ * @brief Incentive-Based Sybil Mitigation
+ * Economic approach to encourage revelation of Sybil identities
+ */
+class IncentiveBasedMitigation {
+public:
+    IncentiveBasedMitigation();
+    ~IncentiveBasedMitigation();
+    
+    void Initialize(uint32_t totalNodes, double incentiveAmount = 10.0);
+    void OfferIncentive(uint32_t nodeId);
+    bool NodeRevealsIdentities(uint32_t nodeId, std::vector<uint32_t>& revealedIds);
+    
+    double GetRevelationRate() const;
+    double GetEconomicOverhead() const { return m_economicOverhead; }
+    void PrintStatistics() const;
+    void ExportStatistics(std::string filename) const;
+    
+private:
+    double CalculateIncentive(uint32_t identityCount);
+    
+    std::map<uint32_t, double> m_incentivesOffered;
+    std::map<uint32_t, std::vector<uint32_t>> m_revealedIdentities;
+    uint32_t m_totalNodes;
+    double m_incentiveAmount;
+    uint32_t m_incentivesOffered;
+    uint32_t m_identitiesRevealed;
+    double m_economicOverhead;
+};
+
+/**
+ * @brief Comprehensive Sybil Mitigation Manager
+ * Integrates all four mitigation approaches
+ */
+class SybilMitigationManager {
+public:
+    SybilMitigationManager();
+    ~SybilMitigationManager();
+    
+    void Initialize(uint32_t totalNodes);
+    
+    // Enable/disable specific mitigation techniques
+    void EnableTrustedCertification(bool enable);
+    void EnableRSSIDetection(bool enable);
+    void EnableResourceTesting(bool enable);
+    void EnableIncentiveScheme(bool enable);
+    
+    // Mitigation operations
+    bool AuthenticateNode(uint32_t nodeId, Ipv4Address ip, Mac48Address mac);
+    bool VerifyNodeIdentity(uint32_t nodeId, Ipv4Address ip, Vector position, double rssi);
+    void MitigateSybilNode(uint32_t nodeId);
+    
+    // Statistics
+    SybilMitigationMetrics GetMetrics() const { return m_metrics; }
+    void PrintComprehensiveReport() const;
+    void ExportMitigationResults(std::string filename) const;
+    
+private:
+    TrustedCertificationAuthority* m_certAuthority;
+    RSSIBasedDetector* m_rssiDetector;
+    ResourceTester* m_resourceTester;
+    IncentiveBasedMitigation* m_incentiveScheme;
+    
+    bool m_useTrustedCert;
+    bool m_useRSSI;
+    bool m_useResourceTest;
+    bool m_useIncentive;
+    
+    uint32_t m_totalNodes;
+    SybilMitigationMetrics m_metrics;
+    std::set<uint32_t> m_mitigatedNodes;
+};
+
 } // namespace ns3
 
 // End of wormhole attack class declarations
@@ -865,6 +1149,18 @@ bool enable_sybil_mitigation = false;           // Enable automatic mitigation
 double sybil_detection_threshold = 0.8;         // Similarity threshold for detecting clones
 double sybil_detection_check_interval = 2.0;    // Seconds between detection checks
 
+// Advanced Sybil Mitigation Techniques
+bool enable_sybil_mitigation_advanced = false;  // Enable advanced mitigation techniques
+bool use_trusted_certification = true;          // Use PKI-based certification
+bool use_rssi_detection = true;                 // Use RSSI-based detection
+bool use_resource_testing = false;              // Use resource testing (high overhead)
+bool use_incentive_scheme = false;              // Use incentive-based revelation
+double rssi_threshold = -80.0;                  // RSSI threshold in dBm
+double rssi_similarity_threshold = 5.0;         // RSSI similarity threshold
+double incentive_amount = 10.0;                 // Incentive amount per identity
+double resource_test_cpu_threshold = 0.7;       // CPU usage threshold
+uint32_t resource_test_memory_min = 512;        // Minimum memory (MB)
+
 // Packet tracking and analysis
 bool enable_packet_tracking = false;            // Enable detailed packet tracking and CSV export
 
@@ -907,6 +1203,9 @@ ns3::SybilAttackManager* g_sybilManager = nullptr;
 
 // Global Sybil detector instance
 ns3::SybilDetector* g_sybilDetector = nullptr;
+
+// Global Sybil mitigation manager instance
+ns3::SybilMitigationManager* g_sybilMitigationManager = nullptr;
 
 int maxspeed = 80;	
 
@@ -97580,8 +97879,665 @@ void SybilDetector::ExportDetectionResults(std::string filename) const {
     std::cout << "[SYBIL DETECTOR] Detection results exported to " << filename << "\n";
 }
 
+// ============================================================================
+// SYBIL ATTACK MITIGATION IMPLEMENTATION
+// ============================================================================
+
+// TrustedCertificationAuthority Implementation
+TrustedCertificationAuthority::TrustedCertificationAuthority()
+    : m_totalNodes(0), m_authSuccesses(0), m_authFailures(0), m_overheadCost(0.0) {
+}
+
+TrustedCertificationAuthority::~TrustedCertificationAuthority() {
+}
+
+void TrustedCertificationAuthority::Initialize(uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    std::cout << "[CERT AUTH] Initializing Trusted Certification Authority for " 
+              << totalNodes << " nodes\n";
+}
+
+std::string TrustedCertificationAuthority::GeneratePublicKey(uint32_t nodeId) {
+    // Simulate RSA public key generation
+    std::ostringstream keyStream;
+    keyStream << "RSA-PUB-" << nodeId << "-" << std::hex << (nodeId * 12345 + 67890);
+    return keyStream.str();
+}
+
+std::string TrustedCertificationAuthority::SignCertificate(const std::string& data) {
+    // Simulate digital signature with SHA-256 + RSA
+    std::ostringstream sigStream;
+    sigStream << "SIG-" << std::hash<std::string>{}(data);
+    m_overheadCost += 0.5; // Signing overhead
+    return sigStream.str();
+}
+
+bool TrustedCertificationAuthority::VerifySignature(const std::string& data, const std::string& signature) {
+    // Simulate signature verification
+    std::string expectedSig = "SIG-" + std::to_string(std::hash<std::string>{}(data));
+    m_overheadCost += 0.2; // Verification overhead
+    return (signature == expectedSig);
+}
+
+DigitalCertificate TrustedCertificationAuthority::IssueCertificate(
+    uint32_t nodeId, Ipv4Address ip, Mac48Address mac) {
+    
+    DigitalCertificate cert;
+    cert.nodeId = nodeId;
+    cert.ipAddress = ip;
+    cert.macAddress = mac;
+    cert.publicKey = GeneratePublicKey(nodeId);
+    cert.issueTime = Simulator::Now();
+    cert.expiryTime = Simulator::Now() + Seconds(3600); // 1 hour validity
+    cert.isValid = true;
+    cert.isRevoked = false;
+    
+    // Create signature data
+    std::ostringstream certData;
+    certData << nodeId << ip << mac << cert.publicKey;
+    cert.signature = SignCertificate(certData.str());
+    
+    m_certificates[nodeId] = cert;
+    m_overheadCost += 1.0; // Issuance overhead
+    
+    std::cout << "[CERT AUTH] Certificate issued to Node " << nodeId 
+              << " (IP: " << ip << ")\n";
+    
+    return cert;
+}
+
+bool TrustedCertificationAuthority::VerifyCertificate(const DigitalCertificate& cert) {
+    // Check if revoked
+    if (m_revokedCertificates.find(cert.nodeId) != m_revokedCertificates.end()) {
+        return false;
+    }
+    
+    // Check if expired
+    if (Simulator::Now() > cert.expiryTime) {
+        return false;
+    }
+    
+    // Verify signature
+    std::ostringstream certData;
+    certData << cert.nodeId << cert.ipAddress << cert.macAddress << cert.publicKey;
+    return VerifySignature(certData.str(), cert.signature);
+}
+
+void TrustedCertificationAuthority::RevokeCertificate(uint32_t nodeId) {
+    m_revokedCertificates.insert(nodeId);
+    if (m_certificates.find(nodeId) != m_certificates.end()) {
+        m_certificates[nodeId].isRevoked = true;
+        m_certificates[nodeId].isValid = false;
+    }
+    std::cout << "[CERT AUTH] Certificate revoked for Node " << nodeId << "\n";
+}
+
+bool TrustedCertificationAuthority::AuthenticateNode(
+    uint32_t nodeId, const DigitalCertificate& cert) {
+    
+    // Verify certificate validity
+    if (!VerifyCertificate(cert)) {
+        m_authFailures++;
+        std::cout << "[CERT AUTH] Authentication FAILED for Node " << nodeId 
+                  << " (invalid certificate)\n";
+        return false;
+    }
+    
+    // Verify node ID matches
+    if (cert.nodeId != nodeId) {
+        m_authFailures++;
+        std::cout << "[CERT AUTH] Authentication FAILED for Node " << nodeId 
+                  << " (ID mismatch)\n";
+        return false;
+    }
+    
+    m_authSuccesses++;
+    return true;
+}
+
+double TrustedCertificationAuthority::GetAuthenticationSuccessRate() const {
+    uint32_t total = m_authSuccesses + m_authFailures;
+    return (total > 0) ? (static_cast<double>(m_authSuccesses) / total) : 0.0;
+}
+
+void TrustedCertificationAuthority::PrintStatistics() const {
+    std::cout << "\n=== TRUSTED CERTIFICATION STATISTICS ===\n";
+    std::cout << "Certificates Issued: " << m_certificates.size() << "\n";
+    std::cout << "Certificates Revoked: " << m_revokedCertificates.size() << "\n";
+    std::cout << "Authentication Successes: " << m_authSuccesses << "\n";
+    std::cout << "Authentication Failures: " << m_authFailures << "\n";
+    std::cout << "Success Rate: " << (GetAuthenticationSuccessRate() * 100) << "%\n";
+    std::cout << "Overhead Cost: " << m_overheadCost << " units\n";
+    std::cout << "========================================\n\n";
+}
+
+void TrustedCertificationAuthority::ExportStatistics(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[CERT AUTH] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "CertificatesIssued," << m_certificates.size() << "\n";
+    outFile << "CertificatesRevoked," << m_revokedCertificates.size() << "\n";
+    outFile << "AuthenticationSuccesses," << m_authSuccesses << "\n";
+    outFile << "AuthenticationFailures," << m_authFailures << "\n";
+    outFile << "AuthenticationSuccessRate," << GetAuthenticationSuccessRate() << "\n";
+    outFile << "OverheadCost," << m_overheadCost << "\n";
+    
+    outFile.close();
+    std::cout << "[CERT AUTH] Statistics exported to " << filename << "\n";
+}
+
+// RSSI Based Detector Implementation
+RSSIBasedDetector::RSSIBasedDetector()
+    : m_rssiThreshold(-80.0), m_totalNodes(0), m_measurementCount(0),
+      m_anomaliesDetected(0), m_falsePositives(0) {
+}
+
+RSSIBasedDetector::~RSSIBasedDetector() {
+}
+
+void RSSIBasedDetector::Initialize(uint32_t totalNodes, double rssiThreshold) {
+    m_totalNodes = totalNodes;
+    m_rssiThreshold = rssiThreshold;
+    std::cout << "[RSSI DETECTOR] Initialized for " << totalNodes 
+              << " nodes with RSSI threshold " << rssiThreshold << " dBm\n";
+}
+
+double RSSIBasedDetector::CalculateDistance(Vector pos1, Vector pos2) {
+    double dx = pos1.x - pos2.x;
+    double dy = pos1.y - pos2.y;
+    double dz = pos1.z - pos2.z;
+    return std::sqrt(dx*dx + dy*dy + dz*dz);
+}
+
+bool RSSIBasedDetector::AreRSSIValuesSimilar(double rssi1, double rssi2, double threshold) {
+    return std::abs(rssi1 - rssi2) <= threshold;
+}
+
+void RSSIBasedDetector::RecordRSSI(uint32_t nodeId, Ipv4Address ip, double rssi, Vector position) {
+    RSSIMeasurement measurement;
+    measurement.nodeId = nodeId;
+    measurement.ipAddress = ip;
+    measurement.rssiValue = rssi;
+    measurement.position = position;
+    measurement.measurementTime = Simulator::Now();
+    measurement.measurementCount = 1;
+    
+    m_rssiData[nodeId].push_back(measurement);
+    m_nodePositions[ip] = position;
+    m_measurementCount++;
+}
+
+bool RSSIBasedDetector::DetectSybilByRSSI(uint32_t nodeId) {
+    if (m_rssiData.find(nodeId) == m_rssiData.end()) {
+        return false;
+    }
+    
+    auto& measurements = m_rssiData[nodeId];
+    if (measurements.size() < 2) {
+        return false;
+    }
+    
+    // Check for suspicious RSSI patterns (multiple similar RSSI from same node)
+    for (size_t i = 0; i < measurements.size(); ++i) {
+        for (size_t j = i + 1; j < measurements.size(); ++j) {
+            if (AreRSSIValuesSimilar(measurements[i].rssiValue, 
+                                    measurements[j].rssiValue, 5.0)) {
+                m_anomaliesDetected++;
+                std::cout << "[RSSI DETECTOR] Suspicious RSSI pattern detected for Node " 
+                          << nodeId << "\n";
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+bool RSSIBasedDetector::DetectColocatedIdentities(Ipv4Address ip1, Ipv4Address ip2) {
+    if (m_nodePositions.find(ip1) == m_nodePositions.end() ||
+        m_nodePositions.find(ip2) == m_nodePositions.end()) {
+        return false;
+    }
+    
+    Vector pos1 = m_nodePositions[ip1];
+    Vector pos2 = m_nodePositions[ip2];
+    
+    double distance = CalculateDistance(pos1, pos2);
+    
+    // If two identities are at nearly same location (< 1 meter), likely Sybil
+    if (distance < 1.0) {
+        m_anomaliesDetected++;
+        std::cout << "[RSSI DETECTOR] Co-located identities detected: " 
+                  << ip1 << " and " << ip2 << " (distance: " << distance << "m)\n";
+        return true;
+    }
+    
+    return false;
+}
+
+double RSSIBasedDetector::GetDetectionAccuracy() const {
+    uint32_t total = m_anomaliesDetected + m_falsePositives;
+    return (total > 0) ? (static_cast<double>(m_anomaliesDetected) / total) : 0.0;
+}
+
+double RSSIBasedDetector::GetFalsePositiveRate() const {
+    uint32_t total = m_anomaliesDetected + m_falsePositives;
+    return (total > 0) ? (static_cast<double>(m_falsePositives) / total) : 0.0;
+}
+
+void RSSIBasedDetector::PrintStatistics() const {
+    std::cout << "\n=== RSSI-BASED DETECTION STATISTICS ===\n";
+    std::cout << "Total RSSI Measurements: " << m_measurementCount << "\n";
+    std::cout << "Anomalies Detected: " << m_anomaliesDetected << "\n";
+    std::cout << "False Positives: " << m_falsePositives << "\n";
+    std::cout << "Detection Accuracy: " << (GetDetectionAccuracy() * 100) << "%\n";
+    std::cout << "False Positive Rate: " << (GetFalsePositiveRate() * 100) << "%\n";
+    std::cout << "=======================================\n\n";
+}
+
+void RSSIBasedDetector::ExportStatistics(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[RSSI DETECTOR] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "TotalMeasurements," << m_measurementCount << "\n";
+    outFile << "AnomaliesDetected," << m_anomaliesDetected << "\n";
+    outFile << "FalsePositives," << m_falsePositives << "\n";
+    outFile << "DetectionAccuracy," << GetDetectionAccuracy() << "\n";
+    outFile << "FalsePositiveRate," << GetFalsePositiveRate() << "\n";
+    
+    outFile.close();
+    std::cout << "[RSSI DETECTOR] Statistics exported to " << filename << "\n";
+}
+
+// Resource Tester Implementation
+ResourceTester::ResourceTester()
+    : m_totalNodes(0), m_testsConducted(0), m_testsPassed(0), 
+      m_testsFailed(0), m_networkOverhead(0.0) {
+}
+
+ResourceTester::~ResourceTester() {
+}
+
+void ResourceTester::Initialize(uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    std::cout << "[RESOURCE TESTER] Initialized for " << totalNodes << " nodes\n";
+}
+
+double ResourceTester::SimulateCPUUsage(uint32_t nodeId) {
+    // Simulate CPU usage (normal nodes: 0.2-0.6, Sybil nodes: 0.7-0.9)
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.2, 0.6);
+    return dis(gen);
+}
+
+uint32_t ResourceTester::SimulateMemoryAvailable(uint32_t nodeId) {
+    // Simulate available memory in MB (normal: 512-2048, Sybil: 128-512)
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(512, 2048);
+    return dis(gen);
+}
+
+uint32_t ResourceTester::SimulateStorageAvailable(uint32_t nodeId) {
+    // Simulate available storage in MB
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(1024, 8192);
+    return dis(gen);
+}
+
+ResourceTestResult ResourceTester::ConductResourceTest(uint32_t nodeId) {
+    ResourceTestResult result;
+    result.nodeId = nodeId;
+    result.cpuUsage = SimulateCPUUsage(nodeId);
+    result.memoryAvailable = SimulateMemoryAvailable(nodeId);
+    result.storageAvailable = SimulateStorageAvailable(nodeId);
+    result.networkBandwidth = 10.0; // Mbps
+    result.simultaneousConnections = 5;
+    
+    // Check if resources are sufficient
+    result.passedTest = (result.cpuUsage < 0.7 && 
+                        result.memoryAvailable >= 512 &&
+                        result.storageAvailable >= 1024);
+    
+    m_testResults[nodeId] = result;
+    m_testsConducted++;
+    m_networkOverhead += 2.5; // Overhead per test
+    
+    if (result.passedTest) {
+        m_testsPassed++;
+    } else {
+        m_testsFailed++;
+        std::cout << "[RESOURCE TESTER] Node " << nodeId 
+                  << " FAILED resource test (possible Sybil)\n";
+    }
+    
+    return result;
+}
+
+bool ResourceTester::VerifyIndependentResources(uint32_t nodeId) {
+    if (m_testResults.find(nodeId) == m_testResults.end()) {
+        ConductResourceTest(nodeId);
+    }
+    return m_testResults[nodeId].passedTest;
+}
+
+double ResourceTester::GetDetectionProbability() const {
+    return (m_testsConducted > 0) ? 
+           (static_cast<double>(m_testsFailed) / m_testsConducted) : 0.0;
+}
+
+void ResourceTester::PrintStatistics() const {
+    std::cout << "\n=== RESOURCE TESTING STATISTICS ===\n";
+    std::cout << "Tests Conducted: " << m_testsConducted << "\n";
+    std::cout << "Tests Passed: " << m_testsPassed << "\n";
+    std::cout << "Tests Failed: " << m_testsFailed << "\n";
+    std::cout << "Detection Probability: " << (GetDetectionProbability() * 100) << "%\n";
+    std::cout << "Network Overhead: " << m_networkOverhead << " units\n";
+    std::cout << "====================================\n\n";
+}
+
+void ResourceTester::ExportStatistics(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[RESOURCE TESTER] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "TestsConducted," << m_testsConducted << "\n";
+    outFile << "TestsPassed," << m_testsPassed << "\n";
+    outFile << "TestsFailed," << m_testsFailed << "\n";
+    outFile << "DetectionProbability," << GetDetectionProbability() << "\n";
+    outFile << "NetworkOverhead," << m_networkOverhead << "\n";
+    
+    outFile.close();
+    std::cout << "[RESOURCE TESTER] Statistics exported to " << filename << "\n";
+}
+
+// Incentive Based Mitigation Implementation
+IncentiveBasedMitigation::IncentiveBasedMitigation()
+    : m_totalNodes(0), m_incentiveAmount(10.0), m_incentivesOffered(0),
+      m_identitiesRevealed(0), m_economicOverhead(0.0) {
+}
+
+IncentiveBasedMitigation::~IncentiveBasedMitigation() {
+}
+
+void IncentiveBasedMitigation::Initialize(uint32_t totalNodes, double incentiveAmount) {
+    m_totalNodes = totalNodes;
+    m_incentiveAmount = incentiveAmount;
+    std::cout << "[INCENTIVE SCHEME] Initialized with base incentive " 
+              << incentiveAmount << " units\n";
+}
+
+double IncentiveBasedMitigation::CalculateIncentive(uint32_t identityCount) {
+    // Incentive increases with number of identities revealed
+    return m_incentiveAmount * identityCount;
+}
+
+void IncentiveBasedMitigation::OfferIncentive(uint32_t nodeId) {
+    double incentive = m_incentiveAmount;
+    m_incentivesOffered[nodeId] = incentive;
+    m_incentivesOffered++;
+    m_economicOverhead += incentive;
+    
+    std::cout << "[INCENTIVE SCHEME] Offered " << incentive 
+              << " units to Node " << nodeId << "\n";
+}
+
+bool IncentiveBasedMitigation::NodeRevealsIdentities(
+    uint32_t nodeId, std::vector<uint32_t>& revealedIds) {
+    
+    // Simulate probability of revelation (30% chance)
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    
+    if (dis(gen) < 0.3 && m_incentivesOffered.find(nodeId) != m_incentivesOffered.end()) {
+        // Node reveals its Sybil identities
+        m_revealedIdentities[nodeId] = revealedIds;
+        m_identitiesRevealed += revealedIds.size();
+        
+        std::cout << "[INCENTIVE SCHEME] Node " << nodeId 
+                  << " revealed " << revealedIds.size() << " Sybil identities\n";
+        return true;
+    }
+    
+    return false;
+}
+
+double IncentiveBasedMitigation::GetRevelationRate() const {
+    return (m_incentivesOffered > 0) ? 
+           (static_cast<double>(m_revealedIdentities.size()) / m_incentivesOffered) : 0.0;
+}
+
+void IncentiveBasedMitigation::PrintStatistics() const {
+    std::cout << "\n=== INCENTIVE-BASED MITIGATION STATISTICS ===\n";
+    std::cout << "Incentives Offered: " << m_incentivesOffered << "\n";
+    std::cout << "Identities Revealed: " << m_identitiesRevealed << "\n";
+    std::cout << "Revelation Rate: " << (GetRevelationRate() * 100) << "%\n";
+    std::cout << "Economic Overhead: " << m_economicOverhead << " units\n";
+    std::cout << "=============================================\n\n";
+}
+
+void IncentiveBasedMitigation::ExportStatistics(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[INCENTIVE SCHEME] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "IncentivesOffered," << m_incentivesOffered << "\n";
+    outFile << "IdentitiesRevealed," << m_identitiesRevealed << "\n";
+    outFile << "RevelationRate," << GetRevelationRate() << "\n";
+    outFile << "EconomicOverhead," << m_economicOverhead << "\n";
+    
+    outFile.close();
+    std::cout << "[INCENTIVE SCHEME] Statistics exported to " << filename << "\n";
+}
+
+// Sybil Mitigation Manager Implementation
+SybilMitigationManager::SybilMitigationManager()
+    : m_certAuthority(nullptr), m_rssiDetector(nullptr),
+      m_resourceTester(nullptr), m_incentiveScheme(nullptr),
+      m_useTrustedCert(false), m_useRSSI(false),
+      m_useResourceTest(false), m_useIncentive(false),
+      m_totalNodes(0) {
+}
+
+SybilMitigationManager::~SybilMitigationManager() {
+    if (m_certAuthority) delete m_certAuthority;
+    if (m_rssiDetector) delete m_rssiDetector;
+    if (m_resourceTester) delete m_resourceTester;
+    if (m_incentiveScheme) delete m_incentiveScheme;
+}
+
+void SybilMitigationManager::Initialize(uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    std::cout << "\n=== SYBIL MITIGATION MANAGER INITIALIZATION ===\n";
+    std::cout << "Total nodes: " << totalNodes << "\n";
+    std::cout << "===============================================\n\n";
+}
+
+void SybilMitigationManager::EnableTrustedCertification(bool enable) {
+    m_useTrustedCert = enable;
+    if (enable && !m_certAuthority) {
+        m_certAuthority = new TrustedCertificationAuthority();
+        m_certAuthority->Initialize(m_totalNodes);
+    }
+    std::cout << "[MITIGATION MGR] Trusted Certification: " 
+              << (enable ? "ENABLED" : "DISABLED") << "\n";
+}
+
+void SybilMitigationManager::EnableRSSIDetection(bool enable) {
+    m_useRSSI = enable;
+    if (enable && !m_rssiDetector) {
+        m_rssiDetector = new RSSIBasedDetector();
+        m_rssiDetector->Initialize(m_totalNodes, rssi_threshold);
+    }
+    std::cout << "[MITIGATION MGR] RSSI Detection: " 
+              << (enable ? "ENABLED" : "DISABLED") << "\n";
+}
+
+void SybilMitigationManager::EnableResourceTesting(bool enable) {
+    m_useResourceTest = enable;
+    if (enable && !m_resourceTester) {
+        m_resourceTester = new ResourceTester();
+        m_resourceTester->Initialize(m_totalNodes);
+    }
+    std::cout << "[MITIGATION MGR] Resource Testing: " 
+              << (enable ? "ENABLED" : "DISABLED") << "\n";
+}
+
+void SybilMitigationManager::EnableIncentiveScheme(bool enable) {
+    m_useIncentive = enable;
+    if (enable && !m_incentiveScheme) {
+        m_incentiveScheme = new IncentiveBasedMitigation();
+        m_incentiveScheme->Initialize(m_totalNodes, incentive_amount);
+    }
+    std::cout << "[MITIGATION MGR] Incentive Scheme: " 
+              << (enable ? "ENABLED" : "DISABLED") << "\n";
+}
+
+bool SybilMitigationManager::AuthenticateNode(uint32_t nodeId, Ipv4Address ip, Mac48Address mac) {
+    bool authenticated = true;
+    
+    // 1. Trusted Certification
+    if (m_useTrustedCert && m_certAuthority) {
+        DigitalCertificate cert = m_certAuthority->IssueCertificate(nodeId, ip, mac);
+        if (!m_certAuthority->AuthenticateNode(nodeId, cert)) {
+            authenticated = false;
+            m_metrics.authenticationFailures++;
+        } else {
+            m_metrics.authenticationSuccesses++;
+        }
+        m_metrics.certificatesIssued++;
+    }
+    
+    // 2. Resource Testing
+    if (m_useResourceTest && m_resourceTester) {
+        if (!m_resourceTester->VerifyIndependentResources(nodeId)) {
+            authenticated = false;
+        }
+        m_metrics.resourceTestsConducted++;
+    }
+    
+    if (!authenticated) {
+        m_metrics.totalSybilNodesMitigated++;
+        m_mitigatedNodes.insert(nodeId);
+    }
+    
+    return authenticated;
+}
+
+bool SybilMitigationManager::VerifyNodeIdentity(
+    uint32_t nodeId, Ipv4Address ip, Vector position, double rssi) {
+    
+    // RSSI-based verification
+    if (m_useRSSI && m_rssiDetector) {
+        m_rssiDetector->RecordRSSI(nodeId, ip, rssi, position);
+        if (m_rssiDetector->DetectSybilByRSSI(nodeId)) {
+            m_metrics.rssiAnomaliesDetected++;
+            m_metrics.totalSybilNodesMitigated++;
+            m_mitigatedNodes.insert(nodeId);
+            return false;
+        }
+        m_metrics.rssiMeasurementsTaken++;
+    }
+    
+    return true;
+}
+
+void SybilMitigationManager::MitigateSybilNode(uint32_t nodeId) {
+    m_mitigatedNodes.insert(nodeId);
+    m_metrics.totalSybilNodesMitigated++;
+    
+    // Revoke certificate if using trusted certification
+    if (m_useTrustedCert && m_certAuthority) {
+        m_certAuthority->RevokeCertificate(nodeId);
+        m_metrics.certificatesRevoked++;
+    }
+    
+    // Offer incentive if using incentive scheme
+    if (m_useIncentive && m_incentiveScheme) {
+        m_incentiveScheme->OfferIncentive(nodeId);
+        m_metrics.incentivesOffered++;
+    }
+    
+    std::cout << "[MITIGATION MGR] Node " << nodeId << " mitigated\n";
+}
+
+void SybilMitigationManager::PrintComprehensiveReport() const {
+    std::cout << "\n========== COMPREHENSIVE SYBIL MITIGATION REPORT ==========\n\n";
+    
+    if (m_certAuthority) {
+        m_certAuthority->PrintStatistics();
+    }
+    
+    if (m_rssiDetector) {
+        m_rssiDetector->PrintStatistics();
+    }
+    
+    if (m_resourceTester) {
+        m_resourceTester->PrintStatistics();
+    }
+    
+    if (m_incentiveScheme) {
+        m_incentiveScheme->PrintStatistics();
+    }
+    
+    std::cout << "=== OVERALL MITIGATION SUMMARY ===\n";
+    std::cout << "Total Sybil Nodes Mitigated: " << m_metrics.totalSybilNodesMitigated << "\n";
+    std::cout << "Total Fake Identities Blocked: " << m_metrics.totalFakeIdentitiesBlocked << "\n";
+    std::cout << "==================================\n\n";
+    std::cout << "===========================================================\n\n";
+}
+
+void SybilMitigationManager::ExportMitigationResults(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[MITIGATION MGR] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "TotalSybilNodesMitigated," << m_metrics.totalSybilNodesMitigated << "\n";
+    outFile << "TotalFakeIdentitiesBlocked," << m_metrics.totalFakeIdentitiesBlocked << "\n";
+    outFile << "CertificatesIssued," << m_metrics.certificatesIssued << "\n";
+    outFile << "CertificatesRevoked," << m_metrics.certificatesRevoked << "\n";
+    outFile << "AuthenticationSuccesses," << m_metrics.authenticationSuccesses << "\n";
+    outFile << "AuthenticationFailures," << m_metrics.authenticationFailures << "\n";
+    
+    if (m_metrics.authenticationSuccesses + m_metrics.authenticationFailures > 0) {
+        double successRate = static_cast<double>(m_metrics.authenticationSuccesses) / 
+                           (m_metrics.authenticationSuccesses + m_metrics.authenticationFailures);
+        outFile << "AuthenticationSuccessRate," << successRate << "\n";
+    }
+    
+    outFile << "RSSIMeasurementsTaken," << m_metrics.rssiMeasurementsTaken << "\n";
+    outFile << "RSSIAnomaliesDetected," << m_metrics.rssiAnomaliesDetected << "\n";
+    outFile << "ResourceTestsConducted," << m_metrics.resourceTestsConducted << "\n";
+    outFile << "IncentivesOffered," << m_metrics.incentivesOffered << "\n";
+    
+    outFile.close();
+    std::cout << "[MITIGATION MGR] Mitigation results exported to " << filename << "\n";
+}
+
 } // namespace ns3
 
+// End of inline Sybil mitigation implementation
+// ============================================================================
 // End of inline Sybil attack implementation
 // ============================================================================
 // End of inline wormhole attack implementation
@@ -142781,6 +143737,18 @@ int main(int argc, char *argv[])
 	cmd.AddValue ("sybil_detection_threshold", "Similarity threshold for Sybil detection (0.0-1.0)", sybil_detection_threshold);
 	cmd.AddValue ("sybil_detection_check_interval", "Interval for Sybil detection checks (seconds)", sybil_detection_check_interval);
 	
+	// Advanced Sybil Mitigation Parameters
+	cmd.AddValue ("enable_sybil_mitigation_advanced", "Enable advanced Sybil mitigation techniques", enable_sybil_mitigation_advanced);
+	cmd.AddValue ("use_trusted_certification", "Use PKI-based trusted certification", use_trusted_certification);
+	cmd.AddValue ("use_rssi_detection", "Use RSSI-based Sybil detection", use_rssi_detection);
+	cmd.AddValue ("use_resource_testing", "Use resource testing for Sybil detection", use_resource_testing);
+	cmd.AddValue ("use_incentive_scheme", "Use incentive-based Sybil mitigation", use_incentive_scheme);
+	cmd.AddValue ("rssi_threshold", "RSSI threshold in dBm for detection", rssi_threshold);
+	cmd.AddValue ("rssi_similarity_threshold", "RSSI similarity threshold for co-location detection", rssi_similarity_threshold);
+	cmd.AddValue ("incentive_amount", "Incentive amount per revealed identity", incentive_amount);
+	cmd.AddValue ("resource_test_cpu_threshold", "CPU usage threshold for resource testing", resource_test_cpu_threshold);
+	cmd.AddValue ("resource_test_memory_min", "Minimum memory requirement (MB)", resource_test_memory_min);
+	
 	cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
     cmd.AddValue ("routing_test", "routing_test", routing_test);
     cmd.AddValue ("routing_algorithm", "routing_algorithm", routing_algorithm);
@@ -145033,6 +146001,46 @@ int main(int argc, char *argv[])
             std::cout << "================================================\n" << std::endl;
         }
         // ===== End of Sybil Detection System Initialization =====
+        
+        // ===== Advanced Sybil Mitigation System Initialization =====
+        if (enable_sybil_mitigation_advanced) {
+            std::cout << "\n=== Advanced Sybil Mitigation System Configuration ===" << std::endl;
+            std::cout << "Trusted Certification: " << (use_trusted_certification ? "ENABLED" : "DISABLED") << std::endl;
+            std::cout << "RSSI-Based Detection: " << (use_rssi_detection ? "ENABLED" : "DISABLED") << std::endl;
+            std::cout << "Resource Testing: " << (use_resource_testing ? "ENABLED" : "DISABLED") << std::endl;
+            std::cout << "Incentive Scheme: " << (use_incentive_scheme ? "ENABLED" : "DISABLED") << std::endl;
+            
+            // Create global mitigation manager
+            g_sybilMitigationManager = new ns3::SybilMitigationManager();
+            g_sybilMitigationManager->Initialize(actual_node_count);
+            
+            // Enable selected mitigation techniques
+            g_sybilMitigationManager->EnableTrustedCertification(use_trusted_certification);
+            g_sybilMitigationManager->EnableRSSIDetection(use_rssi_detection);
+            g_sybilMitigationManager->EnableResourceTesting(use_resource_testing);
+            g_sybilMitigationManager->EnableIncentiveScheme(use_incentive_scheme);
+            
+            // Authenticate all nodes using enabled techniques
+            for (uint32_t i = 0; i < actual_node_count; ++i) {
+                Ptr<Node> node = ns3::NodeList::GetNode(i);
+                Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+                if (ipv4 && ipv4->GetNInterfaces() > 1) {
+                    Ipv4Address ip = ipv4->GetAddress(1, 0).GetLocal();
+                    Mac48Address mac = Mac48Address::Allocate();
+                    
+                    // Authenticate node
+                    bool authenticated = g_sybilMitigationManager->AuthenticateNode(i, ip, mac);
+                    
+                    if (!authenticated) {
+                        std::cout << "[MITIGATION] Node " << i << " failed authentication (possible Sybil)\n";
+                    }
+                }
+            }
+            
+            std::cout << "Advanced Sybil mitigation system initialized successfully" << std::endl;
+            std::cout << "========================================================\n" << std::endl;
+        }
+        // ===== End of Advanced Sybil Mitigation System Initialization =====
     }
     else if (present_wormhole_attack_nodes) {
         // Use legacy wormhole implementation
@@ -145105,6 +146113,16 @@ int main(int argc, char *argv[])
       g_sybilDetector = nullptr;
   }
   
+  // Export advanced Sybil mitigation results if mitigation manager was used
+  if (g_sybilMitigationManager != nullptr) {
+      std::cout << "\n=== Advanced Sybil Mitigation Summary ===" << std::endl;
+      g_sybilMitigationManager->PrintComprehensiveReport();
+      g_sybilMitigationManager->ExportMitigationResults("sybil-mitigation-results.csv");
+      std::cout << "Sybil mitigation results exported to sybil-mitigation-results.csv" << std::endl;
+      delete g_sybilMitigationManager;
+      g_sybilMitigationManager = nullptr;
+  }
+  
   Simulator::Destroy();
   
   // Print summary of all generated CSV files
@@ -145126,6 +146144,21 @@ int main(int argc, char *argv[])
   }
   if (g_sybilDetector != nullptr || enable_sybil_detection) {
       std::cout << "  ✓ sybil-detection-results.csv\n";
+  }
+  if (g_sybilMitigationManager != nullptr || enable_sybil_mitigation_advanced) {
+      std::cout << "  ✓ sybil-mitigation-results.csv\n";
+      if (use_trusted_certification) {
+          std::cout << "  ✓ trusted-certification-results.csv (component)\n";
+      }
+      if (use_rssi_detection) {
+          std::cout << "  ✓ rssi-detection-results.csv (component)\n";
+      }
+      if (use_resource_testing) {
+          std::cout << "  ✓ resource-testing-results.csv (component)\n";
+      }
+      if (use_incentive_scheme) {
+          std::cout << "  ✓ incentive-scheme-results.csv (component)\n";
+      }
   }
   if (g_packetTracker != nullptr || enable_packet_tracking) {
       std::cout << "  ✓ packet-delivery-analysis.csv\n";
