@@ -97041,7 +97041,7 @@ void SybilAttackApp::StartApplication(void) {
     for (uint32_t i = 0; i < node->GetNDevices(); ++i) {
         Ptr<NetDevice> device = node->GetDevice(i);
         if (!device->IsPointToPoint()) {
-            device->SetPromiscuousReceiveCallback(
+            device->SetPromiscReceiveCallback(
                 MakeCallback(&SybilAttackApp::InterceptPacket, this));
         }
     }
