@@ -98800,7 +98800,6 @@ void SybilMitigationManager::CaptureRSSIMeasurement(uint32_t nodeId, double rssi
                 }
             }
         }
-        }
     }
 }
 
