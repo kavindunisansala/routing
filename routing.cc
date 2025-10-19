@@ -98534,8 +98534,8 @@ void SybilMitigationManager::ExportMitigationResults(std::string filename) const
     std::cout << "[MITIGATION MGR] Mitigation results exported to " << filename << "\n";
     
     // Export component-specific statistics
-    if (m_certificationAuthority != nullptr) {
-        m_certificationAuthority->ExportStatistics("trusted-certification-results.csv");
+    if (m_certAuthority != nullptr) {
+        m_certAuthority->ExportStatistics("trusted-certification-results.csv");
         std::cout << "[MITIGATION MGR] Trusted certification results exported to trusted-certification-results.csv\n";
     }
     
@@ -98549,8 +98549,8 @@ void SybilMitigationManager::ExportMitigationResults(std::string filename) const
         std::cout << "[MITIGATION MGR] Resource testing results exported to resource-testing-results.csv\n";
     }
     
-    if (m_incentiveMitigation != nullptr) {
-        m_incentiveMitigation->ExportStatistics("incentive-scheme-results.csv");
+    if (m_incentiveScheme != nullptr) {
+        m_incentiveScheme->ExportStatistics("incentive-scheme-results.csv");
         std::cout << "[MITIGATION MGR] Incentive scheme results exported to incentive-scheme-results.csv\n";
     }
 }
