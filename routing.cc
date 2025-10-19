@@ -732,6 +732,7 @@ private:
     std::set<uint32_t> m_blacklistedNodes;
     std::set<Ipv4Address> m_blacklistedIps;
     std::set<uint32_t> m_knownMaliciousNodes;
+    std::set<uint32_t> m_detectedSybilNodes;
     SybilDetectionMetrics m_metrics;
     
     Time m_detectionStartTime;
@@ -97820,6 +97821,7 @@ bool SybilDetector::DetectSybilNode(uint32_t nodeId) {
     if (m_nodeIdentities.find(nodeId) != m_nodeIdentities.end()) {
         if (m_nodeIdentities[nodeId].size() > 1) {
             m_metrics.sybilNodesDetected++;
+            m_detectedSybilNodes.insert(nodeId);
             
             if (m_mitigationEnabled) {
                 BlacklistNode(nodeId);
@@ -98705,7 +98707,9 @@ void SybilMitigationManager::MonitorNodeBehavior(uint32_t nodeId, Ipv4Address ip
     
     // Re-verify with all enabled techniques
     if (m_useTrustedCert && m_certAuthority) {
-        if (!m_certAuthority->AuthenticateNode(nodeId, ip, mac)) {
+        // Get or issue certificate for this node
+        DigitalCertificate cert = m_certAuthority->IssueCertificate(nodeId, ip, mac);
+        if (!m_certAuthority->AuthenticateNode(nodeId, cert)) {
             std::cout << "[MITIGATION MGR] Node " << nodeId << " failed certificate verification\n";
             MitigateSybilNode(nodeId);
         }
@@ -98779,14 +98783,23 @@ bool SybilMitigationManager::DetectAbnormalBehavior(uint32_t nodeId) {
 
 void SybilMitigationManager::CaptureRSSIMeasurement(uint32_t nodeId, double rssi, Vector position) {
     if (m_useRSSI && m_rssiDetector) {
-        m_rssiDetector->RecordRSSI(nodeId, rssi, position);
-        m_metrics.rssiMeasurementsTaken++;
-        
-        // Check for RSSI anomalies
-        if (m_rssiDetector->DetectSybilByRSSI(nodeId)) {
-            std::cout << "[MITIGATION MGR] RSSI anomaly detected for node " << nodeId << "\n";
-            m_metrics.rssiAnomaliesDetected++;
-            MitigateSybilNode(nodeId);
+        // Get node's IP address for RSSI recording
+        Ptr<Node> node = NodeList::GetNode(nodeId);
+        if (node) {
+            Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+            if (ipv4 && ipv4->GetNInterfaces() > 1) {
+                Ipv4Address ip = ipv4->GetAddress(1, 0).GetLocal();
+                m_rssiDetector->RecordRSSI(nodeId, ip, rssi, position);
+                m_metrics.rssiMeasurementsTaken++;
+                
+                // Check for RSSI anomalies
+                if (m_rssiDetector->DetectSybilByRSSI(nodeId)) {
+                    std::cout << "[MITIGATION MGR] RSSI anomaly detected for node " << nodeId << "\n";
+                    m_metrics.rssiAnomaliesDetected++;
+                    MitigateSybilNode(nodeId);
+                }
+            }
+        }
         }
     }
 }
