@@ -97029,7 +97029,6 @@ void SybilAttackApp::StartApplication(void) {
     // Create broadcast socket
     TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
     m_broadcastSocket = Socket::CreateSocket(GetNode(), tid);
-    InetSocketAddress broadcastAddr = InetSocketAddress(Ipv4Address("255.255.255.255"), 654);
     m_broadcastSocket->SetAllowBroadcast(true);
     m_broadcastSocket->Bind();
     
