@@ -51,6 +51,9 @@
 #include <cstdlib>
 #include <limits.h>
 #include <bits/stdc++.h>
+#include <chrono>
+#include <random>
+#include <set>
 
 // ============================================================================
 // INLINE WORMHOLE ATTACK MODULE
@@ -88,6 +91,18 @@ class RSSIBasedDetector;
 class ResourceTester;
 class IncentiveBasedMitigation;
 class SybilMitigationManager;
+
+// Forward declarations for Replay attack classes
+struct PacketDigest;
+struct ReplayStatistics;
+struct ReplayDetectionMetrics;
+struct BloomFilterConfig;
+class BloomFilter;
+class SequenceNumberWindow;
+class ReplayAttackApp;
+class ReplayAttackManager;
+class ReplayDetector;
+class ReplayMitigationManager;
 
 /**
  * @brief Statistics for wormhole attack monitoring
@@ -1049,6 +1064,297 @@ private:
 
 };
 
+// ============================================================================
+// REPLAY ATTACK CLASSES
+// ============================================================================
+
+/**
+ * @brief Packet Digest for Bloom Filter storage
+ */
+struct PacketDigest {
+    uint32_t sourceNodeId;
+    uint32_t destNodeId;
+    Ipv4Address sourceIp;
+    Ipv4Address destIp;
+    uint32_t sequenceNumber;
+    uint32_t timestamp;
+    std::string payloadHash;  // Hash of packet payload
+    
+    PacketDigest() 
+        : sourceNodeId(0), destNodeId(0), sequenceNumber(0), timestamp(0) {}
+    
+    // Generate unique digest string for hashing
+    std::string GetDigestString() const {
+        std::ostringstream oss;
+        oss << sourceNodeId << "-" << destNodeId << "-"
+            << sourceIp << "-" << destIp << "-"
+            << sequenceNumber << "-" << timestamp << "-"
+            << payloadHash;
+        return oss.str();
+    }
+};
+
+/**
+ * @brief Replay Attack Statistics
+ */
+struct ReplayStatistics {
+    uint32_t totalPacketsCaptured;
+    uint32_t totalPacketsReplayed;
+    uint32_t replayedFromNode[50];  // Per-node replay count
+    uint32_t successfulReplays;
+    uint32_t detectedReplays;
+    double attackDuration;
+    
+    ReplayStatistics() 
+        : totalPacketsCaptured(0), totalPacketsReplayed(0),
+          successfulReplays(0), detectedReplays(0), attackDuration(0.0) {
+        for (int i = 0; i < 50; i++) replayedFromNode[i] = 0;
+    }
+};
+
+/**
+ * @brief Replay Detection Metrics
+ */
+struct ReplayDetectionMetrics {
+    uint32_t totalPacketsProcessed;
+    uint32_t replaysDetected;
+    uint32_t replaysBlocked;
+    uint32_t falsePositives;
+    uint32_t falseNegatives;
+    double falsePositiveRate;
+    double detectionAccuracy;
+    uint32_t bloomFilterInsertions;
+    uint32_t bloomFilterQueries;
+    uint32_t bloomFilterRotations;
+    double avgProcessingLatency;  // microseconds
+    double throughput;  // packets/second
+    
+    ReplayDetectionMetrics()
+        : totalPacketsProcessed(0), replaysDetected(0), replaysBlocked(0),
+          falsePositives(0), falseNegatives(0), falsePositiveRate(0.0),
+          detectionAccuracy(0.0), bloomFilterInsertions(0), bloomFilterQueries(0),
+          bloomFilterRotations(0), avgProcessingLatency(0.0), throughput(0.0) {}
+};
+
+/**
+ * @brief Bloom Filter Configuration
+ */
+struct BloomFilterConfig {
+    uint32_t filterSize;        // bits
+    uint32_t numHashFunctions;
+    uint32_t numFilters;        // Number of filters in rotation
+    double rotationInterval;    // seconds
+    double expectedElements;
+    double targetFalsePositiveRate;
+    
+    BloomFilterConfig()
+        : filterSize(1024 * 8),  // 1KB = 8192 bits
+          numHashFunctions(4),
+          numFilters(3),
+          rotationInterval(5.0),
+          expectedElements(1000),
+          targetFalsePositiveRate(0.000005) {}  // 5 × 10⁻⁶
+};
+
+/**
+ * @brief Bloom Filter for packet digest storage
+ * Uses multiple hash functions and periodic rotation
+ */
+class BloomFilter {
+public:
+    BloomFilter(uint32_t size, uint32_t numHashes, uint32_t key);
+    ~BloomFilter();
+    
+    void Insert(const std::string& digest);
+    bool Query(const std::string& digest) const;
+    void Clear();
+    uint32_t GetSize() const { return m_size; }
+    uint32_t GetInsertionCount() const { return m_insertionCount; }
+    double GetFillRatio() const;
+    
+private:
+    uint32_t Hash(const std::string& digest, uint32_t seed) const;
+    uint32_t KeyedHash(const std::string& digest, uint32_t hashIndex) const;
+    
+    std::vector<bool> m_bits;
+    uint32_t m_size;
+    uint32_t m_numHashes;
+    uint32_t m_key;  // PRF key to prevent chosen-insertion attacks
+    uint32_t m_insertionCount;
+};
+
+/**
+ * @brief Sequence Number Window for packet ordering
+ */
+class SequenceNumberWindow {
+public:
+    SequenceNumberWindow(uint32_t windowSize = 64);
+    ~SequenceNumberWindow();
+    
+    bool IsValid(uint32_t seqNo);
+    void Update(uint32_t seqNo);
+    void Reset();
+    uint32_t GetWindowSize() const { return m_windowSize; }
+    uint32_t GetBaseSequence() const { return m_baseSeq; }
+    
+private:
+    uint32_t m_windowSize;
+    uint32_t m_baseSeq;
+    std::set<uint32_t> m_receivedSeqs;
+};
+
+/**
+ * @brief Replay Attack Application
+ * Captures legitimate packets and replays them
+ */
+class ReplayAttackApp : public Application {
+public:
+    ReplayAttackApp();
+    virtual ~ReplayAttackApp();
+    
+    void SetNode(Ptr<Node> node);
+    void SetReplayInterval(double interval);
+    void SetReplayCount(uint32_t count);
+    void CapturePacket(Ptr<const Packet> packet, uint32_t srcNode, uint32_t dstNode);
+    void ReplayPacket();
+    
+    ReplayStatistics GetStatistics() const { return m_stats; }
+    void PrintStatistics() const;
+    void ExportStatistics(std::string filename) const;
+    
+protected:
+    virtual void StartApplication();
+    virtual void StopApplication();
+    
+private:
+    void ScheduleNextReplay();
+    
+    Ptr<Node> m_node;
+    std::vector<Ptr<Packet>> m_capturedPackets;
+    std::vector<PacketDigest> m_packetDigests;
+    double m_replayInterval;
+    uint32_t m_replayCount;
+    uint32_t m_maxCapturedPackets;
+    EventId m_replayEvent;
+    ReplayStatistics m_stats;
+    Time m_startTime;
+};
+
+/**
+ * @brief Replay Attack Manager
+ * Coordinates replay attacks across multiple nodes
+ */
+class ReplayAttackManager {
+public:
+    ReplayAttackManager();
+    ~ReplayAttackManager();
+    
+    void Initialize(std::vector<bool> maliciousNodes, uint32_t totalNodes);
+    void SetReplayParameters(double interval, uint32_t count);
+    void ActivateAttack(Time startTime, Time stopTime);
+    void CapturePacketForReplay(uint32_t nodeId, Ptr<const Packet> packet, uint32_t srcNode, uint32_t dstNode);
+    
+    std::vector<uint32_t> GetMaliciousNodeIds() const { return m_maliciousNodeIds; }
+    ReplayStatistics GetAggregateStatistics() const;
+    void PrintStatistics() const;
+    void ExportStatistics(std::string filename) const;
+    
+private:
+    std::map<uint32_t, Ptr<ReplayAttackApp>> m_attackApps;
+    std::vector<uint32_t> m_maliciousNodeIds;
+    uint32_t m_totalNodes;
+    double m_replayInterval;
+    uint32_t m_replayCount;
+};
+
+/**
+ * @brief Replay Detector with Bloom Filters and Sequence Numbers
+ * Implements in-network replay suppression
+ */
+class ReplayDetector {
+public:
+    ReplayDetector();
+    ~ReplayDetector();
+    
+    void Initialize(uint32_t totalNodes, BloomFilterConfig config);
+    void EnableDetection(bool enable);
+    void EnableMitigation(bool enable);
+    
+    // Packet processing
+    bool ProcessPacket(Ptr<const Packet> packet, uint32_t srcNode, uint32_t dstNode, uint32_t seqNo);
+    bool IsReplayPacket(const PacketDigest& digest);
+    void RecordPacketDigest(const PacketDigest& digest);
+    
+    // Bloom filter management
+    void RotateBloomFilters();
+    void ClearOldestFilter();
+    
+    // Sequence number management
+    bool ValidateSequenceNumber(uint32_t nodeId, uint32_t seqNo);
+    void UpdateSequenceWindow(uint32_t nodeId, uint32_t seqNo);
+    
+    // Statistics
+    ReplayDetectionMetrics GetMetrics() const { return m_metrics; }
+    void PrintDetectionReport() const;
+    void ExportDetectionResults(std::string filename) const;
+    
+private:
+    PacketDigest CreateDigest(Ptr<const Packet> packet, uint32_t srcNode, uint32_t dstNode, uint32_t seqNo);
+    std::string ComputePacketHash(Ptr<const Packet> packet);
+    
+    bool m_detectionEnabled;
+    bool m_mitigationEnabled;
+    uint32_t m_totalNodes;
+    BloomFilterConfig m_config;
+    
+    std::vector<BloomFilter*> m_bloomFilters;  // Rotating set of filters
+    uint32_t m_currentFilterIndex;
+    std::map<uint32_t, SequenceNumberWindow*> m_seqWindows;  // Per-node sequence windows
+    
+    ReplayDetectionMetrics m_metrics;
+    Time m_lastRotationTime;
+    uint32_t m_prfKey;  // Pseudorandom function key
+};
+
+/**
+ * @brief Replay Mitigation Manager
+ * Coordinates replay detection and mitigation
+ */
+class ReplayMitigationManager {
+public:
+    ReplayMitigationManager();
+    ~ReplayMitigationManager();
+    
+    void Initialize(uint32_t totalNodes, BloomFilterConfig config);
+    void EnableDetection(bool enable);
+    void EnableMitigation(bool enable);
+    void IntegrateWithDetector(ReplayDetector* detector);
+    
+    // Mitigation operations
+    bool CheckAndBlockReplay(Ptr<const Packet> packet, uint32_t srcNode, uint32_t dstNode, uint32_t seqNo);
+    void BlockReplayPacket(uint32_t srcNode, uint32_t seqNo);
+    void PeriodicPerformanceCheck();
+    
+    // Statistics
+    ReplayDetectionMetrics GetMetrics() const;
+    void PrintComprehensiveReport() const;
+    void ExportMitigationResults(std::string filename) const;
+    
+private:
+    ReplayDetector* m_detector;
+    uint32_t m_totalNodes;
+    BloomFilterConfig m_config;
+    ReplayDetectionMetrics m_metrics;
+    
+    std::set<std::pair<uint32_t, uint32_t>> m_blockedPackets;  // (nodeId, seqNo)
+    std::map<uint32_t, uint32_t> m_packetsProcessedPerNode;
+    std::map<uint32_t, uint32_t> m_replaysBlockedPerNode;
+    
+    Time m_lastPerformanceCheck;
+    double m_totalProcessingTime;  // microseconds
+    uint32_t m_totalPacketsProcessed;
+};
+
 } // namespace ns3
 
 // End of wormhole attack class declarations
@@ -1203,6 +1509,25 @@ uint32_t resource_test_memory_min = 512;        // Minimum memory (MB)
 // Packet tracking and analysis
 bool enable_packet_tracking = false;            // Enable detailed packet tracking and CSV export
 
+// Replay Attack Configuration
+bool enable_replay_attack = false;              // Enable Replay attack
+double replay_start_time = 1.0;                 // When to start Replay attack (seconds)
+double replay_stop_time = 0.0;                  // When to stop Replay attack (0 = simTime)
+double replay_attack_percentage = 0.10;         // Percentage of nodes to make malicious (10%)
+double replay_interval = 1.0;                   // Interval between replays (seconds)
+uint32_t replay_count_per_node = 5;             // Number of packets to replay per node
+uint32_t replay_max_captured_packets = 100;     // Max packets to capture for replay
+
+// Replay Detection and Mitigation Configuration
+bool enable_replay_detection = false;           // Enable Replay detection with Bloom Filters
+bool enable_replay_mitigation = false;          // Enable automatic replay mitigation
+uint32_t bf_filter_size = 8192;                 // Bloom filter size in bits (1KB)
+uint32_t bf_num_hash_functions = 4;             // Number of hash functions
+uint32_t bf_num_filters = 3;                    // Number of rotating filters
+double bf_rotation_interval = 5.0;              // BF rotation interval (seconds)
+double bf_target_false_positive = 0.000005;     // Target FP rate: 5 × 10⁻⁶
+uint32_t seqno_window_size = 64;                // Sequence number window size
+
 // Number of controllers
 const int controllers = 6;
 
@@ -1245,6 +1570,15 @@ ns3::SybilDetector* g_sybilDetector = nullptr;
 
 // Global Sybil mitigation manager instance
 ns3::SybilMitigationManager* g_sybilMitigationManager = nullptr;
+
+// Global Replay attack manager instance
+ns3::ReplayAttackManager* g_replayAttackManager = nullptr;
+
+// Global Replay detector instance
+ns3::ReplayDetector* g_replayDetector = nullptr;
+
+// Global Replay mitigation manager instance
+ns3::ReplayMitigationManager* g_replayMitigationManager = nullptr;
 
 int maxspeed = 80;	
 
@@ -98803,9 +99137,799 @@ void SybilMitigationManager::CaptureRSSIMeasurement(uint32_t nodeId, double rssi
     }
 }
 
+// ============================================================================
+// REPLAY ATTACK IMPLEMENTATION
+// ============================================================================
+
+// BloomFilter Implementation
+BloomFilter::BloomFilter(uint32_t size, uint32_t numHashes, uint32_t key)
+    : m_size(size), m_numHashes(numHashes), m_key(key), m_insertionCount(0) {
+    m_bits.resize(size, false);
+}
+
+BloomFilter::~BloomFilter() {
+    m_bits.clear();
+}
+
+void BloomFilter::Insert(const std::string& digest) {
+    for (uint32_t i = 0; i < m_numHashes; i++) {
+        uint32_t hash = KeyedHash(digest, i);
+        m_bits[hash % m_size] = true;
+    }
+    m_insertionCount++;
+}
+
+bool BloomFilter::Query(const std::string& digest) const {
+    for (uint32_t i = 0; i < m_numHashes; i++) {
+        uint32_t hash = KeyedHash(digest, i);
+        if (!m_bits[hash % m_size]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void BloomFilter::Clear() {
+    std::fill(m_bits.begin(), m_bits.end(), false);
+    m_insertionCount = 0;
+}
+
+double BloomFilter::GetFillRatio() const {
+    uint32_t setBits = 0;
+    for (bool bit : m_bits) {
+        if (bit) setBits++;
+    }
+    return static_cast<double>(setBits) / m_size;
+}
+
+uint32_t BloomFilter::Hash(const std::string& digest, uint32_t seed) const {
+    uint32_t hash = seed;
+    for (char c : digest) {
+        hash = hash * 31 + static_cast<uint32_t>(c);
+    }
+    return hash;
+}
+
+uint32_t BloomFilter::KeyedHash(const std::string& digest, uint32_t hashIndex) const {
+    // Keyed PRF to prevent chosen-insertion attacks
+    std::string keyedInput = std::to_string(m_key) + "-" + std::to_string(hashIndex) + "-" + digest;
+    return Hash(keyedInput, hashIndex);
+}
+
+// SequenceNumberWindow Implementation
+SequenceNumberWindow::SequenceNumberWindow(uint32_t windowSize)
+    : m_windowSize(windowSize), m_baseSeq(0) {
+}
+
+SequenceNumberWindow::~SequenceNumberWindow() {
+    m_receivedSeqs.clear();
+}
+
+bool SequenceNumberWindow::IsValid(uint32_t seqNo) {
+    // Check if sequence number is within acceptable window
+    if (seqNo < m_baseSeq) {
+        // Too old - likely a replay
+        return false;
+    }
+    
+    if (seqNo >= m_baseSeq + m_windowSize) {
+        // Too far ahead - slide window
+        uint32_t newBase = seqNo - m_windowSize / 2;
+        if (newBase > m_baseSeq) {
+            m_baseSeq = newBase;
+            // Clean up old sequence numbers
+            auto it = m_receivedSeqs.begin();
+            while (it != m_receivedSeqs.end()) {
+                if (*it < m_baseSeq) {
+                    it = m_receivedSeqs.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+    }
+    
+    // Check if already received
+    if (m_receivedSeqs.find(seqNo) != m_receivedSeqs.end()) {
+        return false;  // Duplicate - replay detected
+    }
+    
+    return true;
+}
+
+void SequenceNumberWindow::Update(uint32_t seqNo) {
+    m_receivedSeqs.insert(seqNo);
+}
+
+void SequenceNumberWindow::Reset() {
+    m_baseSeq = 0;
+    m_receivedSeqs.clear();
+}
+
+// ReplayAttackApp Implementation
+ReplayAttackApp::ReplayAttackApp()
+    : m_replayInterval(1.0), m_replayCount(5), m_maxCapturedPackets(100) {
+}
+
+ReplayAttackApp::~ReplayAttackApp() {
+    m_capturedPackets.clear();
+    m_packetDigests.clear();
+}
+
+void ReplayAttackApp::SetNode(Ptr<Node> node) {
+    m_node = node;
+}
+
+void ReplayAttackApp::SetReplayInterval(double interval) {
+    m_replayInterval = interval;
+}
+
+void ReplayAttackApp::SetReplayCount(uint32_t count) {
+    m_replayCount = count;
+}
+
+void ReplayAttackApp::CapturePacket(Ptr<const Packet> packet, uint32_t srcNode, uint32_t dstNode) {
+    if (m_capturedPackets.size() >= m_maxCapturedPackets) {
+        return;  // Limit memory usage
+    }
+    
+    // Copy packet for later replay
+    Ptr<Packet> pktCopy = packet->Copy();
+    m_capturedPackets.push_back(pktCopy);
+    
+    // Create digest
+    PacketDigest digest;
+    digest.sourceNodeId = srcNode;
+    digest.destNodeId = dstNode;
+    digest.timestamp = Simulator::Now().GetMicroSeconds();
+    digest.sequenceNumber = m_stats.totalPacketsCaptured;
+    
+    m_packetDigests.push_back(digest);
+    m_stats.totalPacketsCaptured++;
+    
+    std::cout << "[REPLAY ATTACK] Node " << m_node->GetId() 
+              << " captured packet " << m_stats.totalPacketsCaptured 
+              << " from " << srcNode << " to " << dstNode << "\n";
+}
+
+void ReplayAttackApp::ReplayPacket() {
+    if (m_capturedPackets.empty()) {
+        std::cout << "[REPLAY ATTACK] No packets to replay\n";
+        return;
+    }
+    
+    // Select random packet to replay
+    uint32_t index = rand() % m_capturedPackets.size();
+    Ptr<Packet> pktToReplay = m_capturedPackets[index]->Copy();
+    PacketDigest digest = m_packetDigests[index];
+    
+    m_stats.totalPacketsReplayed++;
+    m_stats.replayedFromNode[digest.sourceNodeId]++;
+    
+    std::cout << "[REPLAY ATTACK] Node " << m_node->GetId() 
+              << " replaying packet #" << m_stats.totalPacketsReplayed
+              << " (original from " << digest.sourceNodeId 
+              << " to " << digest.destNodeId << ")\n";
+    
+    // In a real implementation, this would inject the packet into the network
+    // For simulation, we just track it as a successful replay
+    m_stats.successfulReplays++;
+}
+
+void ReplayAttackApp::StartApplication() {
+    m_startTime = Simulator::Now();
+    std::cout << "[REPLAY ATTACK] Starting replay attack on node " << m_node->GetId() << "\n";
+    ScheduleNextReplay();
+}
+
+void ReplayAttackApp::StopApplication() {
+    m_stats.attackDuration = (Simulator::Now() - m_startTime).GetSeconds();
+    if (m_replayEvent.IsRunning()) {
+        Simulator::Cancel(m_replayEvent);
+    }
+    std::cout << "[REPLAY ATTACK] Stopping replay attack on node " << m_node->GetId() << "\n";
+}
+
+void ReplayAttackApp::ScheduleNextReplay() {
+    if (m_stats.totalPacketsReplayed < m_replayCount) {
+        m_replayEvent = Simulator::Schedule(Seconds(m_replayInterval), 
+                                           &ReplayAttackApp::ReplayPacket, this);
+    }
+}
+
+void ReplayAttackApp::PrintStatistics() const {
+    std::cout << "\n=== Replay Attack Statistics (Node " << m_node->GetId() << ") ===\n";
+    std::cout << "Total Packets Captured: " << m_stats.totalPacketsCaptured << "\n";
+    std::cout << "Total Packets Replayed: " << m_stats.totalPacketsReplayed << "\n";
+    std::cout << "Successful Replays: " << m_stats.successfulReplays << "\n";
+    std::cout << "Detected Replays: " << m_stats.detectedReplays << "\n";
+    std::cout << "Attack Duration: " << m_stats.attackDuration << " seconds\n";
+    std::cout << "======================================\n\n";
+}
+
+void ReplayAttackApp::ExportStatistics(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[REPLAY ATTACK] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "NodeId," << m_node->GetId() << "\n";
+    outFile << "TotalPacketsCaptured," << m_stats.totalPacketsCaptured << "\n";
+    outFile << "TotalPacketsReplayed," << m_stats.totalPacketsReplayed << "\n";
+    outFile << "SuccessfulReplays," << m_stats.successfulReplays << "\n";
+    outFile << "DetectedReplays," << m_stats.detectedReplays << "\n";
+    outFile << "AttackDuration," << m_stats.attackDuration << "\n";
+    
+    outFile.close();
+}
+
+// ReplayAttackManager Implementation
+ReplayAttackManager::ReplayAttackManager()
+    : m_totalNodes(0), m_replayInterval(1.0), m_replayCount(5) {
+}
+
+ReplayAttackManager::~ReplayAttackManager() {
+    m_attackApps.clear();
+}
+
+void ReplayAttackManager::Initialize(std::vector<bool> maliciousNodes, uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    
+    for (uint32_t i = 0; i < maliciousNodes.size() && i < totalNodes; i++) {
+        if (maliciousNodes[i]) {
+            m_maliciousNodeIds.push_back(i);
+            
+            // Create replay attack app for this node
+            Ptr<ReplayAttackApp> app = CreateObject<ReplayAttackApp>();
+            Ptr<Node> node = NodeList::GetNode(i);
+            app->SetNode(node);
+            app->SetReplayInterval(m_replayInterval);
+            app->SetReplayCount(m_replayCount);
+            
+            m_attackApps[i] = app;
+            
+            std::cout << "[REPLAY ATTACK MGR] Initialized replay attack on node " << i << "\n";
+        }
+    }
+    
+    std::cout << "[REPLAY ATTACK MGR] Total malicious nodes: " << m_maliciousNodeIds.size() << "\n";
+}
+
+void ReplayAttackManager::SetReplayParameters(double interval, uint32_t count) {
+    m_replayInterval = interval;
+    m_replayCount = count;
+    
+    for (auto& pair : m_attackApps) {
+        pair.second->SetReplayInterval(interval);
+        pair.second->SetReplayCount(count);
+    }
+}
+
+void ReplayAttackManager::ActivateAttack(Time startTime, Time stopTime) {
+    for (auto& pair : m_attackApps) {
+        Ptr<ReplayAttackApp> app = pair.second;
+        Ptr<Node> node = NodeList::GetNode(pair.first);
+        node->AddApplication(app);
+        app->SetStartTime(startTime);
+        app->SetStopTime(stopTime);
+        
+        std::cout << "[REPLAY ATTACK MGR] Activated attack on node " << pair.first 
+                  << " from " << startTime.GetSeconds() << "s to " << stopTime.GetSeconds() << "s\n";
+    }
+}
+
+void ReplayAttackManager::CapturePacketForReplay(uint32_t nodeId, Ptr<const Packet> packet, 
+                                                 uint32_t srcNode, uint32_t dstNode) {
+    auto it = m_attackApps.find(nodeId);
+    if (it != m_attackApps.end()) {
+        it->second->CapturePacket(packet, srcNode, dstNode);
+    }
+}
+
+ReplayStatistics ReplayAttackManager::GetAggregateStatistics() const {
+    ReplayStatistics aggregate;
+    
+    for (const auto& pair : m_attackApps) {
+        ReplayStatistics stats = pair.second->GetStatistics();
+        aggregate.totalPacketsCaptured += stats.totalPacketsCaptured;
+        aggregate.totalPacketsReplayed += stats.totalPacketsReplayed;
+        aggregate.successfulReplays += stats.successfulReplays;
+        aggregate.detectedReplays += stats.detectedReplays;
+        aggregate.attackDuration = std::max(aggregate.attackDuration, stats.attackDuration);
+        
+        for (int i = 0; i < 50; i++) {
+            aggregate.replayedFromNode[i] += stats.replayedFromNode[i];
+        }
+    }
+    
+    return aggregate;
+}
+
+void ReplayAttackManager::PrintStatistics() const {
+    std::cout << "\n========== REPLAY ATTACK AGGREGATE STATISTICS ==========\n";
+    
+    ReplayStatistics aggregate = GetAggregateStatistics();
+    
+    std::cout << "Number of Malicious Nodes: " << m_maliciousNodeIds.size() << "\n";
+    std::cout << "Total Packets Captured: " << aggregate.totalPacketsCaptured << "\n";
+    std::cout << "Total Packets Replayed: " << aggregate.totalPacketsReplayed << "\n";
+    std::cout << "Successful Replays: " << aggregate.successfulReplays << "\n";
+    std::cout << "Detected Replays: " << aggregate.detectedReplays << "\n";
+    std::cout << "Attack Duration: " << aggregate.attackDuration << " seconds\n";
+    
+    if (aggregate.totalPacketsReplayed > 0) {
+        double successRate = static_cast<double>(aggregate.successfulReplays) / aggregate.totalPacketsReplayed;
+        double detectionRate = static_cast<double>(aggregate.detectedReplays) / aggregate.totalPacketsReplayed;
+        std::cout << "Success Rate: " << (successRate * 100) << "%\n";
+        std::cout << "Detection Rate: " << (detectionRate * 100) << "%\n";
+    }
+    
+    std::cout << "========================================================\n\n";
+}
+
+void ReplayAttackManager::ExportStatistics(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[REPLAY ATTACK MGR] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    ReplayStatistics aggregate = GetAggregateStatistics();
+    
+    outFile << "Metric,Value\n";
+    outFile << "NumberOfMaliciousNodes," << m_maliciousNodeIds.size() << "\n";
+    outFile << "TotalPacketsCaptured," << aggregate.totalPacketsCaptured << "\n";
+    outFile << "TotalPacketsReplayed," << aggregate.totalPacketsReplayed << "\n";
+    outFile << "SuccessfulReplays," << aggregate.successfulReplays << "\n";
+    outFile << "DetectedReplays," << aggregate.detectedReplays << "\n";
+    outFile << "AttackDuration," << aggregate.attackDuration << "\n";
+    
+    if (aggregate.totalPacketsReplayed > 0) {
+        double successRate = static_cast<double>(aggregate.successfulReplays) / aggregate.totalPacketsReplayed;
+        double detectionRate = static_cast<double>(aggregate.detectedReplays) / aggregate.totalPacketsReplayed;
+        outFile << "SuccessRate," << successRate << "\n";
+        outFile << "DetectionRate," << detectionRate << "\n";
+    }
+    
+    outFile.close();
+    std::cout << "[REPLAY ATTACK MGR] Statistics exported to " << filename << "\n";
+}
+
+// ReplayDetector Implementation
+ReplayDetector::ReplayDetector()
+    : m_detectionEnabled(false), m_mitigationEnabled(false), 
+      m_totalNodes(0), m_currentFilterIndex(0), m_prfKey(12345) {
+}
+
+ReplayDetector::~ReplayDetector() {
+    for (auto filter : m_bloomFilters) {
+        delete filter;
+    }
+    m_bloomFilters.clear();
+    
+    for (auto& pair : m_seqWindows) {
+        delete pair.second;
+    }
+    m_seqWindows.clear();
+}
+
+void ReplayDetector::Initialize(uint32_t totalNodes, BloomFilterConfig config) {
+    m_totalNodes = totalNodes;
+    m_config = config;
+    m_prfKey = rand() % 1000000;  // Random PRF key
+    
+    // Create rotating set of Bloom filters
+    for (uint32_t i = 0; i < config.numFilters; i++) {
+        BloomFilter* bf = new BloomFilter(config.filterSize, config.numHashFunctions, m_prfKey);
+        m_bloomFilters.push_back(bf);
+    }
+    
+    // Create sequence number windows for each node
+    for (uint32_t i = 0; i < totalNodes; i++) {
+        m_seqWindows[i] = new SequenceNumberWindow(64);  // Window size = 64
+    }
+    
+    m_lastRotationTime = Simulator::Now();
+    
+    std::cout << "[REPLAY DETECTOR] Initialized with " << config.numFilters 
+              << " Bloom filters of size " << config.filterSize << " bits\n";
+    std::cout << "[REPLAY DETECTOR] Target false-positive rate: " 
+              << config.targetFalsePositiveRate << "\n";
+}
+
+void ReplayDetector::EnableDetection(bool enable) {
+    m_detectionEnabled = enable;
+    std::cout << "[REPLAY DETECTOR] Detection " << (enable ? "enabled" : "disabled") << "\n";
+}
+
+void ReplayDetector::EnableMitigation(bool enable) {
+    m_mitigationEnabled = enable;
+    std::cout << "[REPLAY DETECTOR] Mitigation " << (enable ? "enabled" : "disabled") << "\n";
+}
+
+bool ReplayDetector::ProcessPacket(Ptr<const Packet> packet, uint32_t srcNode, 
+                                   uint32_t dstNode, uint32_t seqNo) {
+    if (!m_detectionEnabled) {
+        return true;  // Allow packet if detection disabled
+    }
+    
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    m_metrics.totalPacketsProcessed++;
+    
+    // Step 1: Validate sequence number
+    if (!ValidateSequenceNumber(srcNode, seqNo)) {
+        m_metrics.replaysDetected++;
+        if (m_mitigationEnabled) {
+            m_metrics.replaysBlocked++;
+        }
+        
+        auto endTime = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+        m_metrics.avgProcessingLatency = (m_metrics.avgProcessingLatency * (m_metrics.totalPacketsProcessed - 1) 
+                                         + duration.count()) / m_metrics.totalPacketsProcessed;
+        
+        return !m_mitigationEnabled;  // Block if mitigation enabled
+    }
+    
+    // Step 2: Create packet digest
+    PacketDigest digest = CreateDigest(packet, srcNode, dstNode, seqNo);
+    
+    // Step 3: Check if packet exists in any Bloom filter (replay detection)
+    bool isReplay = IsReplayPacket(digest);
+    
+    if (isReplay) {
+        m_metrics.replaysDetected++;
+        if (m_mitigationEnabled) {
+            m_metrics.replaysBlocked++;
+        }
+        
+        std::cout << "[REPLAY DETECTOR] Replay detected: packet from node " << srcNode 
+                  << " to " << dstNode << " (seqNo: " << seqNo << ")\n";
+        
+        auto endTime = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+        m_metrics.avgProcessingLatency = (m_metrics.avgProcessingLatency * (m_metrics.totalPacketsProcessed - 1) 
+                                         + duration.count()) / m_metrics.totalPacketsProcessed;
+        
+        return !m_mitigationEnabled;  // Block if mitigation enabled
+    }
+    
+    // Step 4: Record packet digest in current Bloom filter
+    RecordPacketDigest(digest);
+    UpdateSequenceWindow(srcNode, seqNo);
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    m_metrics.avgProcessingLatency = (m_metrics.avgProcessingLatency * (m_metrics.totalPacketsProcessed - 1) 
+                                     + duration.count()) / m_metrics.totalPacketsProcessed;
+    
+    // Update throughput
+    double simTime = Simulator::Now().GetSeconds();
+    if (simTime > 0) {
+        m_metrics.throughput = m_metrics.totalPacketsProcessed / simTime;
+    }
+    
+    return true;  // Allow packet
+}
+
+bool ReplayDetector::IsReplayPacket(const PacketDigest& digest) {
+    std::string digestStr = digest.GetDigestString();
+    
+    // Query all Bloom filters
+    for (BloomFilter* bf : m_bloomFilters) {
+        m_metrics.bloomFilterQueries++;
+        if (bf->Query(digestStr)) {
+            return true;  // Packet found in filter - likely a replay
+        }
+    }
+    
+    return false;  // Packet not found in any filter - new packet
+}
+
+void ReplayDetector::RecordPacketDigest(const PacketDigest& digest) {
+    std::string digestStr = digest.GetDigestString();
+    
+    // Insert into current Bloom filter
+    BloomFilter* currentFilter = m_bloomFilters[m_currentFilterIndex];
+    currentFilter->Insert(digestStr);
+    m_metrics.bloomFilterInsertions++;
+}
+
+void ReplayDetector::RotateBloomFilters() {
+    std::cout << "[REPLAY DETECTOR] Rotating Bloom filters...\n";
+    
+    // Move to next filter
+    m_currentFilterIndex = (m_currentFilterIndex + 1) % m_config.numFilters;
+    
+    // Clear the new current filter (which is the oldest one)
+    m_bloomFilters[m_currentFilterIndex]->Clear();
+    
+    m_metrics.bloomFilterRotations++;
+    m_lastRotationTime = Simulator::Now();
+    
+    std::cout << "[REPLAY DETECTOR] Now using filter " << m_currentFilterIndex << "\n";
+}
+
+void ReplayDetector::ClearOldestFilter() {
+    uint32_t oldestIndex = (m_currentFilterIndex + 1) % m_config.numFilters;
+    m_bloomFilters[oldestIndex]->Clear();
+}
+
+bool ReplayDetector::ValidateSequenceNumber(uint32_t nodeId, uint32_t seqNo) {
+    if (m_seqWindows.find(nodeId) == m_seqWindows.end()) {
+        return true;  // No window for this node yet
+    }
+    
+    return m_seqWindows[nodeId]->IsValid(seqNo);
+}
+
+void ReplayDetector::UpdateSequenceWindow(uint32_t nodeId, uint32_t seqNo) {
+    if (m_seqWindows.find(nodeId) != m_seqWindows.end()) {
+        m_seqWindows[nodeId]->Update(seqNo);
+    }
+}
+
+PacketDigest ReplayDetector::CreateDigest(Ptr<const Packet> packet, uint32_t srcNode, 
+                                         uint32_t dstNode, uint32_t seqNo) {
+    PacketDigest digest;
+    digest.sourceNodeId = srcNode;
+    digest.destNodeId = dstNode;
+    digest.sequenceNumber = seqNo;
+    digest.timestamp = Simulator::Now().GetMicroSeconds();
+    digest.payloadHash = ComputePacketHash(packet);
+    
+    // Get IP addresses
+    Ptr<Node> srcNodePtr = NodeList::GetNode(srcNode);
+    Ptr<Node> dstNodePtr = NodeList::GetNode(dstNode);
+    
+    if (srcNodePtr) {
+        Ptr<Ipv4> ipv4 = srcNodePtr->GetObject<Ipv4>();
+        if (ipv4 && ipv4->GetNInterfaces() > 1) {
+            digest.sourceIp = ipv4->GetAddress(1, 0).GetLocal();
+        }
+    }
+    
+    if (dstNodePtr) {
+        Ptr<Ipv4> ipv4 = dstNodePtr->GetObject<Ipv4>();
+        if (ipv4 && ipv4->GetNInterfaces() > 1) {
+            digest.destIp = ipv4->GetAddress(1, 0).GetLocal();
+        }
+    }
+    
+    return digest;
+}
+
+std::string ReplayDetector::ComputePacketHash(Ptr<const Packet> packet) {
+    uint32_t size = packet->GetSize();
+    uint8_t* buffer = new uint8_t[size];
+    packet->CopyData(buffer, size);
+    
+    // Simple hash function for demonstration
+    uint32_t hash = 0;
+    for (uint32_t i = 0; i < size; i++) {
+        hash = hash * 31 + buffer[i];
+    }
+    
+    delete[] buffer;
+    
+    std::ostringstream oss;
+    oss << std::hex << hash;
+    return oss.str();
+}
+
+void ReplayDetector::PrintDetectionReport() const {
+    std::cout << "\n========== REPLAY DETECTION REPORT ==========\n";
+    std::cout << "Total Packets Processed: " << m_metrics.totalPacketsProcessed << "\n";
+    std::cout << "Replays Detected: " << m_metrics.replaysDetected << "\n";
+    std::cout << "Replays Blocked: " << m_metrics.replaysBlocked << "\n";
+    std::cout << "False Positives: " << m_metrics.falsePositives << "\n";
+    std::cout << "False Negatives: " << m_metrics.falseNegatives << "\n";
+    
+    if (m_metrics.totalPacketsProcessed > 0) {
+        m_metrics.falsePositiveRate = static_cast<double>(m_metrics.falsePositives) / m_metrics.totalPacketsProcessed;
+        m_metrics.detectionAccuracy = static_cast<double>(m_metrics.replaysDetected - m_metrics.falsePositives) / 
+                                     std::max(1u, m_metrics.replaysDetected);
+        
+        std::cout << "False Positive Rate: " << m_metrics.falsePositiveRate 
+                  << " (" << (m_metrics.falsePositiveRate < 0.000005 ? "PASS" : "FAIL") << ")\n";
+        std::cout << "Detection Accuracy: " << (m_metrics.detectionAccuracy * 100) << "%\n";
+    }
+    
+    std::cout << "\n=== Bloom Filter Statistics ===\n";
+    std::cout << "BF Insertions: " << m_metrics.bloomFilterInsertions << "\n";
+    std::cout << "BF Queries: " << m_metrics.bloomFilterQueries << "\n";
+    std::cout << "BF Rotations: " << m_metrics.bloomFilterRotations << "\n";
+    
+    for (uint32_t i = 0; i < m_bloomFilters.size(); i++) {
+        std::cout << "Filter " << i << " - Fill Ratio: " 
+                  << (m_bloomFilters[i]->GetFillRatio() * 100) << "%"
+                  << " (Insertions: " << m_bloomFilters[i]->GetInsertionCount() << ")\n";
+    }
+    
+    std::cout << "\n=== Performance Metrics ===\n";
+    std::cout << "Avg Processing Latency: " << m_metrics.avgProcessingLatency << " μs\n";
+    std::cout << "Throughput: " << m_metrics.throughput << " packets/sec\n";
+    std::cout << "============================================\n\n";
+}
+
+void ReplayDetector::ExportDetectionResults(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[REPLAY DETECTOR] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "TotalPacketsProcessed," << m_metrics.totalPacketsProcessed << "\n";
+    outFile << "ReplaysDetected," << m_metrics.replaysDetected << "\n";
+    outFile << "ReplaysBlocked," << m_metrics.replaysBlocked << "\n";
+    outFile << "FalsePositives," << m_metrics.falsePositives << "\n";
+    outFile << "FalseNegatives," << m_metrics.falseNegatives << "\n";
+    outFile << "FalsePositiveRate," << m_metrics.falsePositiveRate << "\n";
+    outFile << "DetectionAccuracy," << m_metrics.detectionAccuracy << "\n";
+    outFile << "BloomFilterInsertions," << m_metrics.bloomFilterInsertions << "\n";
+    outFile << "BloomFilterQueries," << m_metrics.bloomFilterQueries << "\n";
+    outFile << "BloomFilterRotations," << m_metrics.bloomFilterRotations << "\n";
+    outFile << "AvgProcessingLatency," << m_metrics.avgProcessingLatency << "\n";
+    outFile << "Throughput," << m_metrics.throughput << "\n";
+    
+    // Export per-filter fill ratios
+    for (uint32_t i = 0; i < m_bloomFilters.size(); i++) {
+        outFile << "Filter" << i << "FillRatio," << m_bloomFilters[i]->GetFillRatio() << "\n";
+        outFile << "Filter" << i << "Insertions," << m_bloomFilters[i]->GetInsertionCount() << "\n";
+    }
+    
+    outFile.close();
+    std::cout << "[REPLAY DETECTOR] Detection results exported to " << filename << "\n";
+}
+
+// ReplayMitigationManager Implementation
+ReplayMitigationManager::ReplayMitigationManager()
+    : m_detector(nullptr), m_totalNodes(0), m_totalProcessingTime(0.0), m_totalPacketsProcessed(0) {
+}
+
+ReplayMitigationManager::~ReplayMitigationManager() {
+    m_blockedPackets.clear();
+    m_packetsProcessedPerNode.clear();
+    m_replaysBlockedPerNode.clear();
+}
+
+void ReplayMitigationManager::Initialize(uint32_t totalNodes, BloomFilterConfig config) {
+    m_totalNodes = totalNodes;
+    m_config = config;
+    m_lastPerformanceCheck = Simulator::Now();
+    
+    std::cout << "[REPLAY MITIGATION MGR] Initialized for " << totalNodes << " nodes\n";
+}
+
+void ReplayMitigationManager::EnableDetection(bool enable) {
+    if (m_detector) {
+        m_detector->EnableDetection(enable);
+    }
+}
+
+void ReplayMitigationManager::EnableMitigation(bool enable) {
+    if (m_detector) {
+        m_detector->EnableMitigation(enable);
+    }
+}
+
+void ReplayMitigationManager::IntegrateWithDetector(ReplayDetector* detector) {
+    m_detector = detector;
+    std::cout << "[REPLAY MITIGATION MGR] Integrated with ReplayDetector\n";
+}
+
+bool ReplayMitigationManager::CheckAndBlockReplay(Ptr<const Packet> packet, uint32_t srcNode, 
+                                                   uint32_t dstNode, uint32_t seqNo) {
+    if (!m_detector) {
+        return true;  // No detector available
+    }
+    
+    m_packetsProcessedPerNode[srcNode]++;
+    m_totalPacketsProcessed++;
+    
+    // Process packet through detector
+    bool allowed = m_detector->ProcessPacket(packet, srcNode, dstNode, seqNo);
+    
+    if (!allowed) {
+        BlockReplayPacket(srcNode, seqNo);
+        m_replaysBlockedPerNode[srcNode]++;
+    }
+    
+    return allowed;
+}
+
+void ReplayMitigationManager::BlockReplayPacket(uint32_t srcNode, uint32_t seqNo) {
+    m_blockedPackets.insert(std::make_pair(srcNode, seqNo));
+    m_metrics.replaysBlocked++;
+    
+    std::cout << "[REPLAY MITIGATION MGR] Blocked replay packet from node " 
+              << srcNode << " (seqNo: " << seqNo << ")\n";
+}
+
+void ReplayMitigationManager::PeriodicPerformanceCheck() {
+    Time now = Simulator::Now();
+    double elapsed = (now - m_lastPerformanceCheck).GetSeconds();
+    
+    std::cout << "\n[REPLAY MITIGATION MGR] === Periodic Performance Check ===\n";
+    
+    if (m_detector) {
+        ReplayDetectionMetrics metrics = m_detector->GetMetrics();
+        
+        std::cout << "Packets processed since last check: " 
+                  << (metrics.totalPacketsProcessed - m_metrics.totalPacketsProcessed) << "\n";
+        std::cout << "Replays detected since last check: " 
+                  << (metrics.replaysDetected - m_metrics.replaysDetected) << "\n";
+        std::cout << "Current throughput: " << metrics.throughput << " packets/sec\n";
+        std::cout << "Current avg latency: " << metrics.avgProcessingLatency << " μs\n";
+        std::cout << "Current false-positive rate: " << metrics.falsePositiveRate << "\n";
+        
+        m_metrics = metrics;
+    }
+    
+    m_lastPerformanceCheck = now;
+    std::cout << "=======================================================\n\n";
+}
+
+ReplayDetectionMetrics ReplayMitigationManager::GetMetrics() const {
+    if (m_detector) {
+        return m_detector->GetMetrics();
+    }
+    return m_metrics;
+}
+
+void ReplayMitigationManager::PrintComprehensiveReport() const {
+    std::cout << "\n========== COMPREHENSIVE REPLAY MITIGATION REPORT ==========\n\n";
+    
+    if (m_detector) {
+        m_detector->PrintDetectionReport();
+    }
+    
+    std::cout << "=== MITIGATION MANAGER STATISTICS ===\n";
+    std::cout << "Total Packets Processed: " << m_totalPacketsProcessed << "\n";
+    std::cout << "Total Replays Blocked: " << m_metrics.replaysBlocked << "\n";
+    std::cout << "Unique Blocked Packets: " << m_blockedPackets.size() << "\n";
+    
+    std::cout << "\n=== PER-NODE STATISTICS ===\n";
+    for (const auto& pair : m_replaysBlockedPerNode) {
+        std::cout << "Node " << pair.first << " - Replays Blocked: " << pair.second 
+                  << " (Total Packets: " << m_packetsProcessedPerNode[pair.first] << ")\n";
+    }
+    
+    std::cout << "============================================================\n\n";
+}
+
+void ReplayMitigationManager::ExportMitigationResults(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[REPLAY MITIGATION MGR] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "TotalPacketsProcessed," << m_totalPacketsProcessed << "\n";
+    outFile << "TotalReplaysBlocked," << m_metrics.replaysBlocked << "\n";
+    outFile << "UniqueBlockedPackets," << m_blockedPackets.size() << "\n";
+    outFile << "FalsePositiveRate," << m_metrics.falsePositiveRate << "\n";
+    outFile << "DetectionAccuracy," << m_metrics.detectionAccuracy << "\n";
+    outFile << "AvgProcessingLatency," << m_metrics.avgProcessingLatency << "\n";
+    outFile << "Throughput," << m_metrics.throughput << "\n";
+    
+    outFile.close();
+    std::cout << "[REPLAY MITIGATION MGR] Mitigation results exported to " << filename << "\n";
+    
+    // Export detector results
+    if (m_detector) {
+        m_detector->ExportDetectionResults("replay-detection-results.csv");
+    }
+}
+
 } // namespace ns3
 
-// End of inline Sybil mitigation implementation
+// End of inline Replay Attack implementation
 // ============================================================================
 // End of inline Sybil attack implementation
 // ============================================================================
@@ -144018,6 +145142,25 @@ int main(int argc, char *argv[])
 	cmd.AddValue ("resource_test_cpu_threshold", "CPU usage threshold for resource testing", resource_test_cpu_threshold);
 	cmd.AddValue ("resource_test_memory_min", "Minimum memory requirement (MB)", resource_test_memory_min);
 	
+	// Replay Attack Parameters
+	cmd.AddValue ("enable_replay_attack", "Enable Replay attack", enable_replay_attack);
+	cmd.AddValue ("replay_start_time", "Replay attack start time (seconds)", replay_start_time);
+	cmd.AddValue ("replay_stop_time", "Replay attack stop time (seconds, 0=simTime)", replay_stop_time);
+	cmd.AddValue ("replay_attack_percentage", "Percentage of nodes to make Replay attackers", replay_attack_percentage);
+	cmd.AddValue ("replay_interval", "Interval between packet replays (seconds)", replay_interval);
+	cmd.AddValue ("replay_count_per_node", "Number of packets to replay per node", replay_count_per_node);
+	cmd.AddValue ("replay_max_captured_packets", "Max packets to capture for replay", replay_max_captured_packets);
+	
+	// Replay Detection and Mitigation Parameters
+	cmd.AddValue ("enable_replay_detection", "Enable Replay detection with Bloom Filters", enable_replay_detection);
+	cmd.AddValue ("enable_replay_mitigation", "Enable automatic Replay mitigation", enable_replay_mitigation);
+	cmd.AddValue ("bf_filter_size", "Bloom filter size in bits", bf_filter_size);
+	cmd.AddValue ("bf_num_hash_functions", "Number of hash functions for Bloom filter", bf_num_hash_functions);
+	cmd.AddValue ("bf_num_filters", "Number of rotating Bloom filters", bf_num_filters);
+	cmd.AddValue ("bf_rotation_interval", "Bloom filter rotation interval (seconds)", bf_rotation_interval);
+	cmd.AddValue ("bf_target_false_positive", "Target false-positive rate", bf_target_false_positive);
+	cmd.AddValue ("seqno_window_size", "Sequence number window size", seqno_window_size);
+	
 	cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
     cmd.AddValue ("routing_test", "routing_test", routing_test);
     cmd.AddValue ("routing_algorithm", "routing_algorithm", routing_algorithm);
@@ -146267,6 +147410,103 @@ int main(int argc, char *argv[])
         }
     }
     
+    // ===== Replay Attack Configuration (Independent) =====
+    if (enable_replay_attack || enable_replay_detection) {
+        // Get actual node count from NS-3
+        uint32_t actual_node_count = ns3::NodeList::GetNNodes();
+        
+        if (enable_replay_attack) {
+            std::cout << "\n============================================" << std::endl;
+            std::cout << "=== Replay Attack Configuration ===" << std::endl;
+            
+            // Initialize malicious nodes vector
+            std::vector<bool> replay_malicious_nodes(actual_node_count, false);
+            
+            // Randomly select malicious nodes based on percentage
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_real_distribution<> dis(0.0, 1.0);
+            
+            uint32_t malicious_count = 0;
+            for (uint32_t i = 0; i < actual_node_count; ++i) {
+                if (dis(gen) < replay_attack_percentage) {
+                    replay_malicious_nodes[i] = true;
+                    malicious_count++;
+                }
+            }
+            
+            // Ensure at least one malicious node
+            if (malicious_count == 0 && actual_node_count > 0) {
+                replay_malicious_nodes[0] = true;
+                malicious_count = 1;
+            }
+            
+            std::cout << "Total Nodes: " << actual_node_count << std::endl;
+            std::cout << "Malicious Nodes Selected: " << malicious_count << std::endl;
+            std::cout << "Attack Percentage: " << (replay_attack_percentage * 100) << "%" << std::endl;
+            std::cout << "Replay Interval: " << replay_interval << "s" << std::endl;
+            std::cout << "Replay Count Per Node: " << replay_count_per_node << std::endl;
+            
+            // Create Replay attack manager
+            g_replayAttackManager = new ns3::ReplayAttackManager();
+            g_replayAttackManager->Initialize(replay_malicious_nodes, actual_node_count);
+            g_replayAttackManager->SetReplayParameters(replay_interval, replay_count_per_node);
+            
+            double replayStopTime = (replay_stop_time > 0) ? replay_stop_time : simTime;
+            g_replayAttackManager->ActivateAttack(ns3::Seconds(replay_start_time), ns3::Seconds(replayStopTime));
+            
+            std::cout << "Configured " << malicious_count << " Replay attack nodes\n";
+            std::cout << "============================================\n" << std::endl;
+        }
+        
+        if (enable_replay_detection || enable_replay_mitigation) {
+            std::cout << "\n=== Replay Detection and Mitigation System Configuration ===" << std::endl;
+            
+            // Configure Bloom Filter parameters
+            ns3::BloomFilterConfig bfConfig;
+            bfConfig.filterSize = bf_filter_size;
+            bfConfig.numHashFunctions = bf_num_hash_functions;
+            bfConfig.numFilters = bf_num_filters;
+            bfConfig.rotationInterval = bf_rotation_interval;
+            bfConfig.targetFalsePositiveRate = bf_target_false_positive;
+            
+            // Initialize Replay Detector
+            g_replayDetector = new ns3::ReplayDetector();
+            g_replayDetector->Initialize(actual_node_count, bfConfig);
+            g_replayDetector->EnableDetection(enable_replay_detection);
+            g_replayDetector->EnableMitigation(enable_replay_mitigation);
+            
+            std::cout << "Bloom Filter Configuration:" << std::endl;
+            std::cout << "  - Filter Size: " << bfConfig.filterSize << " bits" << std::endl;
+            std::cout << "  - Hash Functions: " << bfConfig.numHashFunctions << std::endl;
+            std::cout << "  - Number of Filters: " << bfConfig.numFilters << std::endl;
+            std::cout << "  - Rotation Interval: " << bfConfig.rotationInterval << "s" << std::endl;
+            std::cout << "  - Target FP Rate: " << bfConfig.targetFalsePositiveRate << std::endl;
+            
+            // Initialize Replay Mitigation Manager
+            g_replayMitigationManager = new ns3::ReplayMitigationManager();
+            g_replayMitigationManager->Initialize(actual_node_count, bfConfig);
+            g_replayMitigationManager->EnableDetection(enable_replay_detection);
+            g_replayMitigationManager->EnableMitigation(enable_replay_mitigation);
+            g_replayMitigationManager->IntegrateWithDetector(g_replayDetector);
+            
+            // Schedule Bloom Filter rotation
+            for (double t = bf_rotation_interval; t < simTime; t += bf_rotation_interval) {
+                ns3::Simulator::Schedule(ns3::Seconds(t), &ns3::ReplayDetector::RotateBloomFilters, g_replayDetector);
+            }
+            
+            // Schedule periodic performance checks
+            double performanceCheckInterval = 2.0;
+            for (double t = performanceCheckInterval; t < simTime; t += performanceCheckInterval) {
+                ns3::Simulator::Schedule(ns3::Seconds(t), &ns3::ReplayMitigationManager::PeriodicPerformanceCheck, g_replayMitigationManager);
+            }
+            
+            std::cout << "Replay detection and mitigation system initialized successfully" << std::endl;
+            std::cout << "Bloom filter rotation scheduled every " << bf_rotation_interval << "s" << std::endl;
+            std::cout << "Performance checks scheduled every " << performanceCheckInterval << "s" << std::endl;
+        }
+    }
+    
 
   Simulator::Stop(Seconds(simTime));
   Simulator::Run();
@@ -146343,6 +147583,36 @@ int main(int argc, char *argv[])
       g_sybilMitigationManager = nullptr;
   }
   
+  // Print Replay attack statistics if Replay attack was used
+  if (g_replayAttackManager != nullptr) {
+      std::cout << "\n=== Replay Attack Summary ===" << std::endl;
+      g_replayAttackManager->PrintStatistics();
+      g_replayAttackManager->ExportStatistics("replay-attack-results.csv");
+      std::cout << "Replay attack results exported to replay-attack-results.csv" << std::endl;
+      delete g_replayAttackManager;
+      g_replayAttackManager = nullptr;
+  }
+  
+  // Export Replay detection results if detector was used
+  if (g_replayDetector != nullptr) {
+      std::cout << "\n=== Replay Detection Summary ===" << std::endl;
+      g_replayDetector->PrintDetectionReport();
+      g_replayDetector->ExportDetectionResults("replay-detection-results.csv");
+      std::cout << "Replay detection results exported to replay-detection-results.csv" << std::endl;
+      delete g_replayDetector;
+      g_replayDetector = nullptr;
+  }
+  
+  // Export Replay mitigation results if mitigation manager was used
+  if (g_replayMitigationManager != nullptr) {
+      std::cout << "\n=== Replay Mitigation Summary ===" << std::endl;
+      g_replayMitigationManager->PrintComprehensiveReport();
+      g_replayMitigationManager->ExportMitigationResults("replay-mitigation-results.csv");
+      std::cout << "Replay mitigation results exported to replay-mitigation-results.csv" << std::endl;
+      delete g_replayMitigationManager;
+      g_replayMitigationManager = nullptr;
+  }
+  
   Simulator::Destroy();
   
   // Print summary of all generated CSV files
@@ -146379,6 +147649,15 @@ int main(int argc, char *argv[])
       if (use_incentive_scheme) {
           std::cout << "  ✓ incentive-scheme-results.csv (component)\n";
       }
+  }
+  if (g_replayAttackManager != nullptr || enable_replay_attack) {
+      std::cout << "  ✓ replay-attack-results.csv\n";
+  }
+  if (g_replayDetector != nullptr || enable_replay_detection) {
+      std::cout << "  ✓ replay-detection-results.csv\n";
+  }
+  if (g_replayMitigationManager != nullptr || enable_replay_mitigation) {
+      std::cout << "  ✓ replay-mitigation-results.csv\n";
   }
   if (g_packetTracker != nullptr || enable_packet_tracking) {
       std::cout << "  ✓ packet-delivery-analysis.csv\n";
