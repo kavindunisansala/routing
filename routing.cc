@@ -99437,7 +99437,8 @@ ReplayStatistics ReplayAttackManager::GetAggregateStatistics() const {
         aggregate.totalPacketsReplayed += stats.totalPacketsReplayed;
         aggregate.successfulReplays += stats.successfulReplays;
         aggregate.detectedReplays += stats.detectedReplays;
-        aggregate.attackDuration = std::max(aggregate.attackDuration, stats.attackDuration);
+        aggregate.attackDuration = (aggregate.attackDuration > stats.attackDuration) ? 
+                                   aggregate.attackDuration : stats.attackDuration;
         
         for (int i = 0; i < 50; i++) {
             aggregate.replayedFromNode[i] += stats.replayedFromNode[i];
@@ -99729,13 +99730,13 @@ void ReplayDetector::PrintDetectionReport() const {
     std::cout << "False Negatives: " << m_metrics.falseNegatives << "\n";
     
     if (m_metrics.totalPacketsProcessed > 0) {
-        m_metrics.falsePositiveRate = static_cast<double>(m_metrics.falsePositives) / m_metrics.totalPacketsProcessed;
-        m_metrics.detectionAccuracy = static_cast<double>(m_metrics.replaysDetected - m_metrics.falsePositives) / 
-                                     std::max(1u, m_metrics.replaysDetected);
+        double falsePositiveRate = static_cast<double>(m_metrics.falsePositives) / m_metrics.totalPacketsProcessed;
+        uint32_t maxReplays = (m_metrics.replaysDetected > 1u) ? m_metrics.replaysDetected : 1u;
+        double detectionAccuracy = static_cast<double>(m_metrics.replaysDetected - m_metrics.falsePositives) / maxReplays;
         
-        std::cout << "False Positive Rate: " << m_metrics.falsePositiveRate 
-                  << " (" << (m_metrics.falsePositiveRate < 0.000005 ? "PASS" : "FAIL") << ")\n";
-        std::cout << "Detection Accuracy: " << (m_metrics.detectionAccuracy * 100) << "%\n";
+        std::cout << "False Positive Rate: " << falsePositiveRate 
+                  << " (" << (falsePositiveRate < 0.000005 ? "PASS" : "FAIL") << ")\n";
+        std::cout << "Detection Accuracy: " << (detectionAccuracy * 100) << "%\n";
     }
     
     std::cout << "\n=== Bloom Filter Statistics ===\n";
@@ -99852,7 +99853,6 @@ void ReplayMitigationManager::BlockReplayPacket(uint32_t srcNode, uint32_t seqNo
 
 void ReplayMitigationManager::PeriodicPerformanceCheck() {
     Time now = Simulator::Now();
-    double elapsed = (now - m_lastPerformanceCheck).GetSeconds();
     
     std::cout << "\n[REPLAY MITIGATION MGR] === Periodic Performance Check ===\n";
     
@@ -99895,8 +99895,10 @@ void ReplayMitigationManager::PrintComprehensiveReport() const {
     
     std::cout << "\n=== PER-NODE STATISTICS ===\n";
     for (const auto& pair : m_replaysBlockedPerNode) {
+        auto it = m_packetsProcessedPerNode.find(pair.first);
+        uint32_t totalPackets = (it != m_packetsProcessedPerNode.end()) ? it->second : 0;
         std::cout << "Node " << pair.first << " - Replays Blocked: " << pair.second 
-                  << " (Total Packets: " << m_packetsProcessedPerNode[pair.first] << ")\n";
+                  << " (Total Packets: " << totalPackets << ")\n";
     }
     
     std::cout << "============================================================\n\n";
