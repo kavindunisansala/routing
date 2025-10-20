@@ -1086,10 +1086,10 @@ struct PacketDigest {
     // Generate unique digest string for hashing
     std::string GetDigestString() const {
         std::ostringstream oss;
-        // Do NOT include timestamp - replayed packets have different timestamps
-        // but same content/sequence, so we want to detect them as duplicates
-        oss << sourceNodeId << "-" << destNodeId << "-"
-            << sourceIp << "-" << destIp << "-"
+        // Key: Include sourceNodeId, seqNo, and payloadHash
+        // Do NOT include destNodeId or timestamp - replayed packets may have different destinations/times
+        // but will have same source and content
+        oss << sourceNodeId << "-"
             << sequenceNumber << "-"
             << payloadHash;
         return oss.str();
@@ -145166,20 +145166,24 @@ bool GlobalReplayDetectionCallback(Ptr<NetDevice> device, Ptr<const Packet> pack
     Ptr<Node> node = device->GetNode();
     uint32_t nodeId = node->GetId();
     
-    // Compute content-based hash as "sequence number" - this ensures replayed packets
-    // with identical content have the SAME identifier, enabling detection
-    uint32_t size = packet->GetSize();
-    uint8_t* buffer = new uint8_t[size];
-    packet->CopyData(buffer, size);
+    // Use a combination of packet UID and per-node counter
+    // This creates unique sequence numbers per receiving node
+    static std::map<std::pair<uint32_t, uint64_t>, uint32_t> packetSeqMap;
+    static std::map<uint32_t, uint32_t> nodePacketCounter;
     
-    uint32_t contentHash = 0;
-    for (uint32_t i = 0; i < size; i++) {
-        contentHash = contentHash * 31 + buffer[i];
+    uint64_t packetUid = packet->GetUid();
+    std::pair<uint32_t, uint64_t> key = std::make_pair(nodeId, packetUid);
+    
+    uint32_t seqNo;
+    if (packetSeqMap.find(key) != packetSeqMap.end()) {
+        // This exact packet UID was seen before at this node - likely NOT a replay
+        // (packet might be looping or re-received legitimately)
+        seqNo = packetSeqMap[key];
+    } else {
+        // New packet UID - assign new sequence number
+        seqNo = nodePacketCounter[nodeId]++;
+        packetSeqMap[key] = seqNo;
     }
-    delete[] buffer;
-    
-    // Use content hash + size as unique identifier for the packet
-    uint32_t seqNo = contentHash ^ (size << 16);
     
     // Extract source node from address if possible
     uint32_t srcNode = nodeId;  // Default to receiving node
@@ -145188,8 +145192,8 @@ bool GlobalReplayDetectionCallback(Ptr<NetDevice> device, Ptr<const Packet> pack
     bool allowed = g_replayMitigationManager->CheckAndBlockReplay(packet, srcNode, nodeId, seqNo);
     
     if (!allowed) {
-        std::cout << "[GLOBAL CALLBACK] Blocked replay packet (hash=" << std::hex << contentHash 
-                  << ", size=" << std::dec << size << ") on node " << nodeId << "\n";
+        std::cout << "[GLOBAL CALLBACK] Blocked replay packet UID=" << packetUid 
+                  << " seqNo=" << seqNo << " on node " << nodeId << "\n";
     }
     
     return allowed;  // Block if replay detected and mitigation enabled
