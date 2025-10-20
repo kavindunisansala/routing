@@ -99298,9 +99298,24 @@ void ReplayAttackApp::CapturePacket(Ptr<const Packet> packet, uint32_t srcNode, 
 bool ReplayAttackApp::InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet,
                                       uint16_t protocol, const Address& from,
                                       const Address& to, NetDevice::PacketType packetType) {
+    static uint64_t interceptCount = 0;
+    static bool firstCall = true;
+    
+    if (firstCall) {
+        std::cout << "[REPLAY ATTACK] InterceptPacket callback is working on node " 
+                  << m_node->GetId() << "!\n";
+        firstCall = false;
+    }
+    
     // Only capture broadcast and unicast packets (ignore promiscuous sniffing of others' packets)
     if (packetType != NetDevice::PACKET_HOST && packetType != NetDevice::PACKET_BROADCAST) {
         return true;  // Let other packets pass through
+    }
+    
+    interceptCount++;
+    if (interceptCount % 10 == 1) {  // Log every 10th packet
+        std::cout << "[REPLAY ATTACK] Intercepted packet #" << interceptCount 
+                  << " on node " << m_node->GetId() << "\n";
     }
     
     // Get source and destination node IDs
@@ -99311,6 +99326,7 @@ bool ReplayAttackApp::InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> p
     CapturePacket(packet, srcNode, dstNode);
     
     return true;  // Always allow packet to continue (we're just sniffing)
+
 }
 
 void ReplayAttackApp::ReplayPacket() {
@@ -99358,14 +99374,29 @@ void ReplayAttackApp::ReplayPacket() {
 
 void ReplayAttackApp::StartApplication() {
     m_startTime = Simulator::Now();
-    std::cout << "[REPLAY ATTACK] Starting replay attack on node " << m_node->GetId() << "\n";
+    
+    // Get node from Application base class
+    Ptr<Node> node = GetNode();
+    if (!node) {
+        std::cerr << "[REPLAY ATTACK] ERROR: No node attached to application!\n";
+        return;
+    }
+    
+    // Also set m_node if not already set
+    if (!m_node) {
+        m_node = node;
+    }
+    
+    std::cout << "[REPLAY ATTACK] Starting replay attack on node " << node->GetId() << "\n";
     
     // Enable promiscuous mode to capture packets
-    for (uint32_t i = 0; i < m_node->GetNDevices(); ++i) {
-        Ptr<NetDevice> device = m_node->GetDevice(i);
+    for (uint32_t i = 0; i < node->GetNDevices(); ++i) {
+        Ptr<NetDevice> device = node->GetDevice(i);
         if (!device->IsPointToPoint()) {
             device->SetPromiscReceiveCallback(
                 MakeCallback(&ReplayAttackApp::InterceptPacket, this));
+            std::cout << "[REPLAY ATTACK] Installed promiscuous callback on device " << i 
+                      << " of node " << node->GetId() << "\n";
         }
     }
     
