@@ -77,6 +77,9 @@ class WormholeDetector;
 class LinkDiscoveryModule;
 class SDVNControllerCommInterceptor;
 class SDVNWormholeMitigationManager;
+struct SDVNPerformanceMetrics;
+class SDVNPacketTag;
+class SDVNPerformanceMonitor;
 
 // Forward declarations for Sybil attack classes
 struct SybilIdentity;
@@ -168,6 +171,179 @@ struct WormholeDetectionMetrics {
           truePositives(0), falsePositives(0), falseNegatives(0),
           detectionAccuracy(0.0), avgNormalLatency(0.0), 
           avgWormholeLatency(0.0), avgLatencyIncrease(0.0), routeChanges(0) {}
+};
+
+/**
+ * @brief SDVN Performance Metrics for Attack/Mitigation Evaluation
+ * Tracks: Overhead, Packet Delivery Ratio, Latency
+ * Scenarios: Baseline, Under Attack, With Mitigation
+ */
+struct SDVNPerformanceMetrics {
+    // Simulation time snapshot
+    double timestamp;
+    
+    // Packet Delivery Ratio (PDR)
+    uint32_t packetsSent;             // Total packets sent from sources
+    uint32_t packetsReceived;         // Total packets received at destinations
+    uint32_t packetsDropped;          // Packets dropped (attack/congestion)
+    double pdr;                       // PDR = received / sent
+    
+    // End-to-End Latency
+    double totalLatency;              // Sum of all packet latencies (seconds)
+    uint32_t latencyCount;            // Number of packets with measured latency
+    double avgLatency;                // Average latency (seconds)
+    double minLatency;                // Minimum latency observed
+    double maxLatency;                // Maximum latency observed
+    std::vector<double> latencySamples; // Individual latency samples
+    
+    // Overhead (OH)
+    uint32_t controlPacketsSent;      // Control packets (metadata, delta values, mitigation)
+    uint32_t dataPacketsSent;         // Data packets
+    uint32_t totalPacketsSent;        // Total packets
+    double overheadRatio;             // OH = control / total
+    uint32_t bytesControl;            // Control packet bytes
+    uint32_t bytesData;               // Data packet bytes
+    uint32_t bytesTotal;              // Total bytes
+    
+    // SDVN-specific overhead
+    uint32_t metadataUplinkPackets;   // Node → Controller metadata
+    uint32_t deltaDownlinkPackets;    // Controller → Node delta values
+    uint32_t mitigationPackets;       // Mitigation-related control packets
+    
+    // Attack impact
+    uint32_t packetsInterceptedByWormhole; // Packets caught by wormhole
+    uint32_t packetsTunneledByWormhole;    // Packets tunneled
+    uint32_t packetsDroppedByWormhole;     // Packets dropped by attacker
+    double wormholeLatencyIncrease;        // Extra latency due to tunneling
+    
+    // Mitigation effectiveness
+    uint32_t wormholesDetected;       // Number of wormholes detected
+    uint32_t falsePositives;          // False alarms
+    double detectionAccuracy;         // Accuracy of detection
+    Time detectionTime;               // Time to detect attack
+    
+    SDVNPerformanceMetrics() 
+        : timestamp(0.0), packetsSent(0), packetsReceived(0), packetsDropped(0), pdr(0.0),
+          totalLatency(0.0), latencyCount(0), avgLatency(0.0), minLatency(999999.0), maxLatency(0.0),
+          controlPacketsSent(0), dataPacketsSent(0), totalPacketsSent(0), overheadRatio(0.0),
+          bytesControl(0), bytesData(0), bytesTotal(0),
+          metadataUplinkPackets(0), deltaDownlinkPackets(0), mitigationPackets(0),
+          packetsInterceptedByWormhole(0), packetsTunneledByWormhole(0), 
+          packetsDroppedByWormhole(0), wormholeLatencyIncrease(0.0),
+          wormholesDetected(0), falsePositives(0), detectionAccuracy(0.0) {}
+    
+    // Calculate derived metrics
+    void Calculate() {
+        if (packetsSent > 0) {
+            pdr = (double)packetsReceived / (double)packetsSent;
+        }
+        if (latencyCount > 0) {
+            avgLatency = totalLatency / (double)latencyCount;
+        }
+        if (totalPacketsSent > 0) {
+            overheadRatio = (double)controlPacketsSent / (double)totalPacketsSent;
+        }
+    }
+    
+    // Add latency sample
+    void AddLatencySample(double latency) {
+        totalLatency += latency;
+        latencyCount++;
+        latencySamples.push_back(latency);
+        if (latency < minLatency) minLatency = latency;
+        if (latency > maxLatency) maxLatency = latency;
+    }
+};
+
+/**
+ * @brief Packet Tracking Tag for Latency Measurement
+ */
+class SDVNPacketTag : public Tag {
+public:
+    static TypeId GetTypeId(void);
+    virtual TypeId GetInstanceTypeId(void) const;
+    virtual uint32_t GetSerializedSize(void) const;
+    virtual void Serialize(TagBuffer i) const;
+    virtual void Deserialize(TagBuffer i);
+    virtual void Print(std::ostream &os) const;
+    
+    void SetSendTime(Time time) { m_sendTime = time; }
+    Time GetSendTime(void) const { return m_sendTime; }
+    
+    void SetPacketId(uint32_t id) { m_packetId = id; }
+    uint32_t GetPacketId(void) const { return m_packetId; }
+    
+    void SetSourceNode(uint32_t id) { m_sourceNode = id; }
+    uint32_t GetSourceNode(void) const { return m_sourceNode; }
+    
+    void SetDestNode(uint32_t id) { m_destNode = id; }
+    uint32_t GetDestNode(void) const { return m_destNode; }
+    
+    void SetIsControlPacket(bool control) { m_isControl = control; }
+    bool GetIsControlPacket(void) const { return m_isControl; }
+    
+private:
+    Time m_sendTime;
+    uint32_t m_packetId;
+    uint32_t m_sourceNode;
+    uint32_t m_destNode;
+    bool m_isControl;
+};
+
+/**
+ * @brief SDVN Performance Monitor - Collects metrics during simulation
+ */
+class SDVNPerformanceMonitor : public Object {
+public:
+    static TypeId GetTypeId(void);
+    
+    SDVNPerformanceMonitor();
+    virtual ~SDVNPerformanceMonitor();
+    
+    void Initialize(std::string scenario);
+    void StartMonitoring();
+    void StopMonitoring();
+    
+    // Packet tracking
+    void PacketSent(Ptr<const Packet> packet, uint32_t fromNode, uint32_t toNode, bool isControl);
+    void PacketReceived(Ptr<const Packet> packet, uint32_t atNode);
+    void PacketDropped(Ptr<const Packet> packet, uint32_t atNode, std::string reason);
+    
+    // SDVN-specific tracking
+    void MetadataUplinkSent();
+    void DeltaDownlinkSent();
+    void MitigationPacketSent();
+    
+    // Attack tracking
+    void WormholeInterception(uint32_t tunnelId);
+    void WormholeTunneling(uint32_t tunnelId);
+    void WormholeDrop(uint32_t tunnelId);
+    
+    // Mitigation tracking
+    void WormholeDetected(uint32_t endpoint1, uint32_t endpoint2);
+    void FalsePositive();
+    
+    // Export metrics
+    void ExportToCSV(std::string filename);
+    void TakeSnapshot();
+    SDVNPerformanceMetrics GetCurrentMetrics();
+    void PrintSummary();
+    
+private:
+    void PeriodicSnapshot();
+    void ScheduleSnapshot();
+    
+    std::string m_scenario;  // "baseline", "under_attack", "with_mitigation"
+    bool m_isActive;
+    
+    SDVNPerformanceMetrics m_currentMetrics;
+    std::vector<SDVNPerformanceMetrics> m_snapshots;
+    
+    std::map<uint32_t, Time> m_packetSendTimes;  // packetId → send time
+    uint32_t m_nextPacketId;
+    
+    Time m_snapshotInterval;
+    Time m_startTime;
 };
 
 /**
@@ -1686,6 +1862,7 @@ ns3::WormholeAttackManager* g_wormholeManager = nullptr;
 // Global SDVN-specific instances
 ns3::LinkDiscoveryModule* g_linkDiscoveryModule = nullptr;
 ns3::SDVNWormholeMitigationManager* g_sdvnWormholeMitigation = nullptr;
+ns3::SDVNPerformanceMonitor* g_performanceMonitor = nullptr;
 
 // Global blackhole attack manager instance
 ns3::BlackholeAttackManager* g_blackholeManager = nullptr;
@@ -97229,6 +97406,295 @@ void SDVNControllerCommInterceptor::ManipulateUplinkMetadata(Ptr<Packet> packet)
     if (!m_manipulationCallback.IsNull()) {
         m_manipulationCallback(packet, true);
     }
+}
+
+// ============================================================================
+// SDVNPacketTag Implementation - For latency tracking
+// ============================================================================
+
+NS_OBJECT_ENSURE_REGISTERED(SDVNPacketTag);
+
+TypeId SDVNPacketTag::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNPacketTag")
+        .SetParent<Tag>()
+        .AddConstructor<SDVNPacketTag>();
+    return tid;
+}
+
+TypeId SDVNPacketTag::GetInstanceTypeId(void) const {
+    return GetTypeId();
+}
+
+uint32_t SDVNPacketTag::GetSerializedSize(void) const {
+    return sizeof(Time) + sizeof(uint32_t) * 4 + sizeof(bool);
+}
+
+void SDVNPacketTag::Serialize(TagBuffer i) const {
+    i.WriteU64(m_sendTime.GetNanoSeconds());
+    i.WriteU32(m_packetId);
+    i.WriteU32(m_sourceNode);
+    i.WriteU32(m_destNode);
+    i.WriteU8(m_isControl ? 1 : 0);
+}
+
+void SDVNPacketTag::Deserialize(TagBuffer i) {
+    m_sendTime = NanoSeconds(i.ReadU64());
+    m_packetId = i.ReadU32();
+    m_sourceNode = i.ReadU32();
+    m_destNode = i.ReadU32();
+    m_isControl = (i.ReadU8() == 1);
+}
+
+void SDVNPacketTag::Print(std::ostream &os) const {
+    os << "SDVNPacketTag: id=" << m_packetId 
+       << " src=" << m_sourceNode 
+       << " dst=" << m_destNode 
+       << " time=" << m_sendTime.GetSeconds() 
+       << " ctrl=" << m_isControl;
+}
+
+// ============================================================================
+// SDVNPerformanceMonitor Implementation
+// ============================================================================
+
+NS_OBJECT_ENSURE_REGISTERED(SDVNPerformanceMonitor);
+
+TypeId SDVNPerformanceMonitor::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNPerformanceMonitor")
+        .SetParent<Object>()
+        .AddConstructor<SDVNPerformanceMonitor>();
+    return tid;
+}
+
+SDVNPerformanceMonitor::SDVNPerformanceMonitor()
+    : m_scenario("unknown"),
+      m_isActive(false),
+      m_nextPacketId(1),
+      m_snapshotInterval(Seconds(1.0))
+{
+}
+
+SDVNPerformanceMonitor::~SDVNPerformanceMonitor() {
+}
+
+void SDVNPerformanceMonitor::Initialize(std::string scenario) {
+    m_scenario = scenario;
+    m_startTime = Simulator::Now();
+    m_currentMetrics.timestamp = m_startTime.GetSeconds();
+    
+    std::cout << "\n[SDVNPerfMonitor] Initialized for scenario: " << m_scenario << std::endl;
+}
+
+void SDVNPerformanceMonitor::StartMonitoring() {
+    m_isActive = true;
+    m_startTime = Simulator::Now();
+    ScheduleSnapshot();
+    std::cout << "[SDVNPerfMonitor] Monitoring started at " << m_startTime.GetSeconds() << "s" << std::endl;
+}
+
+void SDVNPerformanceMonitor::StopMonitoring() {
+    m_isActive = false;
+    std::cout << "[SDVNPerfMonitor] Monitoring stopped." << std::endl;
+}
+
+void SDVNPerformanceMonitor::PacketSent(Ptr<const Packet> packet, uint32_t fromNode, uint32_t toNode, bool isControl) {
+    if (!m_isActive) return;
+    
+    m_currentMetrics.packetsSent++;
+    m_currentMetrics.totalPacketsSent++;
+    m_currentMetrics.bytesTotal += packet->GetSize();
+    
+    if (isControl) {
+        m_currentMetrics.controlPacketsSent++;
+        m_currentMetrics.bytesControl += packet->GetSize();
+    } else {
+        m_currentMetrics.dataPacketsSent++;
+        m_currentMetrics.bytesData += packet->GetSize();
+    }
+    
+    // Store send time for latency calculation
+    m_packetSendTimes[m_nextPacketId] = Simulator::Now();
+    m_nextPacketId++;
+}
+
+void SDVNPerformanceMonitor::PacketReceived(Ptr<const Packet> packet, uint32_t atNode) {
+    if (!m_isActive) return;
+    
+    m_currentMetrics.packetsReceived++;
+    
+    // Try to find matching send time
+    SDVNPacketTag tag;
+    if (packet->PeekPacketTag(tag)) {
+        Time sendTime = tag.GetSendTime();
+        Time now = Simulator::Now();
+        double latency = (now - sendTime).GetSeconds();
+        
+        m_currentMetrics.AddLatencySample(latency);
+    }
+}
+
+void SDVNPerformanceMonitor::PacketDropped(Ptr<const Packet> packet, uint32_t atNode, std::string reason) {
+    if (!m_isActive) return;
+    m_currentMetrics.packetsDropped++;
+}
+
+void SDVNPerformanceMonitor::MetadataUplinkSent() {
+    if (!m_isActive) return;
+    m_currentMetrics.metadataUplinkPackets++;
+}
+
+void SDVNPerformanceMonitor::DeltaDownlinkSent() {
+    if (!m_isActive) return;
+    m_currentMetrics.deltaDownlinkPackets++;
+}
+
+void SDVNPerformanceMonitor::MitigationPacketSent() {
+    if (!m_isActive) return;
+    m_currentMetrics.mitigationPackets++;
+}
+
+void SDVNPerformanceMonitor::WormholeInterception(uint32_t tunnelId) {
+    if (!m_isActive) return;
+    m_currentMetrics.packetsInterceptedByWormhole++;
+}
+
+void SDVNPerformanceMonitor::WormholeTunneling(uint32_t tunnelId) {
+    if (!m_isActive) return;
+    m_currentMetrics.packetsTunneledByWormhole++;
+}
+
+void SDVNPerformanceMonitor::WormholeDrop(uint32_t tunnelId) {
+    if (!m_isActive) return;
+    m_currentMetrics.packetsDroppedByWormhole++;
+}
+
+void SDVNPerformanceMonitor::WormholeDetected(uint32_t endpoint1, uint32_t endpoint2) {
+    if (!m_isActive) return;
+    m_currentMetrics.wormholesDetected++;
+    m_currentMetrics.detectionTime = Simulator::Now();
+    
+    std::cout << "[SDVNPerfMonitor] Wormhole detected: " << endpoint1 << " <-> " << endpoint2 
+              << " at " << Simulator::Now().GetSeconds() << "s" << std::endl;
+}
+
+void SDVNPerformanceMonitor::FalsePositive() {
+    if (!m_isActive) return;
+    m_currentMetrics.falsePositives++;
+}
+
+void SDVNPerformanceMonitor::TakeSnapshot() {
+    m_currentMetrics.timestamp = Simulator::Now().GetSeconds();
+    m_currentMetrics.Calculate();
+    m_snapshots.push_back(m_currentMetrics);
+    
+    std::cout << "[SDVNPerfMonitor] Snapshot @ " << m_currentMetrics.timestamp 
+              << "s - PDR: " << (m_currentMetrics.pdr * 100.0) << "%, "
+              << "Latency: " << (m_currentMetrics.avgLatency * 1000.0) << "ms, "
+              << "OH: " << (m_currentMetrics.overheadRatio * 100.0) << "%" << std::endl;
+}
+
+void SDVNPerformanceMonitor::PeriodicSnapshot() {
+    if (m_isActive) {
+        TakeSnapshot();
+        ScheduleSnapshot();
+    }
+}
+
+void SDVNPerformanceMonitor::ScheduleSnapshot() {
+    Simulator::Schedule(m_snapshotInterval, &SDVNPerformanceMonitor::PeriodicSnapshot, this);
+}
+
+SDVNPerformanceMetrics SDVNPerformanceMonitor::GetCurrentMetrics() {
+    m_currentMetrics.Calculate();
+    return m_currentMetrics;
+}
+
+void SDVNPerformanceMonitor::ExportToCSV(std::string filename) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "[SDVNPerfMonitor] ERROR: Cannot open " << filename << std::endl;
+        return;
+    }
+    
+    // CSV Header
+    file << "Timestamp,Scenario,PacketsSent,PacketsReceived,PacketsDropped,PDR,"
+         << "AvgLatency,MinLatency,MaxLatency,"
+         << "ControlPackets,DataPackets,TotalPackets,OverheadRatio,"
+         << "MetadataUplink,DeltaDownlink,MitigationPackets,"
+         << "WormholeIntercepted,WormholeTunneled,WormholeDropped,"
+         << "WormholesDetected,FalsePositives,DetectionTime\n";
+    
+    // Write all snapshots
+    for (const auto& snapshot : m_snapshots) {
+        file << snapshot.timestamp << ","
+             << m_scenario << ","
+             << snapshot.packetsSent << ","
+             << snapshot.packetsReceived << ","
+             << snapshot.packetsDropped << ","
+             << snapshot.pdr << ","
+             << snapshot.avgLatency << ","
+             << snapshot.minLatency << ","
+             << snapshot.maxLatency << ","
+             << snapshot.controlPacketsSent << ","
+             << snapshot.dataPacketsSent << ","
+             << snapshot.totalPacketsSent << ","
+             << snapshot.overheadRatio << ","
+             << snapshot.metadataUplinkPackets << ","
+             << snapshot.deltaDownlinkPackets << ","
+             << snapshot.mitigationPackets << ","
+             << snapshot.packetsInterceptedByWormhole << ","
+             << snapshot.packetsTunneledByWormhole << ","
+             << snapshot.packetsDroppedByWormhole << ","
+             << snapshot.wormholesDetected << ","
+             << snapshot.falsePositives << ","
+             << snapshot.detectionTime.GetSeconds() << "\n";
+    }
+    
+    file.close();
+    std::cout << "\n[SDVNPerfMonitor] ✓ Metrics exported to: " << filename << std::endl;
+    std::cout << "[SDVNPerfMonitor] Total snapshots: " << m_snapshots.size() << std::endl;
+}
+
+void SDVNPerformanceMonitor::PrintSummary() {
+    m_currentMetrics.Calculate();
+    
+    std::cout << "\n╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║    SDVN PERFORMANCE METRICS SUMMARY                     ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Scenario: " << std::left << std::setw(46) << m_scenario << "║" << std::endl;
+    std::cout << "║ Duration: " << std::setw(46) << (Simulator::Now() - m_startTime).GetSeconds() << "s ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ PACKET DELIVERY RATIO (PDR)                             ║" << std::endl;
+    std::cout << "║   Packets Sent:     " << std::setw(34) << m_currentMetrics.packetsSent << "║" << std::endl;
+    std::cout << "║   Packets Received: " << std::setw(34) << m_currentMetrics.packetsReceived << "║" << std::endl;
+    std::cout << "║   Packets Dropped:  " << std::setw(34) << m_currentMetrics.packetsDropped << "║" << std::endl;
+    std::cout << "║   PDR:              " << std::setw(33) << std::fixed << std::setprecision(2) << (m_currentMetrics.pdr * 100.0) << "% ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ END-TO-END LATENCY                                       ║" << std::endl;
+    std::cout << "║   Average:          " << std::setw(30) << std::fixed << std::setprecision(3) << (m_currentMetrics.avgLatency * 1000.0) << " ms ║" << std::endl;
+    std::cout << "║   Minimum:          " << std::setw(30) << (m_currentMetrics.minLatency * 1000.0) << " ms ║" << std::endl;
+    std::cout << "║   Maximum:          " << std::setw(30) << (m_currentMetrics.maxLatency * 1000.0) << " ms ║" << std::endl;
+    std::cout << "║   Samples:          " << std::setw(34) << m_currentMetrics.latencyCount << "║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ OVERHEAD (OH)                                            ║" << std::endl;
+    std::cout << "║   Control Packets:  " << std::setw(34) << m_currentMetrics.controlPacketsSent << "║" << std::endl;
+    std::cout << "║   Data Packets:     " << std::setw(34) << m_currentMetrics.dataPacketsSent << "║" << std::endl;
+    std::cout << "║   Total Packets:    " << std::setw(34) << m_currentMetrics.totalPacketsSent << "║" << std::endl;
+    std::cout << "║   Overhead Ratio:   " << std::setw(33) << (m_currentMetrics.overheadRatio * 100.0) << "% ║" << std::endl;
+    std::cout << "║   Metadata Uplink:  " << std::setw(34) << m_currentMetrics.metadataUplinkPackets << "║" << std::endl;
+    std::cout << "║   Delta Downlink:   " << std::setw(34) << m_currentMetrics.deltaDownlinkPackets << "║" << std::endl;
+    std::cout << "║   Mitigation Pkts:  " << std::setw(34) << m_currentMetrics.mitigationPackets << "║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ WORMHOLE ATTACK IMPACT                                   ║" << std::endl;
+    std::cout << "║   Intercepted:      " << std::setw(34) << m_currentMetrics.packetsInterceptedByWormhole << "║" << std::endl;
+    std::cout << "║   Tunneled:         " << std::setw(34) << m_currentMetrics.packetsTunneledByWormhole << "║" << std::endl;
+    std::cout << "║   Dropped:          " << std::setw(34) << m_currentMetrics.packetsDroppedByWormhole << "║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ MITIGATION EFFECTIVENESS                                 ║" << std::endl;
+    std::cout << "║   Wormholes Detected: " << std::setw(32) << m_currentMetrics.wormholesDetected << "║" << std::endl;
+    std::cout << "║   False Positives:    " << std::setw(32) << m_currentMetrics.falsePositives << "║" << std::endl;
+    std::cout << "║   Detection Time:     " << std::setw(28) << m_currentMetrics.detectionTime.GetSeconds() << " s ║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
 }
 
 // ============================================================================
