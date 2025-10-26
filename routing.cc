@@ -73,6 +73,11 @@ class WormholeEndpointApp;
 class WormholeAttackManager;
 class WormholeDetector;
 
+// SDVN-specific classes for attacks/mitigation
+class LinkDiscoveryModule;
+class SDVNControllerCommInterceptor;
+class SDVNWormholeMitigationManager;
+
 // Forward declarations for Sybil attack classes
 struct SybilIdentity;
 struct SybilStatistics;
@@ -222,6 +227,9 @@ private:
     void TunnelPacket(Ptr<Packet> packet, uint16_t protocol);
     bool ShouldTunnelPacket(Ptr<const Packet> packet, uint16_t protocol);
     
+    // SDVN-specific methods
+    void SendFakeMetadataToController();  // Inject fake neighbor into metadata
+    
     Ptr<Node> m_peer;
     Ipv4Address m_peerAddress;
     Ptr<Socket> m_tunnelSocket;
@@ -232,10 +240,129 @@ private:
     bool m_tunnelRoutingPackets;
     bool m_tunnelDataPackets;
     WormholeStatistics m_stats;
+    
+    // SDVN-specific members
+    Ptr<LinkDiscoveryModule> m_linkDiscovery;
+    Ptr<SDVNControllerCommInterceptor> m_commInterceptor;
+    bool m_sdvnMode;  // true = SDVN attack, false = VANET attack
+    std::vector<uint32_t> m_realNeighbors;  // Discovered real neighbors
+    bool m_fakeMetadataSent;
+};
+
+/**
+ * @brief Link Discovery Module for SDVN
+ * Monitors network to build real-time link map required for SDVN attacks
+ */
+class LinkDiscoveryModule : public Object {
+public:
+    static TypeId GetTypeId(void);
+    
+    LinkDiscoveryModule();
+    virtual ~LinkDiscoveryModule();
+    
+    void Initialize(uint32_t totalNodes);
+    void StartDiscovery();
+    void StopDiscovery();
+    
+    bool LinkExists(uint32_t nodeA, uint32_t nodeB) const;
+    std::vector<uint32_t> GetNeighbors(uint32_t nodeId) const;
+    double GetLinkQuality(uint32_t nodeA, uint32_t nodeB) const;
+    void ProcessBeacon(uint32_t fromNode, uint32_t toNode, double rssi);
+    void PrintLinkMap() const;
+    
+private:
+    void AgeLinks();
+    void ScheduleAging();
+    
+    uint32_t m_totalNodes;
+    std::vector<std::vector<bool>> m_linkExists;
+    std::vector<std::vector<double>> m_linkQuality;
+    std::vector<std::vector<Time>> m_lastSeen;
+    Time m_linkTimeout;
+    bool m_isActive;
+};
+
+/**
+ * @brief SDVN Controller Communication Interceptor
+ * Intercepts uplink (metadata) and downlink (delta values) packets
+ */
+class SDVNControllerCommInterceptor : public Application {
+public:
+    static TypeId GetTypeId(void);
+    
+    SDVNControllerCommInterceptor();
+    virtual ~SDVNControllerCommInterceptor();
+    
+    void SetInterceptionMode(bool interceptUplink, bool interceptDownlink);
+    void SetFakeNeighbor(uint32_t peerId);
+    void SetManipulationCallback(Callback<void, Ptr<Packet>, bool> callback);
+    
+    uint32_t GetUplinkPacketsIntercepted() const { return m_uplinkIntercepted; }
+    uint32_t GetDownlinkPacketsIntercepted() const { return m_downlinkIntercepted; }
+    
+protected:
+    virtual void StartApplication(void);
+    virtual void StopApplication(void);
+    
+private:
+    bool InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet,
+                        uint16_t protocol, const Address &from,
+                        const Address &to, NetDevice::PacketType packetType);
+    
+    bool IsUplinkMetadataPacket(Ptr<const Packet> packet) const;
+    bool IsDownlinkDeltaPacket(Ptr<const Packet> packet) const;
+    void ManipulateUplinkMetadata(Ptr<Packet> packet);
+    
+    bool m_interceptUplink;
+    bool m_interceptDownlink;
+    uint32_t m_fakeNeighborId;
+    Callback<void, Ptr<Packet>, bool> m_manipulationCallback;
+    uint32_t m_uplinkIntercepted;
+    uint32_t m_downlinkIntercepted;
+};
+
+/**
+ * @brief SDVN Wormhole Mitigation Manager
+ * Detects wormholes by monitoring linklifetimeMatrix and delta values
+ */
+class SDVNWormholeMitigationManager : public Object {
+public:
+    static TypeId GetTypeId(void);
+    
+    SDVNWormholeMitigationManager();
+    virtual ~SDVNWormholeMitigationManager();
+    
+    void Initialize(uint32_t totalNodes, double maxTransmissionRange);
+    void StartMonitoring();
+    void StopMonitoring();
+    
+    bool IsSuspiciousLink(uint32_t nodeA, uint32_t nodeB) const;
+    void AnalyzeLinkLifetimeMatrix(const std::vector<std::vector<double>>& matrix);
+    void AnalyzeDeltaValues(uint32_t flowId, uint32_t currentNode);
+    void ReportWormhole(uint32_t endpoint1, uint32_t endpoint2, std::string reason);
+    
+    uint32_t GetDetectedWormholes() const { return m_detectedWormholes; }
+    std::vector<std::pair<uint32_t, uint32_t>> GetSuspiciousLinks() const;
+    
+private:
+    void PeriodicAnalysis();
+    void ScheduleAnalysis();
+    bool CheckGeographicFeasibility(uint32_t nodeA, uint32_t nodeB) const;
+    bool CheckLinkLifetimeAnomaly(uint32_t nodeA, uint32_t nodeB, double lifetime) const;
+    bool CheckTrafficAnomaly(uint32_t nodeId) const;
+    
+    uint32_t m_totalNodes;
+    double m_maxRange;
+    bool m_isActive;
+    std::vector<std::pair<uint32_t, uint32_t>> m_suspiciousLinks;
+    std::vector<uint32_t> m_trafficConcentration;
+    uint32_t m_detectedWormholes;
+    Time m_analysisInterval;
 };
 
 /**
  * @brief Wormhole Attack Manager - Manages all wormhole tunnels
+ * UPDATED: Now supports both VANET and SDVN attack modes
  */
 class WormholeAttackManager {
 public:
@@ -1444,6 +1571,7 @@ bool present_routing_table_poisoning_attack_controllers = false;
 
 // Enhanced Wormhole Attack Configuration
 bool use_enhanced_wormhole = false;              // Use AODV-based wormhole attack (realistic)
+bool use_sdvn_wormhole = true;                   // Use SDVN-aware wormhole (controller-based attack)
 std::string wormhole_tunnel_bandwidth = "1000Mbps"; // Tunnel bandwidth
 uint32_t wormhole_tunnel_delay_us = 50000;      // Tunnel delay in microseconds (50ms = realistic long-distance tunnel)
 bool wormhole_random_pairing = true;            // Random vs sequential pairing
@@ -1554,6 +1682,10 @@ std::vector<bool> routing_table_poisoning_malicious_controllers(controllers, fal
 
 // Global wormhole attack manager instance
 ns3::WormholeAttackManager* g_wormholeManager = nullptr;
+
+// Global SDVN-specific instances
+ns3::LinkDiscoveryModule* g_linkDiscoveryModule = nullptr;
+ns3::SDVNWormholeMitigationManager* g_sdvnWormholeMitigation = nullptr;
 
 // Global blackhole attack manager instance
 ns3::BlackholeAttackManager* g_blackholeManager = nullptr;
@@ -95694,9 +95826,22 @@ void WormholeEndpointApp::SetSelectiveTunneling(bool routing, bool data) {
 void WormholeEndpointApp::StartApplication(void) {
     std::cout << "\n=== WORMHOLE ATTACK STARTING on Node " << GetNode()->GetId() 
               << " (Tunnel " << m_tunnelId << ") ===" << std::endl;
-    std::cout << "Attack Type: AODV Route Poisoning (WAVE-compatible)" << std::endl;
+    
+    // Determine attack mode: SDVN or VANET
+    extern bool use_sdvn_wormhole;
+    m_sdvnMode = use_sdvn_wormhole;
+    
+    if (m_sdvnMode) {
+        std::cout << "Attack Type: SDVN-AWARE (Controller-Based Routing)" << std::endl;
+        std::cout << "Target: Controller's linklifetimeMatrix_dsrc" << std::endl;
+        std::cout << "Method: Fake metadata injection (neighbor advertisement)" << std::endl;
+    } else {
+        std::cout << "Attack Type: VANET-Style (AODV Route Poisoning)" << std::endl;
+    }
+    
     std::cout << "Peer Node: " << m_peer->GetId() << " @ " << m_peerAddress << std::endl;
     
+    // Create tunnel socket for forwarding packets between endpoints
     if (m_peerAddress != Ipv4Address::GetZero()) {
         TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
         m_tunnelSocket = Socket::CreateSocket(GetNode(), tid);
@@ -95714,37 +95859,82 @@ void WormholeEndpointApp::StartApplication(void) {
         return;
     }
     
-    m_aodvSocket = Socket::CreateSocket(GetNode(), TypeId::LookupByName("ns3::UdpSocketFactory"));
-    if (m_aodvSocket->Bind() < 0) {
-        std::cerr << "ERROR: Failed to bind AODV injection socket on node "
-                  << GetNode()->GetId() << std::endl;
-    }
-    m_aodvSocket->SetAllowBroadcast(true);
-
-    std::cout << "✓ AODV socket ready for broadcasting fake RREPs" << std::endl;
-    
-    // Install promiscuous mode to intercept packets attracted by fake routes
-    std::cout << "Installing packet interception on " << GetNode()->GetNDevices() << " devices..." << std::endl;
-    for (uint32_t i = 0; i < GetNode()->GetNDevices(); ++i) {
-        Ptr<NetDevice> device = GetNode()->GetDevice(i);
-        if (device) {
-            // Set promiscuous callback to intercept ALL packets
-            device->SetPromiscReceiveCallback(
-                MakeCallback(&WormholeEndpointApp::InterceptPacket, this));
-            std::cout << "  ✓ Interception enabled on device " << i << std::endl;
+    if (m_sdvnMode) {
+        // ========== SDVN ATTACK MODE ==========
+        // Step 1: Initialize Link Discovery Module
+        extern ns3::LinkDiscoveryModule* g_linkDiscoveryModule;
+        if (!g_linkDiscoveryModule) {
+            std::cout << "Creating global LinkDiscoveryModule..." << std::endl;
+            g_linkDiscoveryModule = new ns3::LinkDiscoveryModule();
+            extern uint32_t total_size;
+            g_linkDiscoveryModule->Initialize(total_size);
+            g_linkDiscoveryModule->StartDiscovery();
         }
+        m_linkDiscovery = g_linkDiscoveryModule;
+        
+        // Step 2: Discover real neighbors (links that actually exist)
+        // Wait a bit for network to stabilize and beacons to be exchanged
+        Simulator::Schedule(Seconds(1.0), [this]() {
+            uint32_t myId = GetNode()->GetId();
+            m_realNeighbors = m_linkDiscovery->GetNeighbors(myId);
+            
+            std::cout << "\n[SDVN-WORMHOLE] Node " << myId << " discovered " 
+                      << m_realNeighbors.size() << " real neighbors: ";
+            for (auto nid : m_realNeighbors) {
+                std::cout << nid << " ";
+            }
+            std::cout << std::endl;
+            
+            // Step 3: Send FAKE metadata to controller
+            // Report: "I have neighbors [real_neighbors + FAKE_PEER]"
+            SendFakeMetadataToController();
+        });
+        
+        // Step 4: Install packet interceptor to tunnel packets
+        std::cout << "Installing SDVN packet interceptor on " << GetNode()->GetNDevices() << " devices..." << std::endl;
+        for (uint32_t i = 0; i < GetNode()->GetNDevices(); ++i) {
+            Ptr<NetDevice> device = GetNode()->GetDevice(i);
+            if (device && !device->IsPointToPoint()) {  // Skip tunnel device
+                device->SetPromiscReceiveCallback(
+                    MakeCallback(&WormholeEndpointApp::InterceptPacket, this));
+                std::cout << "  ✓ SDVN interception enabled on device " << i << std::endl;
+            }
+        }
+        
+        std::cout << "=== SDVN Wormhole attack ACTIVE on node " << GetNode()->GetId() << " ===" << std::endl << std::endl;
+        
+    } else {
+        // ========== VANET ATTACK MODE (Original AODV-based) ==========
+        m_aodvSocket = Socket::CreateSocket(GetNode(), TypeId::LookupByName("ns3::UdpSocketFactory"));
+        if (m_aodvSocket->Bind() < 0) {
+            std::cerr << "ERROR: Failed to bind AODV injection socket on node "
+                      << GetNode()->GetId() << std::endl;
+        }
+        m_aodvSocket->SetAllowBroadcast(true);
+        std::cout << "✓ AODV socket ready for broadcasting fake RREPs" << std::endl;
+        
+        // Install promiscuous mode to intercept packets attracted by fake routes
+        std::cout << "Installing packet interception on " << GetNode()->GetNDevices() << " devices..." << std::endl;
+        for (uint32_t i = 0; i < GetNode()->GetNDevices(); ++i) {
+            Ptr<NetDevice> device = GetNode()->GetDevice(i);
+            if (device) {
+                device->SetPromiscReceiveCallback(
+                    MakeCallback(&WormholeEndpointApp::InterceptPacket, this));
+                std::cout << "  ✓ Interception enabled on device " << i << std::endl;
+            }
+        }
+        
+        // Send immediate test broadcast
+        std::cout << "Sending immediate test broadcast..." << std::endl;
+        BroadcastFakeRREP();
+        
+        // Schedule periodic broadcasts
+        double broadcastInterval = 2.0;
+        Simulator::Schedule(Seconds(broadcastInterval), &WormholeEndpointApp::PeriodicBroadcast, this);
+        
+        std::cout << "✓ Fake RREP broadcast scheduled (interval: " << broadcastInterval << "s)" << std::endl;
+        std::cout << "=== VANET Wormhole attack ACTIVE on node " << GetNode()->GetId() << " ===" << std::endl << std::endl;
     }
-    
-    // Send IMMEDIATE test broadcast to verify it works
-    std::cout << "Sending immediate test broadcast..." << std::endl;
-    BroadcastFakeRREP();
-    
-    // Schedule periodic broadcasts
-    double broadcastInterval = 2.0; // Broadcast every 2 seconds
-    Simulator::Schedule(Seconds(broadcastInterval), &WormholeEndpointApp::PeriodicBroadcast, this);
-    
-    std::cout << "✓ Fake RREP broadcast scheduled (interval: " << broadcastInterval << "s)" << std::endl;
-    std::cout << "=== Wormhole attack ACTIVE on node " << GetNode()->GetId() << " ===" << std::endl << std::endl;
 }
 
 void WormholeEndpointApp::StopApplication(void) {
@@ -95997,6 +96187,103 @@ void WormholeEndpointApp::BroadcastFakeRREP() {
 void WormholeEndpointApp::PeriodicBroadcast() {
     BroadcastFakeRREP();
     Simulator::Schedule(Seconds(2.0), &WormholeEndpointApp::PeriodicBroadcast, this);
+}
+
+/**
+ * SDVN-SPECIFIC: Send fake metadata to controller
+ * This makes controller believe we have a direct link to our peer
+ * Controller will compute linklifetimeMatrix_dsrc[myId][peerId] > 0
+ * Then controller will route packets through this FAKE link!
+ */
+void WormholeEndpointApp::SendFakeMetadataToController() {
+    if (!m_peer || !m_sdvnMode || m_fakeMetadataSent) {
+        return;
+    }
+    
+    uint32_t myId = GetNode()->GetId();
+    uint32_t peerId = m_peer->GetId();
+    
+    std::cout << "\n[SDVN-WORMHOLE] *** INJECTING FAKE METADATA ***" << std::endl;
+    std::cout << "[SDVN-WORMHOLE] Node " << myId << " claiming neighbor: " << peerId << std::endl;
+    std::cout << "[SDVN-WORMHOLE] Real neighbors: ";
+    for (auto nid : m_realNeighbors) {
+        std::cout << nid << " ";
+    }
+    std::cout << "+ FAKE(" << peerId << ")" << std::endl;
+    
+    // Find the LTE uplink metadata function
+    // In SDVN, nodes send metadata via send_LTE_metadata_uplink_alone()
+    // We need to INTERCEPT this and add our fake peer to the neighbor list
+    
+    // Strategy: Modify neighbordata_inst to include fake peer
+    extern neighbordata* neighbordata_inst;
+    extern uint32_t total_size;
+    
+    if (!neighbordata_inst) {
+        std::cerr << "[SDVN-WORMHOLE ERROR] neighbordata_inst is NULL!" << std::endl;
+        // Schedule retry
+        Simulator::Schedule(Seconds(0.5), &WormholeEndpointApp::SendFakeMetadataToController, this);
+        return;
+    }
+    
+    // Get our neighbor data structure
+    neighbordata* myNeighborData = neighbordata_inst + myId;
+    
+    // Check if peer is already in neighbor list (real neighbor - don't add fake)
+    bool peerIsRealNeighbor = false;
+    for (uint32_t i = 0; i < myNeighborData->size; i++) {
+        if (myNeighborData->neighborid[i] == peerId) {
+            peerIsRealNeighbor = true;
+            break;
+        }
+    }
+    
+    if (peerIsRealNeighbor) {
+        std::cout << "[SDVN-WORMHOLE] WARNING: Peer " << peerId << " is REAL neighbor, not fake!" << std::endl;
+        std::cout << "[SDVN-WORMHOLE] Cannot create wormhole with actual neighbor." << std::endl;
+        m_fakeMetadataSent = true;
+        return;
+    }
+    
+    // Add fake peer to neighbor list
+    if (myNeighborData->size < 100) {  // Safety check for array bounds
+        uint32_t originalSize = myNeighborData->size;
+        myNeighborData->neighborid[myNeighborData->size] = peerId;
+        myNeighborData->size++;
+        
+        std::cout << "[SDVN-WORMHOLE] ✓ FAKE LINK INJECTED!" << std::endl;
+        std::cout << "[SDVN-WORMHOLE] Neighbor list size: " << originalSize << " → " 
+                  << myNeighborData->size << std::endl;
+        std::cout << "[SDVN-WORMHOLE] Controller will compute linklifetimeMatrix_dsrc[" 
+                  << myId << "][" << peerId << "] > 0" << std::endl;
+        std::cout << "[SDVN-WORMHOLE] Controller will route packets through FAKE link!" << std::endl;
+        
+        m_stats.routingPacketsAffected++;
+        m_fakeMetadataSent = true;
+        
+        // Keep refreshing the fake neighbor periodically (in case it gets cleaned)
+        Simulator::Schedule(Seconds(1.0), [this, myNeighborData, peerId]() {
+            // Re-add if removed
+            bool found = false;
+            for (uint32_t i = 0; i < myNeighborData->size; i++) {
+                if (myNeighborData->neighborid[i] == peerId) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && myNeighborData->size < 100) {
+                myNeighborData->neighborid[myNeighborData->size] = peerId;
+                myNeighborData->size++;
+                std::cout << "[SDVN-WORMHOLE] Re-injected fake neighbor " << peerId << std::endl;
+            }
+            
+            // Schedule next refresh
+            Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::SendFakeMetadataToController, this);
+        });
+        
+    } else {
+        std::cerr << "[SDVN-WORMHOLE ERROR] Neighbor list full (" << myNeighborData->size << ")" << std::endl;
+    }
 }
 
 bool WormholeEndpointApp::InterceptPacket(Ptr<NetDevice> device,
@@ -96614,6 +96901,339 @@ std::vector<uint32_t> WormholeAttackManager::GetMaliciousNodeIds() const {
     }
     return nodeIds;
 }
+
+// ============================================================================
+// SDVN-SPECIFIC ATTACK/MITIGATION IMPLEMENTATIONS
+// ============================================================================
+
+/**
+ * LinkDiscoveryModule Implementation
+ * Monitors network beacons to build real-time link adjacency matrix
+ */
+
+TypeId LinkDiscoveryModule::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::LinkDiscoveryModule")
+        .SetParent<Object>()
+        .SetGroupName("Network");
+    return tid;
+}
+
+LinkDiscoveryModule::LinkDiscoveryModule() 
+    : m_totalNodes(0), m_linkTimeout(Seconds(2.0)), m_isActive(false) {
+}
+
+LinkDiscoveryModule::~LinkDiscoveryModule() {
+    StopDiscovery();
+}
+
+void LinkDiscoveryModule::Initialize(uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    m_linkExists.resize(totalNodes, std::vector<bool>(totalNodes, false));
+    m_linkQuality.resize(totalNodes, std::vector<double>(totalNodes, 0.0));
+    m_lastSeen.resize(totalNodes, std::vector<Time>(totalNodes, Seconds(0)));
+    
+    std::cout << "[LinkDiscovery] Initialized for " << totalNodes << " nodes" << std::endl;
+}
+
+void LinkDiscoveryModule::StartDiscovery() {
+    if (m_isActive) return;
+    m_isActive = true;
+    ScheduleAging();
+    std::cout << "[LinkDiscovery] Started monitoring" << std::endl;
+}
+
+void LinkDiscoveryModule::StopDiscovery() {
+    m_isActive = false;
+}
+
+bool LinkDiscoveryModule::LinkExists(uint32_t nodeA, uint32_t nodeB) const {
+    if (nodeA >= m_totalNodes || nodeB >= m_totalNodes) return false;
+    return m_linkExists[nodeA][nodeB];
+}
+
+std::vector<uint32_t> LinkDiscoveryModule::GetNeighbors(uint32_t nodeId) const {
+    std::vector<uint32_t> neighbors;
+    if (nodeId >= m_totalNodes) return neighbors;
+    
+    for (uint32_t i = 0; i < m_totalNodes; i++) {
+        if (m_linkExists[nodeId][i]) {
+            neighbors.push_back(i);
+        }
+    }
+    return neighbors;
+}
+
+double LinkDiscoveryModule::GetLinkQuality(uint32_t nodeA, uint32_t nodeB) const {
+    if (nodeA >= m_totalNodes || nodeB >= m_totalNodes) return 0.0;
+    return m_linkQuality[nodeA][nodeB];
+}
+
+void LinkDiscoveryModule::ProcessBeacon(uint32_t fromNode, uint32_t toNode, double rssi) {
+    if (fromNode >= m_totalNodes || toNode >= m_totalNodes) return;
+    
+    m_linkExists[fromNode][toNode] = true;
+    m_linkQuality[fromNode][toNode] = rssi;
+    m_lastSeen[fromNode][toNode] = Simulator::Now();
+}
+
+void LinkDiscoveryModule::AgeLinks() {
+    Time now = Simulator::Now();
+    uint32_t aged = 0;
+    
+    for (uint32_t i = 0; i < m_totalNodes; i++) {
+        for (uint32_t j = 0; j < m_totalNodes; j++) {
+            if (m_linkExists[i][j]) {
+                if ((now - m_lastSeen[i][j]) > m_linkTimeout) {
+                    m_linkExists[i][j] = false;
+                    m_linkQuality[i][j] = 0.0;
+                    aged++;
+                }
+            }
+        }
+    }
+}
+
+void LinkDiscoveryModule::ScheduleAging() {
+    if (!m_isActive) return;
+    AgeLinks();
+    Simulator::Schedule(Seconds(1.0), &LinkDiscoveryModule::ScheduleAging, this);
+}
+
+void LinkDiscoveryModule::PrintLinkMap() const {
+    std::cout << "\n[LinkDiscovery] Current Link Map:" << std::endl;
+    for (uint32_t i = 0; i < m_totalNodes; i++) {
+        std::vector<uint32_t> neighbors = GetNeighbors(i);
+        if (!neighbors.empty()) {
+            std::cout << "  Node " << i << " → ";
+            for (auto nid : neighbors) {
+                std::cout << nid << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+}
+
+/**
+ * SDVNWormholeMitigationManager Implementation  
+ * Detects wormhole attacks in SDVN by monitoring linklifetimeMatrix
+ */
+
+TypeId SDVNWormholeMitigationManager::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNWormholeMitigationManager")
+        .SetParent<Object>()
+        .SetGroupName("Network");
+    return tid;
+}
+
+SDVNWormholeMitigationManager::SDVNWormholeMitigationManager()
+    : m_totalNodes(0), m_maxRange(0.0), m_isActive(false),
+      m_detectedWormholes(0), m_analysisInterval(Seconds(5.0)) {
+}
+
+SDVNWormholeMitigationManager::~SDVNWormholeMitigationManager() {
+    StopMonitoring();
+}
+
+void SDVNWormholeMitigationManager::Initialize(uint32_t totalNodes, double maxTransmissionRange) {
+    m_totalNodes = totalNodes;
+    m_maxRange = maxTransmissionRange;
+    m_trafficConcentration.resize(totalNodes, 0);
+    
+    std::cout << "[SDVNMitigation] Initialized for " << totalNodes 
+              << " nodes, max range=" << maxTransmissionRange << "m" << std::endl;
+}
+
+void SDVNWormholeMitigationManager::StartMonitoring() {
+    if (m_isActive) return;
+    m_isActive = true;
+    ScheduleAnalysis();
+    std::cout << "[SDVNMitigation] Started monitoring" << std::endl;
+}
+
+void SDVNWormholeMitigationManager::StopMonitoring() {
+    m_isActive = false;
+}
+
+bool SDVNWormholeMitigationManager::IsSuspiciousLink(uint32_t nodeA, uint32_t nodeB) const {
+    for (const auto& link : m_suspiciousLinks) {
+        if ((link.first == nodeA && link.second == nodeB) ||
+            (link.first == nodeB && link.second == nodeA)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void SDVNWormholeMitigationManager::AnalyzeLinkLifetimeMatrix(
+    const std::vector<std::vector<double>>& matrix) {
+    
+    if (!m_isActive) return;
+    
+    for (uint32_t i = 0; i < m_totalNodes && i < matrix.size(); i++) {
+        for (uint32_t j = 0; j < m_totalNodes && j < matrix[i].size(); j++) {
+            if (i == j) continue;
+            
+            double lifetime = matrix[i][j];
+            if (lifetime > 0.0) {
+                if (!CheckGeographicFeasibility(i, j)) {
+                    ReportWormhole(i, j, "Geographic impossibility");
+                }
+                if (CheckLinkLifetimeAnomaly(i, j, lifetime)) {
+                    ReportWormhole(i, j, "Abnormal link lifetime");
+                }
+            }
+        }
+    }
+}
+
+void SDVNWormholeMitigationManager::AnalyzeDeltaValues(uint32_t flowId, uint32_t currentNode) {
+    if (CheckTrafficAnomaly(currentNode)) {
+        std::cout << "[SDVNMitigation] WARNING: Traffic anomaly at node " 
+                  << currentNode << std::endl;
+    }
+}
+
+void SDVNWormholeMitigationManager::ReportWormhole(uint32_t endpoint1, uint32_t endpoint2, 
+                                                   std::string reason) {
+    if (IsSuspiciousLink(endpoint1, endpoint2)) return;
+    
+    m_suspiciousLinks.push_back(std::make_pair(endpoint1, endpoint2));
+    m_detectedWormholes++;
+    
+    std::cout << "\n[SDVNMitigation] ⚠️  WORMHOLE DETECTED! ⚠️" << std::endl;
+    std::cout << "[SDVNMitigation] Endpoints: " << endpoint1 << " <-> " << endpoint2 << std::endl;
+    std::cout << "[SDVNMitigation] Reason: " << reason << std::endl;
+    std::cout << "[SDVNMitigation] Total detected: " << m_detectedWormholes << std::endl;
+}
+
+std::vector<std::pair<uint32_t, uint32_t>> SDVNWormholeMitigationManager::GetSuspiciousLinks() const {
+    return m_suspiciousLinks;
+}
+
+void SDVNWormholeMitigationManager::PeriodicAnalysis() {
+    if (!m_isActive) return;
+    extern std::vector<std::vector<double>> linklifetimeMatrix_dsrc;
+    if (!linklifetimeMatrix_dsrc.empty()) {
+        AnalyzeLinkLifetimeMatrix(linklifetimeMatrix_dsrc);
+    }
+}
+
+void SDVNWormholeMitigationManager::ScheduleAnalysis() {
+    if (!m_isActive) return;
+    PeriodicAnalysis();
+    Simulator::Schedule(m_analysisInterval, &SDVNWormholeMitigationManager::ScheduleAnalysis, this);
+}
+
+bool SDVNWormholeMitigationManager::CheckGeographicFeasibility(uint32_t nodeA, uint32_t nodeB) const {
+    return true;  // Placeholder - would check actual positions
+}
+
+bool SDVNWormholeMitigationManager::CheckLinkLifetimeAnomaly(uint32_t nodeA, uint32_t nodeB, 
+                                                             double lifetime) const {
+    if (lifetime > 100.0) {  // > 100s suspicious for high-speed vehicles
+        return true;
+    }
+    return false;
+}
+
+bool SDVNWormholeMitigationManager::CheckTrafficAnomaly(uint32_t nodeId) const {
+    if (nodeId >= m_trafficConcentration.size()) return false;
+    
+    uint32_t avgTraffic = 0;
+    for (auto count : m_trafficConcentration) {
+        avgTraffic += count;
+    }
+    if (!m_trafficConcentration.empty()) {
+        avgTraffic /= m_trafficConcentration.size();
+    }
+    
+    return (m_trafficConcentration[nodeId] > 3 * avgTraffic);
+}
+
+/**
+ * SDVNControllerCommInterceptor Implementation
+ * Intercepts controller-node communication (simplified for initial implementation)
+ */
+
+TypeId SDVNControllerCommInterceptor::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNControllerCommInterceptor")
+        .SetParent<Application>()
+        .SetGroupName("Applications");
+    return tid;
+}
+
+SDVNControllerCommInterceptor::SDVNControllerCommInterceptor()
+    : m_interceptUplink(true), m_interceptDownlink(false), m_fakeNeighborId(0),
+      m_uplinkIntercepted(0), m_downlinkIntercepted(0) {
+}
+
+SDVNControllerCommInterceptor::~SDVNControllerCommInterceptor() {
+}
+
+void SDVNControllerCommInterceptor::SetInterceptionMode(bool interceptUplink, bool interceptDownlink) {
+    m_interceptUplink = interceptUplink;
+    m_interceptDownlink = interceptDownlink;
+}
+
+void SDVNControllerCommInterceptor::SetFakeNeighbor(uint32_t peerId) {
+    m_fakeNeighborId = peerId;
+}
+
+void SDVNControllerCommInterceptor::SetManipulationCallback(Callback<void, Ptr<Packet>, bool> callback) {
+    m_manipulationCallback = callback;
+}
+
+void SDVNControllerCommInterceptor::StartApplication(void) {
+    std::cout << "[SDVNInterceptor] Starting on node " << GetNode()->GetId() << std::endl;
+    
+    for (uint32_t i = 0; i < GetNode()->GetNDevices(); ++i) {
+        Ptr<NetDevice> device = GetNode()->GetDevice(i);
+        if (device) {
+            device->SetPromiscReceiveCallback(
+                MakeCallback(&SDVNControllerCommInterceptor::InterceptPacket, this));
+        }
+    }
+}
+
+void SDVNControllerCommInterceptor::StopApplication(void) {
+    std::cout << "[SDVNInterceptor] Stopped. Uplink: " << m_uplinkIntercepted 
+              << ", Downlink: " << m_downlinkIntercepted << std::endl;
+}
+
+bool SDVNControllerCommInterceptor::InterceptPacket(Ptr<NetDevice> device,
+                                                    Ptr<const Packet> packet,
+                                                    uint16_t protocol,
+                                                    const Address &from,
+                                                    const Address &to,
+                                                    NetDevice::PacketType packetType) {
+    if (m_interceptUplink && IsUplinkMetadataPacket(packet)) {
+        m_uplinkIntercepted++;
+    }
+    
+    if (m_interceptDownlink && IsDownlinkDeltaPacket(packet)) {
+        m_downlinkIntercepted++;
+    }
+    
+    return false;
+}
+
+bool SDVNControllerCommInterceptor::IsUplinkMetadataPacket(Ptr<const Packet> packet) const {
+    return false;  // Placeholder
+}
+
+bool SDVNControllerCommInterceptor::IsDownlinkDeltaPacket(Ptr<const Packet> packet) const {
+    return false;  // Placeholder
+}
+
+void SDVNControllerCommInterceptor::ManipulateUplinkMetadata(Ptr<Packet> packet) {
+    if (!m_manipulationCallback.IsNull()) {
+        m_manipulationCallback(packet, true);
+    }
+}
+
+// ============================================================================
+// END OF SDVN IMPLEMENTATIONS
+// ============================================================================
 
 // ============================================================================
 // Blackhole Attack Manager Implementation
