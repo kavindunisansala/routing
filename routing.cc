@@ -109,6 +109,14 @@ class ResourceTester;
 class IncentiveBasedMitigation;
 class SybilMitigationManager;
 
+// SDVN Sybil attack classes
+struct SDVNSybilIdentity;
+struct SDVNSybilStatistics;
+class SDVNSybilAttackApp;
+class SDVNSybilMitigationManager;
+struct SDVNSybilPerformanceMetrics;
+class SDVNSybilPerformanceMonitor;
+
 // Forward declarations for Replay attack classes
 struct PacketDigest;
 struct ReplayStatistics;
@@ -1208,6 +1216,269 @@ private:
     
     Time m_detectionStartTime;
     Time m_lastDetectionCheck;
+};
+
+// ============================================================================
+// SDVN SYBIL ATTACK CLASSES
+// ============================================================================
+
+/**
+ * @brief SDVN Sybil Identity - Fake identity targeting controller metadata
+ */
+struct SDVNSybilIdentity {
+    uint32_t realNodeId;              // Real malicious node ID
+    uint32_t fakeNodeId;              // Fake virtual identity ID
+    Ipv4Address fakeIpAddress;        // Fake IP address
+    Mac48Address fakeMacAddress;      // Fake MAC address
+    std::string fakeName;             // Name of fake identity
+    bool isClone;                     // Clone of real node?
+    uint32_t clonedNodeId;            // Cloned node ID
+    Time creationTime;                // Creation timestamp
+    
+    // SDVN-specific fields
+    uint32_t fakeNeighborCount;       // Fake neighbors advertised to controller
+    uint32_t fakeMetadataPackets;     // Fake metadata sent to controller
+    uint32_t fakeNeighborUpdates;     // Fake neighbor updates
+    std::vector<uint32_t> fakeNeighborIds;  // List of fake neighbors
+    
+    SDVNSybilIdentity() 
+        : realNodeId(0), fakeNodeId(0), isClone(false), clonedNodeId(0),
+          fakeNeighborCount(0), fakeMetadataPackets(0), fakeNeighborUpdates(0) {}
+};
+
+/**
+ * @brief SDVN Sybil Attack Statistics
+ */
+struct SDVNSybilStatistics {
+    uint32_t realNodeId;              // Real attacker node ID
+    uint32_t fakeIdentitiesCreated;   // Number of fake identities
+    uint32_t clonedIdentities;        // Number of clones
+    uint32_t fakeMetadataPackets;     // Fake metadata sent to controller
+    uint32_t fakeNeighborReports;     // Fake neighbor advertisements
+    uint32_t controllerPollutionScore; // How much controller view is polluted
+    Time attackStartTime;
+    Time attackStopTime;
+    bool isActive;
+    std::vector<SDVNSybilIdentity> identities;  // All fake identities
+    
+    SDVNSybilStatistics() 
+        : realNodeId(0), fakeIdentitiesCreated(0), clonedIdentities(0),
+          fakeMetadataPackets(0), fakeNeighborReports(0), 
+          controllerPollutionScore(0), isActive(false) {}
+};
+
+/**
+ * @brief SDVN Sybil Attack App - Creates fake identities and pollutes controller
+ */
+class SDVNSybilAttackApp : public Application {
+public:
+    static TypeId GetTypeId(void);
+    
+    SDVNSybilAttackApp();
+    virtual ~SDVNSybilAttackApp();
+    
+    // Configuration
+    void SetNodeId(uint32_t nodeId);
+    void SetIdentitiesCount(uint32_t count);
+    void SetCloneLegitimateNodes(bool clone);
+    void SetFakeNeighborsPerIdentity(uint32_t count);
+    void SetMetadataInterval(double interval);
+    
+    // Attack lifecycle
+    void ActivateAttack();
+    void DeactivateAttack();
+    
+    // Statistics
+    SDVNSybilStatistics GetStatistics() const { return m_stats; }
+    
+protected:
+    virtual void StartApplication(void);
+    virtual void StopApplication(void);
+    
+private:
+    void CreateFakeIdentities();
+    void CloneLegitimateNode(uint32_t targetNodeId);
+    void SendFakeMetadataToController();
+    void GenerateFakeNeighborList(SDVNSybilIdentity& identity);
+    void PeriodicMetadataBroadcast();
+    void PolluteLinkLifetimeMatrix();
+    
+    uint32_t m_nodeId;
+    uint32_t m_identitiesCount;
+    bool m_cloneLegitimateNodes;
+    uint32_t m_fakeNeighborsPerIdentity;
+    double m_metadataInterval;
+    bool m_attackActive;
+    
+    SDVNSybilStatistics m_stats;
+    EventId m_metadataEvent;
+    Ptr<Socket> m_socket;
+    std::vector<uint32_t> m_legitimateNodeIds;
+    
+    void PrintStatistics() const;
+};
+
+/**
+ * @brief SDVN Sybil Mitigation Manager - Detects and blocks fake identities
+ */
+class SDVNSybilMitigationManager : public Object {
+public:
+    static TypeId GetTypeId(void);
+    
+    SDVNSybilMitigationManager();
+    virtual ~SDVNSybilMitigationManager();
+    
+    // Initialization
+    void Initialize(uint32_t totalNodes);
+    void SetKnownMaliciousNodes(const std::vector<uint32_t>& maliciousNodes);
+    
+    // Enable mitigation techniques
+    void EnableTrustedCertification(bool enable);
+    void EnableRSSIDetection(bool enable);
+    void EnableBehavioralAnalysis(bool enable);
+    void EnableMetadataValidation(bool enable);
+    
+    // Detection methods
+    bool AuthenticateNode(uint32_t nodeId, Ipv4Address ip, Mac48Address mac);
+    bool ValidateMetadata(uint32_t nodeId, uint32_t neighborCount);
+    bool DetectAbnormalNeighborCount(uint32_t nodeId, uint32_t reportedNeighbors);
+    bool DetectDuplicateIdentity(uint32_t nodeId, Ipv4Address ip, Mac48Address mac);
+    void MonitorControllerPollution();
+    
+    // Mitigation actions
+    void BlacklistNode(uint32_t nodeId);
+    void BlacklistFakeIdentity(Ipv4Address ip);
+    bool IsNodeBlacklisted(uint32_t nodeId) const;
+    void CleanControllerView();
+    void RecomputeRoutesExcludingBlacklisted();
+    
+    // Integration with existing mitigation
+    void IntegrateWithVANETMitigation(SybilMitigationManager* vanetMitigation);
+    
+    // Statistics
+    void PeriodicDetectionCheck();
+    void PrintStatistics() const;
+    void ExportStatistics(const std::string& filename) const;
+    
+    SybilMitigationMetrics GetMetrics() const { return m_metrics; }
+    
+private:
+    void CalculateDetectionAccuracy();
+    void RecordDetection(uint32_t nodeId, bool isSybil);
+    
+    bool m_certificationEnabled;
+    bool m_rssiDetectionEnabled;
+    bool m_behavioralAnalysisEnabled;
+    bool m_metadataValidationEnabled;
+    
+    uint32_t m_totalNodes;
+    uint32_t m_maxNeighborsThreshold;  // Max reasonable neighbors in SDVN
+    
+    std::set<uint32_t> m_blacklistedNodes;
+    std::set<Ipv4Address> m_blacklistedIps;
+    std::set<uint32_t> m_knownMaliciousNodes;
+    std::set<uint32_t> m_detectedSybilNodes;
+    
+    std::map<uint32_t, std::pair<Ipv4Address, Mac48Address>> m_nodeIdentities;
+    std::map<uint32_t, uint32_t> m_neighborCounts;
+    std::map<uint32_t, Time> m_lastMetadataTime;
+    
+    SybilMitigationMetrics m_metrics;
+    SybilMitigationManager* m_vanetMitigation;  // Link to existing VANET mitigation
+    
+    EventId m_detectionEvent;
+    Time m_detectionStartTime;
+};
+
+/**
+ * @brief SDVN Sybil Performance Monitor - Tracks attack impact and mitigation
+ */
+struct SDVNSybilPerformanceMetrics {
+    Time timestamp;
+    
+    // Network performance
+    double pdr;                       // Packet Delivery Ratio (%)
+    double avgLatency;                // Average latency (ms)
+    double minLatency;
+    double maxLatency;
+    double overhead;                  // Network overhead (%)
+    
+    // Attack metrics
+    uint32_t fakeIdentitiesActive;    // Active fake identities
+    uint32_t fakeMetadataPackets;     // Fake metadata packets sent
+    uint32_t controllerPollutionLevel; // Controller pollution (0-100)
+    uint32_t affectedFlows;           // Flows affected by fake routes
+    
+    // Mitigation metrics
+    uint32_t identitiesDetected;      // Fake identities detected
+    uint32_t nodesBlacklisted;        // Malicious nodes blacklisted
+    double detectionAccuracy;         // Detection accuracy (%)
+    Time detectionTime;               // Time to detect attack
+    double mitigationOverhead;        // Mitigation overhead (%)
+    
+    // Controller impact
+    uint32_t corruptedNeighborEntries; // Corrupted neighbor data in controller
+    uint32_t invalidRoutesComputed;    // Invalid routes computed by controller
+    
+    // Packet statistics
+    uint32_t packetsSent;
+    uint32_t packetsDelivered;
+    uint32_t packetsDropped;
+    
+    SDVNSybilPerformanceMetrics()
+        : pdr(0.0), avgLatency(0.0), minLatency(0.0), maxLatency(0.0), overhead(0.0),
+          fakeIdentitiesActive(0), fakeMetadataPackets(0), controllerPollutionLevel(0),
+          affectedFlows(0), identitiesDetected(0), nodesBlacklisted(0),
+          detectionAccuracy(0.0), mitigationOverhead(0.0), corruptedNeighborEntries(0),
+          invalidRoutesComputed(0), packetsSent(0), packetsDelivered(0), packetsDropped(0) {}
+};
+
+class SDVNSybilPerformanceMonitor : public Object {
+public:
+    static TypeId GetTypeId(void);
+    
+    SDVNSybilPerformanceMonitor();
+    virtual ~SDVNSybilPerformanceMonitor();
+    
+    // Initialization
+    void Initialize(std::string scenario);
+    void StartMonitoring();
+    void StopMonitoring();
+    
+    // Packet tracking
+    void PacketSent(uint32_t fromNode, uint32_t toNode);
+    void PacketReceived(uint32_t atNode);
+    void PacketDropped(uint32_t atNode, std::string reason);
+    
+    // Attack tracking
+    void FakeIdentityCreated(uint32_t realNode, uint32_t fakeId);
+    void FakeMetadataInjected(uint32_t realNode);
+    void ControllerPolluted(uint32_t corruptedEntries);
+    void FlowAffectedBySybil(uint32_t flowId);
+    
+    // Mitigation tracking
+    void SybilDetected(uint32_t nodeId, Time detectionTime);
+    void NodeBlacklisted(uint32_t nodeId);
+    void ControllerViewCleaned(uint32_t entriesRemoved);
+    
+    // Snapshot and export
+    void TakeSnapshot();
+    void ExportToCSV(const std::string& filename);
+    void PrintSummary() const;
+    
+    SDVNSybilPerformanceMetrics GetCurrentMetrics() const { return m_currentMetrics; }
+    
+private:
+    std::string m_scenario;
+    bool m_monitoring;
+    
+    SDVNSybilPerformanceMetrics m_currentMetrics;
+    std::vector<SDVNSybilPerformanceMetrics> m_snapshots;
+    
+    EventId m_snapshotEvent;
+    
+    void CalculateMetrics();
+    void ScheduleNextSnapshot();
 };
 
 /**
@@ -99967,6 +100238,742 @@ void WormholeDetector::ExportDetectionResults(std::string filename) const {
     
     outFile.close();
     std::cout << "[DETECTOR] Detection results exported to " << filename << "\n";
+}
+
+// ============================================================================
+// SDVN SYBIL ATTACK IMPLEMENTATION
+// ============================================================================
+
+NS_OBJECT_ENSURE_REGISTERED(SDVNSybilAttackApp);
+
+TypeId SDVNSybilAttackApp::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNSybilAttackApp")
+        .SetParent<Application>()
+        .AddConstructor<SDVNSybilAttackApp>();
+    return tid;
+}
+
+SDVNSybilAttackApp::SDVNSybilAttackApp()
+    : m_nodeId(0),
+      m_identitiesCount(3),
+      m_cloneLegitimateNodes(true),
+      m_fakeNeighborsPerIdentity(5),
+      m_metadataInterval(1.0),
+      m_attackActive(false)
+{
+}
+
+SDVNSybilAttackApp::~SDVNSybilAttackApp() {
+    m_metadataEvent.Cancel();
+    PrintStatistics();
+}
+
+void SDVNSybilAttackApp::SetNodeId(uint32_t nodeId) {
+    m_nodeId = nodeId;
+    m_stats.realNodeId = nodeId;
+}
+
+void SDVNSybilAttackApp::SetIdentitiesCount(uint32_t count) {
+    m_identitiesCount = count;
+    std::cout << "[SDVN-SYBIL] Node " << m_nodeId << " will create " 
+              << count << " fake identities\n";
+}
+
+void SDVNSybilAttackApp::SetCloneLegitimateNodes(bool clone) {
+    m_cloneLegitimateNodes = clone;
+    std::cout << "[SDVN-SYBIL] Node " << m_nodeId 
+              << (clone ? " WILL" : " WON'T") << " clone legitimate nodes\n";
+}
+
+void SDVNSybilAttackApp::SetFakeNeighborsPerIdentity(uint32_t count) {
+    m_fakeNeighborsPerIdentity = count;
+}
+
+void SDVNSybilAttackApp::SetMetadataInterval(double interval) {
+    m_metadataInterval = interval;
+}
+
+void SDVNSybilAttackApp::ActivateAttack() {
+    m_attackActive = true;
+    m_stats.isActive = true;
+    m_stats.attackStartTime = Simulator::Now();
+    
+    std::cout << "[SDVN-SYBIL] Node " << m_nodeId << " ATTACK ACTIVATED at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+    std::cout << "  Creating " << m_identitiesCount << " fake identities\n";
+    std::cout << "  Fake neighbors per identity: " << m_fakeNeighborsPerIdentity << "\n";
+    std::cout << "  Metadata interval: " << m_metadataInterval << "s\n";
+    
+    CreateFakeIdentities();
+    PeriodicMetadataBroadcast();
+}
+
+void SDVNSybilAttackApp::DeactivateAttack() {
+    m_attackActive = false;
+    m_stats.isActive = false;
+    m_stats.attackStopTime = Simulator::Now();
+    m_metadataEvent.Cancel();
+    
+    std::cout << "[SDVN-SYBIL] Node " << m_nodeId << " ATTACK DEACTIVATED at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+}
+
+void SDVNSybilAttackApp::StartApplication(void) {
+    std::cout << "[SDVN-SYBIL] Node " << m_nodeId << " application started\n";
+    
+    // Collect legitimate node IDs for cloning
+    for (uint32_t i = 0; i < 28; i++) {  // Assuming 28 vehicle nodes
+        if (i != m_nodeId) {
+            m_legitimateNodeIds.push_back(i);
+        }
+    }
+}
+
+void SDVNSybilAttackApp::StopApplication(void) {
+    m_metadataEvent.Cancel();
+    std::cout << "[SDVN-SYBIL] Node " << m_nodeId << " application stopped\n";
+    PrintStatistics();
+}
+
+void SDVNSybilAttackApp::CreateFakeIdentities() {
+    std::cout << "[SDVN-SYBIL] Node " << m_nodeId << " creating " 
+              << m_identitiesCount << " fake identities...\n";
+    
+    for (uint32_t i = 0; i < m_identitiesCount; i++) {
+        SDVNSybilIdentity identity;
+        identity.realNodeId = m_nodeId;
+        identity.fakeNodeId = 1000 + (m_nodeId * 100) + i;  // Unique fake ID
+        identity.creationTime = Simulator::Now();
+        
+        // Generate fake IP and MAC
+        std::ostringstream ipStream;
+        ipStream << "10.1.2." << (100 + m_nodeId * 10 + i);
+        identity.fakeIpAddress = Ipv4Address(ipStream.str().c_str());
+        
+        uint8_t macBytes[6] = {0xFA, 0xKE, (uint8_t)m_nodeId, (uint8_t)i, 0x00, 0x00};
+        identity.fakeMacAddress = Mac48Address();
+        identity.fakeMacAddress.CopyFrom(macBytes);
+        
+        std::ostringstream nameStream;
+        nameStream << "Fake_" << m_nodeId << "_" << i;
+        identity.fakeName = nameStream.str();
+        
+        // Clone a legitimate node?
+        if (m_cloneLegitimateNodes && !m_legitimateNodeIds.empty()) {
+            identity.isClone = true;
+            identity.clonedNodeId = m_legitimateNodeIds[i % m_legitimateNodeIds.size()];
+            
+            std::cout << "  Created CLONED identity " << identity.fakeName 
+                      << " mimicking Node " << identity.clonedNodeId << "\n";
+        } else {
+            identity.isClone = false;
+            std::cout << "  Created NEW identity " << identity.fakeName << "\n";
+        }
+        
+        // Generate fake neighbor list
+        GenerateFakeNeighborList(identity);
+        
+        m_stats.identities.push_back(identity);
+        m_stats.fakeIdentitiesCreated++;
+        
+        if (identity.isClone) {
+            m_stats.clonedIdentities++;
+        }
+    }
+    
+    std::cout << "[SDVN-SYBIL] Node " << m_nodeId << " created " 
+              << m_stats.fakeIdentitiesCreated << " fake identities ("
+              << m_stats.clonedIdentities << " clones)\n";
+}
+
+void SDVNSybilAttackApp::GenerateFakeNeighborList(SDVNSybilIdentity& identity) {
+    // Generate random fake neighbors to pollute controller's view
+    identity.fakeNeighborIds.clear();
+    
+    for (uint32_t i = 0; i < m_fakeNeighborsPerIdentity; i++) {
+        // Mix of real and fake node IDs
+        uint32_t fakeNeighbor;
+        if (i % 2 == 0 && !m_legitimateNodeIds.empty()) {
+            // Use legitimate node ID
+            fakeNeighbor = m_legitimateNodeIds[i % m_legitimateNodeIds.size()];
+        } else {
+            // Use fake node ID
+            fakeNeighbor = 2000 + (m_nodeId * 100) + i;
+        }
+        identity.fakeNeighborIds.push_back(fakeNeighbor);
+    }
+    
+    identity.fakeNeighborCount = identity.fakeNeighborIds.size();
+}
+
+void SDVNSybilAttackApp::SendFakeMetadataToController() {
+    if (!m_attackActive) {
+        return;
+    }
+    
+    std::cout << "[SDVN-SYBIL] Node " << m_nodeId << " sending fake metadata to controller at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+    
+    // For each fake identity, inject fake neighbor data into controller
+    for (auto& identity : m_stats.identities) {
+        // Simulate sending fake metadata packet to controller
+        // In real implementation, this would modify neighbordata_inst
+        
+        std::cout << "  Identity " << identity.fakeName 
+                  << " advertising " << identity.fakeNeighborCount 
+                  << " fake neighbors\n";
+        
+        identity.fakeMetadataPackets++;
+        identity.fakeNeighborUpdates++;
+        m_stats.fakeMetadataPackets++;
+        m_stats.fakeNeighborReports += identity.fakeNeighborCount;
+    }
+    
+    // Calculate pollution score (0-100)
+    m_stats.controllerPollutionScore = std::min(100u, 
+        m_stats.fakeIdentitiesCreated * 10 + 
+        (m_stats.fakeNeighborReports / 10));
+    
+    PolluteLinkLifetimeMatrix();
+}
+
+void SDVNSybilAttackApp::PolluteLinkLifetimeMatrix() {
+    // In SDVN, the controller uses linklifetimeMatrix_dsrc to compute routes
+    // This attack injects fake links into this matrix
+    
+    std::cout << "  [POLLUTION] Injecting fake links into controller's linklifetimeMatrix\n";
+    
+    // Fake links would be added here in the actual implementation:
+    // for each fake identity and its neighbors:
+    //   linklifetimeMatrix_dsrc[fakeId][neighborId] = 0.8 (fake good link)
+    
+    // This pollutes the controller's routing decisions
+}
+
+void SDVNSybilAttackApp::PeriodicMetadataBroadcast() {
+    if (!m_attackActive) {
+        return;
+    }
+    
+    SendFakeMetadataToController();
+    
+    // Schedule next broadcast
+    m_metadataEvent = Simulator::Schedule(Seconds(m_metadataInterval),
+                                          &SDVNSybilAttackApp::PeriodicMetadataBroadcast,
+                                          this);
+}
+
+void SDVNSybilAttackApp::PrintStatistics() const {
+    std::cout << "\n╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║        SDVN SYBIL ATTACK STATISTICS                     ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Real Node ID: " << std::left << std::setw(42) << m_stats.realNodeId << "║" << std::endl;
+    std::cout << "║ Attack Duration: " << std::setw(39) 
+              << (m_stats.attackStopTime - m_stats.attackStartTime).GetSeconds() << "s ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Fake Identities Created:  " << std::setw(30) << m_stats.fakeIdentitiesCreated << "║" << std::endl;
+    std::cout << "║ Cloned Identities:        " << std::setw(30) << m_stats.clonedIdentities << "║" << std::endl;
+    std::cout << "║ Fake Metadata Packets:    " << std::setw(30) << m_stats.fakeMetadataPackets << "║" << std::endl;
+    std::cout << "║ Fake Neighbor Reports:    " << std::setw(30) << m_stats.fakeNeighborReports << "║" << std::endl;
+    std::cout << "║ Controller Pollution:     " << std::setw(29) << m_stats.controllerPollutionScore << "% ║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
+}
+
+// ============================================================================
+// SDVN SYBIL MITIGATION IMPLEMENTATION
+// ============================================================================
+
+NS_OBJECT_ENSURE_REGISTERED(SDVNSybilMitigationManager);
+
+TypeId SDVNSybilMitigationManager::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNSybilMitigationManager")
+        .SetParent<Object>()
+        .AddConstructor<SDVNSybilMitigationManager>();
+    return tid;
+}
+
+SDVNSybilMitigationManager::SDVNSybilMitigationManager()
+    : m_certificationEnabled(true),
+      m_rssiDetectionEnabled(true),
+      m_behavioralAnalysisEnabled(true),
+      m_metadataValidationEnabled(true),
+      m_totalNodes(28),
+      m_maxNeighborsThreshold(10),
+      m_vanetMitigation(nullptr)
+{
+}
+
+SDVNSybilMitigationManager::~SDVNSybilMitigationManager() {
+    m_detectionEvent.Cancel();
+}
+
+void SDVNSybilMitigationManager::Initialize(uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    m_detectionStartTime = Simulator::Now();
+    
+    std::cout << "[SDVN-SYBIL-MITIGATION] Initialized for " << totalNodes << " nodes\n";
+    std::cout << "  Trusted Certification: " << (m_certificationEnabled ? "ENABLED" : "DISABLED") << "\n";
+    std::cout << "  RSSI Detection: " << (m_rssiDetectionEnabled ? "ENABLED" : "DISABLED") << "\n";
+    std::cout << "  Behavioral Analysis: " << (m_behavioralAnalysisEnabled ? "ENABLED" : "DISABLED") << "\n";
+    std::cout << "  Metadata Validation: " << (m_metadataValidationEnabled ? "ENABLED" : "DISABLED") << "\n";
+    std::cout << "  Max Neighbors Threshold: " << m_maxNeighborsThreshold << "\n";
+    
+    // Start periodic detection
+    PeriodicDetectionCheck();
+}
+
+void SDVNSybilMitigationManager::SetKnownMaliciousNodes(const std::vector<uint32_t>& maliciousNodes) {
+    for (uint32_t nodeId : maliciousNodes) {
+        m_knownMaliciousNodes.insert(nodeId);
+    }
+    std::cout << "[SDVN-SYBIL-MITIGATION] Tracking " << maliciousNodes.size() 
+              << " known malicious nodes\n";
+}
+
+void SDVNSybilMitigationManager::EnableTrustedCertification(bool enable) {
+    m_certificationEnabled = enable;
+}
+
+void SDVNSybilMitigationManager::EnableRSSIDetection(bool enable) {
+    m_rssiDetectionEnabled = enable;
+}
+
+void SDVNSybilMitigationManager::EnableBehavioralAnalysis(bool enable) {
+    m_behavioralAnalysisEnabled = enable;
+}
+
+void SDVNSybilMitigationManager::EnableMetadataValidation(bool enable) {
+    m_metadataValidationEnabled = enable;
+}
+
+bool SDVNSybilMitigationManager::AuthenticateNode(uint32_t nodeId, Ipv4Address ip, Mac48Address mac) {
+    if (!m_certificationEnabled) {
+        return true;  // Authentication disabled
+    }
+    
+    m_metrics.runtimeAuthenticationChecks++;
+    
+    // Check if already blacklisted
+    if (IsNodeBlacklisted(nodeId)) {
+        m_metrics.authenticationFailures++;
+        std::cout << "[SDVN-SYBIL-MITIGATION] Node " << nodeId 
+                  << " authentication FAILED (blacklisted)\n";
+        return false;
+    }
+    
+    // Check for duplicate identity
+    if (DetectDuplicateIdentity(nodeId, ip, mac)) {
+        m_metrics.authenticationFailures++;
+        m_metrics.identityChangesDetected++;
+        BlacklistNode(nodeId);
+        std::cout << "[SDVN-SYBIL-MITIGATION] Node " << nodeId 
+                  << " authentication FAILED (duplicate identity)\n";
+        return false;
+    }
+    
+    // Record identity
+    m_nodeIdentities[nodeId] = std::make_pair(ip, mac);
+    m_metrics.authenticationSuccesses++;
+    
+    return true;
+}
+
+bool SDVNSybilMitigationManager::ValidateMetadata(uint32_t nodeId, uint32_t neighborCount) {
+    if (!m_metadataValidationEnabled) {
+        return true;
+    }
+    
+    // Record neighbor count
+    m_neighborCounts[nodeId] = neighborCount;
+    m_lastMetadataTime[nodeId] = Simulator::Now();
+    
+    // Check for abnormal neighbor count
+    if (DetectAbnormalNeighborCount(nodeId, neighborCount)) {
+        m_metrics.abnormalRouteAdvertisementDetected++;
+        BlacklistNode(nodeId);
+        std::cout << "[SDVN-SYBIL-MITIGATION] Node " << nodeId 
+                  << " reported ABNORMAL neighbor count: " << neighborCount << "\n";
+        return false;
+    }
+    
+    return true;
+}
+
+bool SDVNSybilMitigationManager::DetectAbnormalNeighborCount(uint32_t nodeId, uint32_t reportedNeighbors) {
+    // In SDVN, typical neighbor count is 3-8 due to DSRC range
+    // Sybil attackers often report 10+ fake neighbors
+    
+    if (reportedNeighbors > m_maxNeighborsThreshold) {
+        std::cout << "  🚨 ALERT: Node " << nodeId << " reported " 
+                  << reportedNeighbors << " neighbors (threshold: " 
+                  << m_maxNeighborsThreshold << ")\n";
+        return true;
+    }
+    
+    return false;
+}
+
+bool SDVNSybilMitigationManager::DetectDuplicateIdentity(uint32_t nodeId, Ipv4Address ip, Mac48Address mac) {
+    // Check if this IP/MAC is already used by another node
+    for (const auto& pair : m_nodeIdentities) {
+        if (pair.first != nodeId) {
+            if (pair.second.first == ip || pair.second.second == mac) {
+                std::cout << "  🚨 DUPLICATE IDENTITY DETECTED!\n";
+                std::cout << "    Node " << nodeId << " trying to use same IP/MAC as Node " 
+                          << pair.first << "\n";
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+void SDVNSybilMitigationManager::MonitorControllerPollution() {
+    // Check for unusual patterns in controller's neighbor data
+    std::cout << "[SDVN-SYBIL-MITIGATION] Monitoring controller pollution...\n";
+    
+    uint32_t totalNeighbors = 0;
+    uint32_t suspiciousNodes = 0;
+    
+    for (const auto& pair : m_neighborCounts) {
+        totalNeighbors += pair.second;
+        
+        if (pair.second > m_maxNeighborsThreshold) {
+            suspiciousNodes++;
+        }
+    }
+    
+    double avgNeighbors = (double)totalNeighbors / std::max(1u, (uint32_t)m_neighborCounts.size());
+    
+    std::cout << "  Average neighbors per node: " << avgNeighbors << "\n";
+    std::cout << "  Suspicious nodes: " << suspiciousNodes << "\n";
+    
+    if (avgNeighbors > 8.0 || suspiciousNodes > 3) {
+        std::cout << "  ⚠️ HIGH CONTROLLER POLLUTION DETECTED!\n";
+        CleanControllerView();
+    }
+}
+
+void SDVNSybilMitigationManager::BlacklistNode(uint32_t nodeId) {
+    if (m_blacklistedNodes.find(nodeId) == m_blacklistedNodes.end()) {
+        m_blacklistedNodes.insert(nodeId);
+        m_detectedSybilNodes.insert(nodeId);
+        
+        m_metrics.nodesBlacklisted++;
+        m_metrics.totalSybilNodesMitigated++;
+        
+        // Check if correctly detected
+        if (m_knownMaliciousNodes.find(nodeId) != m_knownMaliciousNodes.end()) {
+            m_metrics.truePositives++;
+        } else {
+            m_metrics.falsePositives++;
+        }
+        
+        std::cout << "[SDVN-SYBIL-MITIGATION] 🚫 BLACKLISTED Node " << nodeId << "\n";
+        
+        // Trigger route recomputation
+        RecomputeRoutesExcludingBlacklisted();
+    }
+}
+
+void SDVNSybilMitigationManager::BlacklistFakeIdentity(Ipv4Address ip) {
+    m_blacklistedIps.insert(ip);
+    m_metrics.totalFakeIdentitiesBlocked++;
+    
+    std::cout << "[SDVN-SYBIL-MITIGATION] 🚫 BLACKLISTED IP " << ip << "\n";
+}
+
+bool SDVNSybilMitigationManager::IsNodeBlacklisted(uint32_t nodeId) const {
+    return m_blacklistedNodes.find(nodeId) != m_blacklistedNodes.end();
+}
+
+void SDVNSybilMitigationManager::CleanControllerView() {
+    std::cout << "[SDVN-SYBIL-MITIGATION] Cleaning controller view...\n";
+    
+    // Remove fake neighbor entries from controller
+    uint32_t entriesRemoved = 0;
+    
+    for (uint32_t blacklistedNode : m_blacklistedNodes) {
+        // In real implementation, set linklifetimeMatrix_dsrc[blacklistedNode][*] = 0
+        entriesRemoved += m_neighborCounts[blacklistedNode];
+    }
+    
+    std::cout << "  Removed " << entriesRemoved << " corrupted neighbor entries\n";
+}
+
+void SDVNSybilMitigationManager::RecomputeRoutesExcludingBlacklisted() {
+    std::cout << "[SDVN-SYBIL-MITIGATION] Recomputing routes excluding blacklisted nodes...\n";
+    
+    // In real implementation:
+    // 1. Set linklifetimeMatrix_dsrc[blacklistedNode][*] = 0
+    // 2. Set linklifetimeMatrix_dsrc[*][blacklistedNode] = 0
+    // 3. Trigger controller to recompute delta values
+    
+    std::cout << "  Excluded " << m_blacklistedNodes.size() << " nodes from routing\n";
+}
+
+void SDVNSybilMitigationManager::IntegrateWithVANETMitigation(SybilMitigationManager* vanetMitigation) {
+    m_vanetMitigation = vanetMitigation;
+    std::cout << "[SDVN-SYBIL-MITIGATION] Integrated with VANET mitigation system\n";
+}
+
+void SDVNSybilMitigationManager::PeriodicDetectionCheck() {
+    MonitorControllerPollution();
+    CalculateDetectionAccuracy();
+    
+    // Schedule next check
+    m_detectionEvent = Simulator::Schedule(Seconds(2.0),
+                                           &SDVNSybilMitigationManager::PeriodicDetectionCheck,
+                                           this);
+}
+
+void SDVNSybilMitigationManager::CalculateDetectionAccuracy() {
+    uint32_t totalDetections = m_metrics.truePositives + m_metrics.falsePositives;
+    
+    if (totalDetections > 0) {
+        m_metrics.detectionAccuracy = (double)m_metrics.truePositives / totalDetections * 100.0;
+    }
+    
+    m_metrics.authenticationSuccessRate = 0.0;
+    uint32_t totalAuth = m_metrics.authenticationSuccesses + m_metrics.authenticationFailures;
+    if (totalAuth > 0) {
+        m_metrics.authenticationSuccessRate = (double)m_metrics.authenticationSuccesses / totalAuth * 100.0;
+    }
+}
+
+void SDVNSybilMitigationManager::PrintStatistics() const {
+    std::cout << "\n╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║      SDVN SYBIL MITIGATION STATISTICS                   ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Detection Accuracy:       " << std::setw(29) << std::fixed << std::setprecision(2) 
+              << m_metrics.detectionAccuracy << "% ║" << std::endl;
+    std::cout << "║ Sybil Nodes Detected:     " << std::setw(30) << m_detectedSybilNodes.size() << "║" << std::endl;
+    std::cout << "║ Nodes Blacklisted:        " << std::setw(30) << m_metrics.nodesBlacklisted << "║" << std::endl;
+    std::cout << "║ True Positives:           " << std::setw(30) << m_metrics.truePositives << "║" << std::endl;
+    std::cout << "║ False Positives:          " << std::setw(30) << m_metrics.falsePositives << "║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Authentication Checks:    " << std::setw(30) << m_metrics.runtimeAuthenticationChecks << "║" << std::endl;
+    std::cout << "║ Auth Success Rate:        " << std::setw(29) << m_metrics.authenticationSuccessRate << "% ║" << std::endl;
+    std::cout << "║ Abnormal Neighbor Counts: " << std::setw(30) << m_metrics.abnormalRouteAdvertisementDetected << "║" << std::endl;
+    std::cout << "║ Duplicate Identities:     " << std::setw(30) << m_metrics.identityChangesDetected << "║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
+}
+
+void SDVNSybilMitigationManager::ExportStatistics(const std::string& filename) const {
+    std::ofstream outFile(filename);
+    
+    if (!outFile.is_open()) {
+        std::cerr << "[ERROR] Could not open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "SDVN Sybil Mitigation Statistics\n";
+    outFile << "================================\n\n";
+    outFile << "Detection Accuracy: " << m_metrics.detectionAccuracy << "%\n";
+    outFile << "Nodes Blacklisted: " << m_metrics.nodesBlacklisted << "\n";
+    outFile << "True Positives: " << m_metrics.truePositives << "\n";
+    outFile << "False Positives: " << m_metrics.falsePositives << "\n";
+    outFile << "Authentication Success Rate: " << m_metrics.authenticationSuccessRate << "%\n";
+    
+    outFile.close();
+    std::cout << "[SDVN-SYBIL-MITIGATION] Statistics exported to " << filename << "\n";
+}
+
+// ============================================================================
+// SDVN SYBIL PERFORMANCE MONITOR IMPLEMENTATION
+// ============================================================================
+
+NS_OBJECT_ENSURE_REGISTERED(SDVNSybilPerformanceMonitor);
+
+TypeId SDVNSybilPerformanceMonitor::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNSybilPerformanceMonitor")
+        .SetParent<Object>()
+        .AddConstructor<SDVNSybilPerformanceMonitor>();
+    return tid;
+}
+
+SDVNSybilPerformanceMonitor::SDVNSybilPerformanceMonitor()
+    : m_monitoring(false)
+{
+}
+
+SDVNSybilPerformanceMonitor::~SDVNSybilPerformanceMonitor() {
+    m_snapshotEvent.Cancel();
+}
+
+void SDVNSybilPerformanceMonitor::Initialize(std::string scenario) {
+    m_scenario = scenario;
+    std::cout << "[SDVN-SYBIL-MONITOR] Initialized for scenario: " << scenario << std::endl;
+}
+
+void SDVNSybilPerformanceMonitor::StartMonitoring() {
+    m_monitoring = true;
+    m_currentMetrics.timestamp = Simulator::Now();
+    
+    ScheduleNextSnapshot();
+    
+    std::cout << "[SDVN-SYBIL-MONITOR] Monitoring started at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+}
+
+void SDVNSybilPerformanceMonitor::StopMonitoring() {
+    m_monitoring = false;
+    m_snapshotEvent.Cancel();
+    
+    std::cout << "[SDVN-SYBIL-MONITOR] Monitoring stopped at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+}
+
+void SDVNSybilPerformanceMonitor::PacketSent(uint32_t fromNode, uint32_t toNode) {
+    if (!m_monitoring) return;
+    m_currentMetrics.packetsSent++;
+}
+
+void SDVNSybilPerformanceMonitor::PacketReceived(uint32_t atNode) {
+    if (!m_monitoring) return;
+    m_currentMetrics.packetsDelivered++;
+}
+
+void SDVNSybilPerformanceMonitor::PacketDropped(uint32_t atNode, std::string reason) {
+    if (!m_monitoring) return;
+    m_currentMetrics.packetsDropped++;
+}
+
+void SDVNSybilPerformanceMonitor::FakeIdentityCreated(uint32_t realNode, uint32_t fakeId) {
+    if (!m_monitoring) return;
+    m_currentMetrics.fakeIdentitiesActive++;
+}
+
+void SDVNSybilPerformanceMonitor::FakeMetadataInjected(uint32_t realNode) {
+    if (!m_monitoring) return;
+    m_currentMetrics.fakeMetadataPackets++;
+}
+
+void SDVNSybilPerformanceMonitor::ControllerPolluted(uint32_t corruptedEntries) {
+    if (!m_monitoring) return;
+    m_currentMetrics.corruptedNeighborEntries = corruptedEntries;
+    m_currentMetrics.controllerPollutionLevel = std::min(100u, corruptedEntries * 5);
+}
+
+void SDVNSybilPerformanceMonitor::FlowAffectedBySybil(uint32_t flowId) {
+    if (!m_monitoring) return;
+    m_currentMetrics.affectedFlows++;
+}
+
+void SDVNSybilPerformanceMonitor::SybilDetected(uint32_t nodeId, Time detectionTime) {
+    if (!m_monitoring) return;
+    m_currentMetrics.identitiesDetected++;
+    m_currentMetrics.detectionTime = detectionTime;
+    
+    std::cout << "[SDVN-SYBIL-MONITOR] Sybil detected: Node " << nodeId 
+              << " at " << detectionTime.GetSeconds() << "s\n";
+}
+
+void SDVNSybilPerformanceMonitor::NodeBlacklisted(uint32_t nodeId) {
+    if (!m_monitoring) return;
+    m_currentMetrics.nodesBlacklisted++;
+}
+
+void SDVNSybilPerformanceMonitor::ControllerViewCleaned(uint32_t entriesRemoved) {
+    if (!m_monitoring) return;
+    std::cout << "[SDVN-SYBIL-MONITOR] Controller view cleaned: " 
+              << entriesRemoved << " entries removed\n";
+}
+
+void SDVNSybilPerformanceMonitor::TakeSnapshot() {
+    if (!m_monitoring) return;
+    
+    CalculateMetrics();
+    
+    SDVNSybilPerformanceMetrics snapshot = m_currentMetrics;
+    snapshot.timestamp = Simulator::Now();
+    
+    m_snapshots.push_back(snapshot);
+}
+
+void SDVNSybilPerformanceMonitor::CalculateMetrics() {
+    // Calculate PDR
+    if (m_currentMetrics.packetsSent > 0) {
+        m_currentMetrics.pdr = (double)m_currentMetrics.packetsDelivered / 
+                               m_currentMetrics.packetsSent * 100.0;
+    }
+    
+    // Calculate detection accuracy
+    uint32_t totalDetections = m_currentMetrics.identitiesDetected;
+    if (totalDetections > 0) {
+        m_currentMetrics.detectionAccuracy = 
+            (double)m_currentMetrics.identitiesDetected / totalDetections * 100.0;
+    }
+}
+
+void SDVNSybilPerformanceMonitor::ScheduleNextSnapshot() {
+    m_snapshotEvent = Simulator::Schedule(Seconds(1.0),
+                                          &SDVNSybilPerformanceMonitor::TakeSnapshot,
+                                          this);
+}
+
+void SDVNSybilPerformanceMonitor::ExportToCSV(const std::string& filename) {
+    std::ofstream csvFile(filename);
+    
+    if (!csvFile.is_open()) {
+        std::cerr << "[ERROR] Could not open file: " << filename << std::endl;
+        return;
+    }
+    
+    // CSV Header
+    csvFile << "Time(s),PDR(%),Latency_Avg(ms),Overhead(%),";
+    csvFile << "FakeIdentities,FakeMetadata,ControllerPollution(%),AffectedFlows,";
+    csvFile << "IdentitiesDetected,NodesBlacklisted,DetectionAccuracy(%),";
+    csvFile << "CorruptedEntries,InvalidRoutes,PacketsSent,PacketsDelivered,PacketsDropped\n";
+    
+    // Data rows
+    for (const auto& snapshot : m_snapshots) {
+        csvFile << snapshot.timestamp.GetSeconds() << ","
+                << snapshot.pdr << ","
+                << snapshot.avgLatency << ","
+                << snapshot.overhead << ","
+                << snapshot.fakeIdentitiesActive << ","
+                << snapshot.fakeMetadataPackets << ","
+                << snapshot.controllerPollutionLevel << ","
+                << snapshot.affectedFlows << ","
+                << snapshot.identitiesDetected << ","
+                << snapshot.nodesBlacklisted << ","
+                << snapshot.detectionAccuracy << ","
+                << snapshot.corruptedNeighborEntries << ","
+                << snapshot.invalidRoutesComputed << ","
+                << snapshot.packetsSent << ","
+                << snapshot.packetsDelivered << ","
+                << snapshot.packetsDropped << "\n";
+    }
+    
+    csvFile.close();
+    std::cout << "[SDVN-SYBIL-MONITOR] CSV exported to " << filename << "\n";
+}
+
+void SDVNSybilPerformanceMonitor::PrintSummary() const {
+    std::cout << "\n╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║   SDVN SYBIL ATTACK PERFORMANCE SUMMARY                 ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Scenario: " << std::left << std::setw(48) << m_scenario << "║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Network Performance                                      ║" << std::endl;
+    std::cout << "║   PDR:                    " << std::setw(29) << std::fixed << std::setprecision(2) 
+              << m_currentMetrics.pdr << "% ║" << std::endl;
+    std::cout << "║   Avg Latency:            " << std::setw(28) << m_currentMetrics.avgLatency << " ms ║" << std::endl;
+    std::cout << "║   Overhead:               " << std::setw(29) << m_currentMetrics.overhead << "% ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Attack Impact                                            ║" << std::endl;
+    std::cout << "║   Fake Identities:        " << std::setw(30) << m_currentMetrics.fakeIdentitiesActive << "║" << std::endl;
+    std::cout << "║   Fake Metadata Packets:  " << std::setw(30) << m_currentMetrics.fakeMetadataPackets << "║" << std::endl;
+    std::cout << "║   Controller Pollution:   " << std::setw(29) << m_currentMetrics.controllerPollutionLevel << "% ║" << std::endl;
+    std::cout << "║   Affected Flows:         " << std::setw(30) << m_currentMetrics.affectedFlows << "║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Mitigation Results                                       ║" << std::endl;
+    std::cout << "║   Identities Detected:    " << std::setw(30) << m_currentMetrics.identitiesDetected << "║" << std::endl;
+    std::cout << "║   Nodes Blacklisted:      " << std::setw(30) << m_currentMetrics.nodesBlacklisted << "║" << std::endl;
+    std::cout << "║   Detection Accuracy:     " << std::setw(29) << m_currentMetrics.detectionAccuracy << "% ║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
 }
 
 // ============================================================================
