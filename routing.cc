@@ -82,6 +82,8 @@ class SDVNPacketTag;
 class SDVNPerformanceMonitor;
 
 // SDVN Blackhole attack classes
+struct SimpleBlackholeStatistics;
+class SimpleSDVNBlackholeApp;
 struct SDVNBlackholeStatistics;
 class SDVNBlackholeAttackApp;
 class SDVNBlackholeMitigationManager;
@@ -755,7 +757,84 @@ private:
 };
 
 /**
- * @brief SDVN Blackhole Attack Statistics
+ * @brief Simple SDVN Blackhole Attack Statistics
+ */
+struct SimpleBlackholeStatistics {
+    uint32_t nodeId;
+    uint32_t packetsIntercepted;      // Data packets intercepted
+    uint32_t packetsDropped;          // Data packets dropped (blackhole behavior)
+    uint32_t packetsForwarded;        // Data packets forwarded (selective behavior)
+    Time attackStartTime;
+    Time attackStopTime;
+    bool isActive;
+    
+    SimpleBlackholeStatistics() 
+        : nodeId(0), packetsIntercepted(0),
+          packetsDropped(0), packetsForwarded(0),
+          attackStartTime(Seconds(0)), attackStopTime(Seconds(0)), 
+          isActive(false) {}
+};
+
+/**
+ * @brief Simple SDVN Blackhole Attack Application
+ * 
+ * SIMPLIFIED blackhole attack for SDVN (NO controller manipulation):
+ * 1. Node simply drops data packets that pass through it
+ * 2. Does NOT send fake metadata to controller
+ * 3. Does NOT advertise fake connectivity
+ * 4. Just intercepts and drops packets (pure packet-level attack)
+ * 
+ * Advantage: Much simpler, easier to implement
+ * Effect: Only affects traffic naturally routed through malicious node
+ * 
+ * Usage:
+ *   Ptr<SimpleSDVNBlackholeApp> blackhole = CreateObject<SimpleSDVNBlackholeApp>();
+ *   blackhole->SetNodeId(5);
+ *   blackhole->SetDropProbability(1.0);  // Drop 100% of packets
+ *   node->AddApplication(blackhole);
+ */
+class SimpleSDVNBlackholeApp : public Application {
+public:
+    static TypeId GetTypeId(void);
+    
+    SimpleSDVNBlackholeApp();
+    virtual ~SimpleSDVNBlackholeApp();
+    
+    // Configuration
+    void SetNodeId(uint32_t nodeId);
+    void SetDropProbability(double probability);  // 0.0 = forward all, 1.0 = drop all
+    void SetDropDataOnly(bool dataOnly);          // If true, only drop data packets (not control)
+    
+    // Attack lifecycle
+    void ActivateAttack();
+    void DeactivateAttack();
+    bool IsAttackActive() const { return m_attackActive; }
+    
+    // Statistics
+    SimpleBlackholeStatistics GetStatistics() const { return m_stats; }
+    void PrintStatistics() const;
+    
+protected:
+    virtual void StartApplication(void) override;
+    virtual void StopApplication(void) override;
+    
+private:
+    bool InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet,
+                        uint16_t protocol, const Address& from,
+                        const Address& to, NetDevice::PacketType packetType);
+    bool ShouldDropPacket(Ptr<const Packet> packet);
+    bool IsControlPacket(Ptr<const Packet> packet, uint16_t protocol);
+    
+    uint32_t m_nodeId;
+    bool m_attackActive;
+    double m_dropProbability;  // Probability of dropping (0.0-1.0)
+    bool m_dropDataOnly;       // Only drop data packets, forward control packets
+    
+    SimpleBlackholeStatistics m_stats;
+};
+
+/**
+ * @brief SDVN Blackhole Attack Statistics (Complex version with controller manipulation)
  */
 struct SDVNBlackholeStatistics {
     uint32_t nodeId;
@@ -97985,7 +98064,168 @@ void SDVNPerformanceMonitor::PrintSummary() {
 }
 
 // ============================================================================
-// SDVN BLACKHOLE ATTACK IMPLEMENTATION
+// SIMPLE SDVN BLACKHOLE ATTACK IMPLEMENTATION (NO CONTROLLER MANIPULATION)
+// ============================================================================
+
+NS_OBJECT_ENSURE_REGISTERED(SimpleSDVNBlackholeApp);
+
+TypeId SimpleSDVNBlackholeApp::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SimpleSDVNBlackholeApp")
+        .SetParent<Application>()
+        .AddConstructor<SimpleSDVNBlackholeApp>();
+    return tid;
+}
+
+SimpleSDVNBlackholeApp::SimpleSDVNBlackholeApp()
+    : m_nodeId(0),
+      m_attackActive(false),
+      m_dropProbability(1.0),
+      m_dropDataOnly(true)
+{
+    m_stats = SimpleBlackholeStatistics();
+}
+
+SimpleSDVNBlackholeApp::~SimpleSDVNBlackholeApp() {
+    PrintStatistics();
+}
+
+void SimpleSDVNBlackholeApp::SetNodeId(uint32_t nodeId) {
+    m_nodeId = nodeId;
+    m_stats.nodeId = nodeId;
+}
+
+void SimpleSDVNBlackholeApp::SetDropProbability(double probability) {
+    m_dropProbability = std::min(1.0, std::max(0.0, probability));
+    std::cout << "[SIMPLE-BLACKHOLE] Node " << m_nodeId 
+              << " drop probability set to " << (m_dropProbability * 100.0) << "%\n";
+}
+
+void SimpleSDVNBlackholeApp::SetDropDataOnly(bool dataOnly) {
+    m_dropDataOnly = dataOnly;
+    std::cout << "[SIMPLE-BLACKHOLE] Node " << m_nodeId 
+              << " will drop " << (dataOnly ? "DATA ONLY" : "ALL PACKETS") << "\n";
+}
+
+void SimpleSDVNBlackholeApp::ActivateAttack() {
+    m_attackActive = true;
+    m_stats.isActive = true;
+    m_stats.attackStartTime = Simulator::Now();
+    
+    std::cout << "[SIMPLE-BLACKHOLE] Node " << m_nodeId << " ATTACK ACTIVATED at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+    std::cout << "  Drop Probability: " << (m_dropProbability * 100.0) << "%\n";
+    std::cout << "  Drop Mode: " << (m_dropDataOnly ? "Data Only" : "All Packets") << "\n";
+}
+
+void SimpleSDVNBlackholeApp::DeactivateAttack() {
+    m_attackActive = false;
+    m_stats.isActive = false;
+    m_stats.attackStopTime = Simulator::Now();
+    
+    std::cout << "[SIMPLE-BLACKHOLE] Node " << m_nodeId << " ATTACK DEACTIVATED at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+}
+
+void SimpleSDVNBlackholeApp::StartApplication(void) {
+    std::cout << "[SIMPLE-BLACKHOLE] Node " << m_nodeId << " application started\n";
+    
+    // Install packet interception callback on all devices
+    for (uint32_t i = 0; i < GetNode()->GetNDevices(); i++) {
+        Ptr<NetDevice> device = GetNode()->GetDevice(i);
+        device->SetPromiscReceiveCallback(
+            MakeCallback(&SimpleSDVNBlackholeApp::InterceptPacket, this));
+    }
+    
+    std::cout << "[SIMPLE-BLACKHOLE] Node " << m_nodeId << " ready to drop packets\n";
+}
+
+void SimpleSDVNBlackholeApp::StopApplication(void) {
+    std::cout << "[SIMPLE-BLACKHOLE] Node " << m_nodeId << " application stopped\n";
+    PrintStatistics();
+}
+
+bool SimpleSDVNBlackholeApp::InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet,
+                                             uint16_t protocol, const Address& from,
+                                             const Address& to, NetDevice::PacketType packetType)
+{
+    if (!m_attackActive) {
+        return false;  // Attack not active, don't drop
+    }
+    
+    // Only intercept packets being forwarded through this node
+    if (packetType != NetDevice::PACKET_OTHERHOST) {
+        return false;  // Not a forwarded packet, don't drop
+    }
+    
+    m_stats.packetsIntercepted++;
+    
+    // Check if this is a control packet
+    if (m_dropDataOnly && IsControlPacket(packet, protocol)) {
+        m_stats.packetsForwarded++;
+        return false;  // Don't drop control packets
+    }
+    
+    // Decide whether to drop based on probability
+    if (ShouldDropPacket(packet)) {
+        m_stats.packetsDropped++;
+        
+        if (m_stats.packetsDropped % 100 == 1) {  // Log every 100th drop
+            std::cout << "[SIMPLE-BLACKHOLE] Node " << m_nodeId << " DROPPED packet " 
+                      << m_stats.packetsDropped << " at " 
+                      << Simulator::Now().GetSeconds() << "s\n";
+        }
+        
+        return true;  // DROP PACKET!
+    } else {
+        m_stats.packetsForwarded++;
+        return false;  // Forward packet
+    }
+}
+
+bool SimpleSDVNBlackholeApp::ShouldDropPacket(Ptr<const Packet> packet) {
+    // Drop based on configured probability
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_real_distribution<> dis(0.0, 1.0);
+    
+    return (dis(gen) < m_dropProbability);
+}
+
+bool SimpleSDVNBlackholeApp::IsControlPacket(Ptr<const Packet> packet, uint16_t protocol) {
+    // Check if this is a control packet (LTE metadata/delta, AODV, etc.)
+    // For simplicity, check port numbers or protocol types
+    
+    // UDP port 7777 is used for controller communication (metadata/delta)
+    if (protocol == 0x0800) {  // IPv4
+        // Would need to parse packet to check port, simplified here
+        // Assume small packets are control packets
+        return (packet->GetSize() < 500);
+    }
+    
+    return false;
+}
+
+void SimpleSDVNBlackholeApp::PrintStatistics() const {
+    std::cout << "\n╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║    SIMPLE SDVN BLACKHOLE ATTACK STATISTICS              ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Node ID: " << std::left << std::setw(47) << m_stats.nodeId << "║" << std::endl;
+    std::cout << "║ Attack Duration: " << std::setw(39) << (m_stats.attackStopTime - m_stats.attackStartTime).GetSeconds() << "s ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Packets Intercepted:      " << std::setw(30) << m_stats.packetsIntercepted << "║" << std::endl;
+    std::cout << "║ Packets Dropped:          " << std::setw(30) << m_stats.packetsDropped << "║" << std::endl;
+    std::cout << "║ Packets Forwarded:        " << std::setw(30) << m_stats.packetsForwarded << "║" << std::endl;
+    
+    if (m_stats.packetsIntercepted > 0) {
+        double dropRate = (double)m_stats.packetsDropped / m_stats.packetsIntercepted * 100.0;
+        std::cout << "║ Drop Rate:                " << std::setw(29) << std::fixed << std::setprecision(2) << dropRate << "% ║" << std::endl;
+    }
+    
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
+}
+
+// ============================================================================
+// SDVN BLACKHOLE ATTACK IMPLEMENTATION (WITH CONTROLLER MANIPULATION)
 // ============================================================================
 
 NS_OBJECT_ENSURE_REGISTERED(SDVNBlackholeAttackApp);
