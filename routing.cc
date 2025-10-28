@@ -81,6 +81,13 @@ struct SDVNPerformanceMetrics;
 class SDVNPacketTag;
 class SDVNPerformanceMonitor;
 
+// SDVN Blackhole attack classes
+struct SDVNBlackholeStatistics;
+class SDVNBlackholeAttackApp;
+class SDVNBlackholeMitigationManager;
+struct SDVNBlackholePerformanceMetrics;
+class SDVNBlackholePerformanceMonitor;
+
 // Forward declarations for Sybil attack classes
 struct SybilIdentity;
 struct SybilStatistics;
@@ -745,6 +752,286 @@ private:
     
     void UpdateNodeStatistics(uint32_t nodeId);
     void DetectBlackholeNodes();  // Correlate with blackhole attack manager
+};
+
+/**
+ * @brief SDVN Blackhole Attack Statistics
+ */
+struct SDVNBlackholeStatistics {
+    uint32_t nodeId;
+    uint32_t fakeMetadatasSent;      // Fake neighbor advertisements sent to controller
+    uint32_t packetsIntercepted;      // Data packets intercepted
+    uint32_t packetsDropped;          // Data packets dropped (blackhole behavior)
+    uint32_t packetsForwarded;        // Data packets forwarded (selective behavior)
+    uint32_t attractedFlows;          // Number of flows routed through this node
+    Time attackStartTime;
+    Time attackStopTime;
+    bool isActive;
+    
+    SDVNBlackholeStatistics() 
+        : nodeId(0), fakeMetadatasSent(0), packetsIntercepted(0),
+          packetsDropped(0), packetsForwarded(0), attractedFlows(0),
+          attackStartTime(Seconds(0)), attackStopTime(Seconds(0)), 
+          isActive(false) {}
+};
+
+/**
+ * @brief SDVN Blackhole Attack Application
+ * 
+ * Implements blackhole attack for SDVN by:
+ * 1. Advertising fake connectivity to controller (appears as hub node)
+ * 2. Attracting traffic through poisoned routing computation
+ * 3. Dropping attracted packets (creating blackhole effect)
+ * 4. Operating at controller-communication level (SDVN-specific)
+ */
+class SDVNBlackholeAttackApp : public Application {
+public:
+    static TypeId GetTypeId(void);
+    
+    SDVNBlackholeAttackApp();
+    virtual ~SDVNBlackholeAttackApp();
+    
+    // Configuration
+    void SetNodeId(uint32_t nodeId);
+    void SetLinkDiscovery(Ptr<LinkDiscoveryModule> linkDiscovery);
+    void SetAttackMode(bool advertiseAsHub, bool dropPackets, double dropProbability = 1.0);
+    void SetFakeNeighbors(std::vector<uint32_t> fakeNeighbors);
+    
+    // Attack lifecycle
+    void ActivateAttack();
+    void DeactivateAttack();
+    bool IsAttackActive() const { return m_attackActive; }
+    
+    // Statistics
+    SDVNBlackholeStatistics GetStatistics() const { return m_stats; }
+    void PrintStatistics() const;
+    
+protected:
+    virtual void StartApplication(void) override;
+    virtual void StopApplication(void) override;
+    
+private:
+    // Core attack methods
+    void SendFakeMetadataToController();
+    bool InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet,
+                        uint16_t protocol, const Address& from,
+                        const Address& to, NetDevice::PacketType packetType);
+    bool ShouldDropPacket(Ptr<const Packet> packet);
+    
+    uint32_t m_nodeId;
+    Ptr<LinkDiscoveryModule> m_linkDiscovery;
+    
+    // Attack configuration
+    bool m_attackActive;
+    bool m_advertiseAsHub;      // Advertise as highly connected hub
+    bool m_dropPackets;         // Drop intercepted packets
+    double m_dropProbability;   // Probability of dropping (1.0 = always drop)
+    
+    std::vector<uint32_t> m_realNeighbors;
+    std::vector<uint32_t> m_fakeNeighbors;
+    
+    // Statistics
+    SDVNBlackholeStatistics m_stats;
+    
+    // Event scheduling
+    EventId m_fakeMetadataEvent;
+};
+
+/**
+ * @brief SDVN Blackhole Mitigation Manager
+ * 
+ * Detects and mitigates SDVN blackhole attacks by:
+ * 1. Monitoring packet delivery ratio per node
+ * 2. Detecting nodes with abnormally low PDR (blackhole indicators)
+ * 3. Analyzing controller's routing decisions for suspicious patterns
+ * 4. Excluding detected blackhole nodes from routing computation
+ * 5. Tracking recovery metrics
+ */
+class SDVNBlackholeMitigationManager : public Object {
+public:
+    static TypeId GetTypeId(void);
+    
+    SDVNBlackholeMitigationManager();
+    virtual ~SDVNBlackholeMitigationManager();
+    
+    // Initialization
+    void Initialize(uint32_t totalNodes, double pdrThreshold = 0.5);
+    void EnableMitigation(bool enable);
+    
+    // Packet tracking (called from routing callbacks)
+    void RecordPacketSent(uint32_t srcNode, uint32_t dstNode, uint32_t viaNode, uint32_t packetId);
+    void RecordPacketReceived(uint32_t srcNode, uint32_t dstNode, uint32_t packetId);
+    void RecordPacketDropped(uint32_t srcNode, uint32_t dstNode, uint32_t viaNode, uint32_t packetId);
+    
+    // Detection
+    void AnalyzeNodeBehavior(uint32_t nodeId);
+    void PeriodicDetection();
+    bool IsNodeBlacklisted(uint32_t nodeId) const;
+    
+    // Mitigation
+    void BlacklistNode(uint32_t nodeId);
+    void ExcludeFromRouting(uint32_t nodeId);
+    bool ShouldExcludeNode(uint32_t nodeId) const;
+    
+    // Statistics
+    uint32_t GetBlacklistedNodeCount() const;
+    double GetOverallPDR() const;
+    void PrintStatistics() const;
+    void ExportToCSV(const std::string& filename) const;
+    
+private:
+    struct NodeMonitoring {
+        uint32_t nodeId;
+        uint32_t packetsSentVia;      // Packets routed through this node
+        uint32_t packetsDelivered;     // Packets successfully delivered
+        uint32_t packetsDropped;       // Packets dropped/lost
+        double deliveryRatio;          // PDR for this node
+        bool isBlacklisted;
+        Time blacklistTime;
+        Time lastAnalysisTime;
+    };
+    
+    struct FlowRecord {
+        uint32_t packetId;
+        uint32_t srcNode;
+        uint32_t dstNode;
+        uint32_t viaNode;
+        Time sentTime;
+        bool delivered;
+    };
+    
+    bool m_mitigationEnabled;
+    uint32_t m_totalNodes;
+    double m_pdrThreshold;  // PDR below this triggers blacklisting
+    
+    std::map<uint32_t, NodeMonitoring> m_nodeMonitoring;
+    std::map<uint32_t, FlowRecord> m_flowRecords;
+    std::set<uint32_t> m_blacklistedNodes;
+    
+    uint32_t m_totalPacketsSent;
+    uint32_t m_totalPacketsDelivered;
+    uint32_t m_totalPacketsDropped;
+    
+    EventId m_periodicDetectionEvent;
+    
+    void UpdateNodeStatistics(uint32_t nodeId);
+    void DetectBlackholeNodes();
+};
+
+/**
+ * @brief SDVN Blackhole Performance Metrics
+ * 
+ * Extended metrics for blackhole attack evaluation
+ */
+struct SDVNBlackholePerformanceMetrics {
+    // Packet Delivery Ratio (PDR)
+    uint32_t totalPacketsSent;
+    uint32_t totalPacketsReceived;
+    uint32_t totalPacketsDropped;
+    double packetDeliveryRatio;
+    
+    // Latency
+    double avgLatencyMs;
+    double minLatencyMs;
+    double maxLatencyMs;
+    std::vector<double> latencySamples;
+    
+    // Overhead (OH)
+    uint32_t controlPackets;       // Metadata uplink + delta downlink
+    uint32_t dataPackets;           // Application data packets
+    double overheadRatio;
+    
+    // Blackhole-specific metrics
+    uint32_t packetsDroppedByBlackhole;
+    uint32_t flowsAffectedByBlackhole;
+    uint32_t blackholeNodesDetected;
+    uint32_t falsePositives;        // Normal nodes wrongly blacklisted
+    uint32_t falseNegatives;        // Blackhole nodes not detected
+    
+    // Mitigation effectiveness
+    double pdrBeforeMitigation;
+    double pdrAfterMitigation;
+    double recoveryPercentage;
+    Time detectionTime;             // Time to detect blackhole
+    Time mitigationTime;            // Time to apply mitigation
+    
+    std::string scenario;           // "baseline", "under_attack", "with_mitigation"
+    Time timestamp;
+    
+    SDVNBlackholePerformanceMetrics()
+        : totalPacketsSent(0), totalPacketsReceived(0), totalPacketsDropped(0),
+          packetDeliveryRatio(0.0), avgLatencyMs(0.0), minLatencyMs(9999.0), maxLatencyMs(0.0),
+          controlPackets(0), dataPackets(0), overheadRatio(0.0),
+          packetsDroppedByBlackhole(0), flowsAffectedByBlackhole(0),
+          blackholeNodesDetected(0), falsePositives(0), falseNegatives(0),
+          pdrBeforeMitigation(0.0), pdrAfterMitigation(0.0), recoveryPercentage(0.0),
+          detectionTime(Seconds(0)), mitigationTime(Seconds(0)),
+          scenario("baseline"), timestamp(Seconds(0)) {}
+};
+
+/**
+ * @brief SDVN Blackhole Performance Monitor
+ * 
+ * Collects and exports comprehensive performance metrics for blackhole attack evaluation
+ */
+class SDVNBlackholePerformanceMonitor : public Object {
+public:
+    static TypeId GetTypeId(void);
+    
+    SDVNBlackholePerformanceMonitor();
+    virtual ~SDVNBlackholePerformanceMonitor();
+    
+    // Initialization
+    void Initialize(std::string scenario);
+    void StartMonitoring();
+    void StopMonitoring();
+    
+    // Packet tracking
+    void PacketSent(Ptr<const Packet> packet, uint32_t fromNode, uint32_t toNode, bool isControl);
+    void PacketReceived(Ptr<const Packet> packet, uint32_t atNode);
+    void PacketDropped(Ptr<const Packet> packet, uint32_t atNode, std::string reason);
+    
+    // Blackhole-specific tracking
+    void BlackholePacketDrop(uint32_t blackholeNode, uint32_t packetId);
+    void BlackholeDetected(uint32_t nodeId, Time detectionTime);
+    void MitigationApplied(uint32_t nodeId, Time mitigationTime);
+    void FlowAffected(uint32_t flowId, uint32_t blackholeNode);
+    
+    // Snapshot and export
+    void TakeSnapshot();
+    void ExportToCSV(const std::string& filename);
+    void PrintSummary() const;
+    
+    // Getters
+    SDVNBlackholePerformanceMetrics GetCurrentMetrics() const { return m_currentMetrics; }
+    double GetPacketDeliveryRatio() const;
+    double GetAverageLatency() const;
+    double GetOverheadRatio() const;
+    
+private:
+    struct PacketInfo {
+        uint32_t packetId;
+        uint32_t srcNode;
+        uint32_t dstNode;
+        Time sendTime;
+        Time receiveTime;
+        bool isControl;
+        bool delivered;
+        bool droppedByBlackhole;
+    };
+    
+    std::string m_scenario;
+    bool m_monitoring;
+    
+    SDVNBlackholePerformanceMetrics m_currentMetrics;
+    std::vector<SDVNBlackholePerformanceMetrics> m_snapshots;
+    std::map<uint32_t, PacketInfo> m_packetRecords;
+    
+    uint32_t m_nextPacketId;
+    EventId m_snapshotEvent;
+    
+    void CalculateMetrics();
+    void ScheduleNextSnapshot();
 };
 
 /**
@@ -97694,6 +97981,709 @@ void SDVNPerformanceMonitor::PrintSummary() {
     std::cout << "║   Wormholes Detected: " << std::setw(32) << m_currentMetrics.wormholesDetected << "║" << std::endl;
     std::cout << "║   False Positives:    " << std::setw(32) << m_currentMetrics.falsePositives << "║" << std::endl;
     std::cout << "║   Detection Time:     " << std::setw(28) << m_currentMetrics.detectionTime.GetSeconds() << " s ║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
+}
+
+// ============================================================================
+// SDVN BLACKHOLE ATTACK IMPLEMENTATION
+// ============================================================================
+
+NS_OBJECT_ENSURE_REGISTERED(SDVNBlackholeAttackApp);
+
+TypeId SDVNBlackholeAttackApp::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNBlackholeAttackApp")
+        .SetParent<Application>()
+        .AddConstructor<SDVNBlackholeAttackApp>();
+    return tid;
+}
+
+SDVNBlackholeAttackApp::SDVNBlackholeAttackApp()
+    : m_nodeId(0),
+      m_attackActive(false),
+      m_advertiseAsHub(true),
+      m_dropPackets(true),
+      m_dropProbability(1.0)
+{
+    m_stats = SDVNBlackholeStatistics();
+}
+
+SDVNBlackholeAttackApp::~SDVNBlackholeAttackApp() {
+    m_fakeMetadataEvent.Cancel();
+}
+
+void SDVNBlackholeAttackApp::SetNodeId(uint32_t nodeId) {
+    m_nodeId = nodeId;
+    m_stats.nodeId = nodeId;
+}
+
+void SDVNBlackholeAttackApp::SetLinkDiscovery(Ptr<LinkDiscoveryModule> linkDiscovery) {
+    m_linkDiscovery = linkDiscovery;
+}
+
+void SDVNBlackholeAttackApp::SetAttackMode(bool advertiseAsHub, bool dropPackets, double dropProbability) {
+    m_advertiseAsHub = advertiseAsHub;
+    m_dropPackets = dropPackets;
+    m_dropProbability = dropProbability;
+    
+    std::cout << "[SDVN-BLACKHOLE] Node " << m_nodeId << " Attack Configuration:\n";
+    std::cout << "  Advertise as Hub: " << (advertiseAsHub ? "YES" : "NO") << "\n";
+    std::cout << "  Drop Packets: " << (dropPackets ? "YES" : "NO") << "\n";
+    std::cout << "  Drop Probability: " << (dropProbability * 100.0) << "%\n";
+}
+
+void SDVNBlackholeAttackApp::SetFakeNeighbors(std::vector<uint32_t> fakeNeighbors) {
+    m_fakeNeighbors = fakeNeighbors;
+}
+
+void SDVNBlackholeAttackApp::ActivateAttack() {
+    m_attackActive = true;
+    m_stats.isActive = true;
+    m_stats.attackStartTime = Simulator::Now();
+    
+    std::cout << "[SDVN-BLACKHOLE] Node " << m_nodeId << " ATTACK ACTIVATED at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+}
+
+void SDVNBlackholeAttackApp::DeactivateAttack() {
+    m_attackActive = false;
+    m_stats.isActive = false;
+    m_stats.attackStopTime = Simulator::Now();
+    
+    m_fakeMetadataEvent.Cancel();
+    
+    std::cout << "[SDVN-BLACKHOLE] Node " << m_nodeId << " ATTACK DEACTIVATED at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+}
+
+void SDVNBlackholeAttackApp::StartApplication(void) {
+    std::cout << "[SDVN-BLACKHOLE] Node " << m_nodeId << " application started\n";
+    
+    // Discover real neighbors
+    if (m_linkDiscovery) {
+        m_realNeighbors = m_linkDiscovery->GetNeighbors(m_nodeId);
+        std::cout << "[SDVN-BLACKHOLE] Node " << m_nodeId << " discovered " 
+                  << m_realNeighbors.size() << " real neighbors\n";
+    }
+    
+    // Start sending fake metadata periodically
+    m_fakeMetadataEvent = Simulator::Schedule(Seconds(0.1), 
+        &SDVNBlackholeAttackApp::SendFakeMetadataToController, this);
+    
+    // Install packet interception callback
+    if (m_dropPackets) {
+        for (uint32_t i = 0; i < GetNode()->GetNDevices(); i++) {
+            Ptr<NetDevice> device = GetNode()->GetDevice(i);
+            device->SetPromiscReceiveCallback(
+                MakeCallback(&SDVNBlackholeAttackApp::InterceptPacket, this));
+        }
+    }
+}
+
+void SDVNBlackholeAttackApp::StopApplication(void) {
+    m_fakeMetadataEvent.Cancel();
+    PrintStatistics();
+}
+
+void SDVNBlackholeAttackApp::SendFakeMetadataToController() {
+    if (!m_attackActive) {
+        m_fakeMetadataEvent = Simulator::Schedule(Seconds(1.0), 
+            &SDVNBlackholeAttackApp::SendFakeMetadataToController, this);
+        return;
+    }
+    
+    // Build fake neighbor list - advertise as hub with many connections
+    std::vector<uint32_t> reportedNeighbors = m_realNeighbors;
+    
+    if (m_advertiseAsHub) {
+        // Add fake neighbors to appear as a hub node
+        for (uint32_t fakeNeighbor : m_fakeNeighbors) {
+            if (std::find(reportedNeighbors.begin(), reportedNeighbors.end(), fakeNeighbor) 
+                == reportedNeighbors.end()) {
+                reportedNeighbors.push_back(fakeNeighbor);
+            }
+        }
+    }
+    
+    // Modify neighbordata_inst to include fake neighbors
+    neighbordata* myNeighborData = neighbordata_inst + m_nodeId;
+    myNeighborData->size = reportedNeighbors.size();
+    
+    for (size_t i = 0; i < reportedNeighbors.size() && i < 25; i++) {
+        myNeighborData->neighborid[i] = reportedNeighbors[i];
+    }
+    
+    m_stats.fakeMetadatasSent++;
+    
+    std::cout << "[SDVN-BLACKHOLE] Node " << m_nodeId << " sent FAKE metadata at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+    std::cout << "  Real neighbors: " << m_realNeighbors.size() << "\n";
+    std::cout << "  Reported neighbors: " << reportedNeighbors.size() << "\n";
+    
+    // Schedule next fake metadata transmission
+    m_fakeMetadataEvent = Simulator::Schedule(Seconds(1.0), 
+        &SDVNBlackholeAttackApp::SendFakeMetadataToController, this);
+}
+
+bool SDVNBlackholeAttackApp::InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet,
+                                             uint16_t protocol, const Address& from,
+                                             const Address& to, NetDevice::PacketType packetType)
+{
+    if (!m_attackActive || !m_dropPackets) {
+        return false;
+    }
+    
+    // Only intercept packets being forwarded through this node
+    if (packetType != NetDevice::PACKET_OTHERHOST) {
+        return false;
+    }
+    
+    m_stats.packetsIntercepted++;
+    
+    // Decide whether to drop based on probability
+    if (ShouldDropPacket(packet)) {
+        m_stats.packetsDropped++;
+        
+        if (m_stats.packetsDropped % 50 == 1) {  // Log every 50th drop
+            std::cout << "[SDVN-BLACKHOLE] Node " << m_nodeId << " DROPPED packet (total: " 
+                      << m_stats.packetsDropped << ")\n";
+        }
+        
+        return true;  // Drop packet
+    } else {
+        m_stats.packetsForwarded++;
+        return false;  // Forward packet
+    }
+}
+
+bool SDVNBlackholeAttackApp::ShouldDropPacket(Ptr<const Packet> packet) {
+    // Drop based on configured probability
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_real_distribution<> dis(0.0, 1.0);
+    
+    return (dis(gen) < m_dropProbability);
+}
+
+void SDVNBlackholeAttackApp::PrintStatistics() const {
+    std::cout << "\n╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║    SDVN BLACKHOLE ATTACK STATISTICS                     ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Node ID: " << std::left << std::setw(47) << m_stats.nodeId << "║" << std::endl;
+    std::cout << "║ Attack Duration: " << std::setw(39) << (m_stats.attackStopTime - m_stats.attackStartTime).GetSeconds() << "s ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Fake Metadatas Sent:     " << std::setw(30) << m_stats.fakeMetadatasSent << "║" << std::endl;
+    std::cout << "║ Packets Intercepted:      " << std::setw(30) << m_stats.packetsIntercepted << "║" << std::endl;
+    std::cout << "║ Packets Dropped:          " << std::setw(30) << m_stats.packetsDropped << "║" << std::endl;
+    std::cout << "║ Packets Forwarded:        " << std::setw(30) << m_stats.packetsForwarded << "║" << std::endl;
+    std::cout << "║ Flows Attracted:          " << std::setw(30) << m_stats.attractedFlows << "║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
+}
+
+// ============================================================================
+// SDVN BLACKHOLE MITIGATION IMPLEMENTATION
+// ============================================================================
+
+NS_OBJECT_ENSURE_REGISTERED(SDVNBlackholeMitigationManager);
+
+TypeId SDVNBlackholeMitigationManager::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNBlackholeMitigationManager")
+        .SetParent<Object>()
+        .AddConstructor<SDVNBlackholeMitigationManager>();
+    return tid;
+}
+
+SDVNBlackholeMitigationManager::SDVNBlackholeMitigationManager()
+    : m_mitigationEnabled(false),
+      m_totalNodes(0),
+      m_pdrThreshold(0.5),
+      m_totalPacketsSent(0),
+      m_totalPacketsDelivered(0),
+      m_totalPacketsDropped(0)
+{
+}
+
+SDVNBlackholeMitigationManager::~SDVNBlackholeMitigationManager() {
+    m_periodicDetectionEvent.Cancel();
+}
+
+void SDVNBlackholeMitigationManager::Initialize(uint32_t totalNodes, double pdrThreshold) {
+    m_totalNodes = totalNodes;
+    m_pdrThreshold = pdrThreshold;
+    
+    // Initialize monitoring for all nodes
+    for (uint32_t i = 0; i < totalNodes; i++) {
+        NodeMonitoring monitor;
+        monitor.nodeId = i;
+        monitor.packetsSentVia = 0;
+        monitor.packetsDelivered = 0;
+        monitor.packetsDropped = 0;
+        monitor.deliveryRatio = 1.0;
+        monitor.isBlacklisted = false;
+        monitor.lastAnalysisTime = Seconds(0);
+        m_nodeMonitoring[i] = monitor;
+    }
+    
+    std::cout << "[SDVN-BLACKHOLE-MITIGATION] Initialized for " << totalNodes 
+              << " nodes, PDR threshold: " << (pdrThreshold * 100.0) << "%\n";
+}
+
+void SDVNBlackholeMitigationManager::EnableMitigation(bool enable) {
+    m_mitigationEnabled = enable;
+    
+    if (enable) {
+        std::cout << "[SDVN-BLACKHOLE-MITIGATION] ENABLED\n";
+        // Start periodic detection
+        m_periodicDetectionEvent = Simulator::Schedule(Seconds(5.0), 
+            &SDVNBlackholeMitigationManager::PeriodicDetection, this);
+    } else {
+        std::cout << "[SDVN-BLACKHOLE-MITIGATION] DISABLED\n";
+        m_periodicDetectionEvent.Cancel();
+    }
+}
+
+void SDVNBlackholeMitigationManager::RecordPacketSent(uint32_t srcNode, uint32_t dstNode, 
+                                                      uint32_t viaNode, uint32_t packetId) {
+    m_totalPacketsSent++;
+    
+    // Record flow
+    FlowRecord flow;
+    flow.packetId = packetId;
+    flow.srcNode = srcNode;
+    flow.dstNode = dstNode;
+    flow.viaNode = viaNode;
+    flow.sentTime = Simulator::Now();
+    flow.delivered = false;
+    m_flowRecords[packetId] = flow;
+    
+    // Update node monitoring
+    if (m_nodeMonitoring.find(viaNode) != m_nodeMonitoring.end()) {
+        m_nodeMonitoring[viaNode].packetsSentVia++;
+    }
+}
+
+void SDVNBlackholeMitigationManager::RecordPacketReceived(uint32_t srcNode, uint32_t dstNode, 
+                                                          uint32_t packetId) {
+    m_totalPacketsDelivered++;
+    
+    // Mark flow as delivered
+    if (m_flowRecords.find(packetId) != m_flowRecords.end()) {
+        FlowRecord& flow = m_flowRecords[packetId];
+        flow.delivered = true;
+        
+        // Update node monitoring for via node
+        uint32_t viaNode = flow.viaNode;
+        if (m_nodeMonitoring.find(viaNode) != m_nodeMonitoring.end()) {
+            m_nodeMonitoring[viaNode].packetsDelivered++;
+            UpdateNodeStatistics(viaNode);
+        }
+    }
+}
+
+void SDVNBlackholeMitigationManager::RecordPacketDropped(uint32_t srcNode, uint32_t dstNode, 
+                                                         uint32_t viaNode, uint32_t packetId) {
+    m_totalPacketsDropped++;
+    
+    // Update node monitoring
+    if (m_nodeMonitoring.find(viaNode) != m_nodeMonitoring.end()) {
+        m_nodeMonitoring[viaNode].packetsDropped++;
+        UpdateNodeStatistics(viaNode);
+    }
+}
+
+void SDVNBlackholeMitigationManager::UpdateNodeStatistics(uint32_t nodeId) {
+    if (m_nodeMonitoring.find(nodeId) == m_nodeMonitoring.end()) {
+        return;
+    }
+    
+    NodeMonitoring& monitor = m_nodeMonitoring[nodeId];
+    
+    uint32_t totalPackets = monitor.packetsDelivered + monitor.packetsDropped;
+    if (totalPackets > 0) {
+        monitor.deliveryRatio = static_cast<double>(monitor.packetsDelivered) / totalPackets;
+    }
+}
+
+void SDVNBlackholeMitigationManager::PeriodicDetection() {
+    if (m_mitigationEnabled) {
+        DetectBlackholeNodes();
+        
+        // Schedule next detection
+        m_periodicDetectionEvent = Simulator::Schedule(Seconds(5.0), 
+            &SDVNBlackholeMitigationManager::PeriodicDetection, this);
+    }
+}
+
+void SDVNBlackholeMitigationManager::DetectBlackholeNodes() {
+    for (auto& pair : m_nodeMonitoring) {
+        uint32_t nodeId = pair.first;
+        NodeMonitoring& monitor = pair.second;
+        
+        // Skip if already blacklisted
+        if (monitor.isBlacklisted) {
+            continue;
+        }
+        
+        // Check if enough packets sent via this node for meaningful analysis
+        if (monitor.packetsSentVia < 20) {
+            continue;
+        }
+        
+        // Check PDR threshold
+        if (monitor.deliveryRatio < m_pdrThreshold) {
+            std::cout << "[SDVN-BLACKHOLE-MITIGATION] ⚠️  BLACKHOLE DETECTED! ⚠️\n";
+            std::cout << "  Node ID: " << nodeId << "\n";
+            std::cout << "  PDR: " << (monitor.deliveryRatio * 100.0) << "% (threshold: " 
+                      << (m_pdrThreshold * 100.0) << "%)\n";
+            std::cout << "  Packets via node: " << monitor.packetsSentVia << "\n";
+            std::cout << "  Delivered: " << monitor.packetsDelivered << "\n";
+            std::cout << "  Dropped: " << monitor.packetsDropped << "\n";
+            
+            BlacklistNode(nodeId);
+        }
+    }
+}
+
+void SDVNBlackholeMitigationManager::BlacklistNode(uint32_t nodeId) {
+    if (m_nodeMonitoring.find(nodeId) == m_nodeMonitoring.end()) {
+        return;
+    }
+    
+    NodeMonitoring& monitor = m_nodeMonitoring[nodeId];
+    monitor.isBlacklisted = true;
+    monitor.blacklistTime = Simulator::Now();
+    m_blacklistedNodes.insert(nodeId);
+    
+    ExcludeFromRouting(nodeId);
+    
+    std::cout << "[SDVN-BLACKHOLE-MITIGATION] Node " << nodeId << " BLACKLISTED at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+}
+
+void SDVNBlackholeMitigationManager::ExcludeFromRouting(uint32_t nodeId) {
+    // Set all links involving this node to 0 in linklifetimeMatrix_dsrc
+    for (uint32_t i = 0; i < m_totalNodes; i++) {
+        linklifetimeMatrix_dsrc[nodeId][i] = 0.0;
+        linklifetimeMatrix_dsrc[i][nodeId] = 0.0;
+    }
+    
+    std::cout << "[SDVN-BLACKHOLE-MITIGATION] Excluded Node " << nodeId << " from routing\n";
+}
+
+bool SDVNBlackholeMitigationManager::IsNodeBlacklisted(uint32_t nodeId) const {
+    return m_blacklistedNodes.find(nodeId) != m_blacklistedNodes.end();
+}
+
+bool SDVNBlackholeMitigationManager::ShouldExcludeNode(uint32_t nodeId) const {
+    return IsNodeBlacklisted(nodeId);
+}
+
+uint32_t SDVNBlackholeMitigationManager::GetBlacklistedNodeCount() const {
+    return m_blacklistedNodes.size();
+}
+
+double SDVNBlackholeMitigationManager::GetOverallPDR() const {
+    if (m_totalPacketsSent == 0) {
+        return 0.0;
+    }
+    return static_cast<double>(m_totalPacketsDelivered) / m_totalPacketsSent;
+}
+
+void SDVNBlackholeMitigationManager::PrintStatistics() const {
+    std::cout << "\n╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║    SDVN BLACKHOLE MITIGATION STATISTICS                 ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Total Packets Sent:       " << std::setw(30) << m_totalPacketsSent << "║" << std::endl;
+    std::cout << "║ Total Packets Delivered:  " << std::setw(30) << m_totalPacketsDelivered << "║" << std::endl;
+    std::cout << "║ Total Packets Dropped:    " << std::setw(30) << m_totalPacketsDropped << "║" << std::endl;
+    std::cout << "║ Overall PDR:              " << std::setw(29) << std::fixed << std::setprecision(2) << (GetOverallPDR() * 100.0) << "% ║" << std::endl;
+    std::cout << "║ Blacklisted Nodes:        " << std::setw(30) << GetBlacklistedNodeCount() << "║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
+}
+
+void SDVNBlackholeMitigationManager::ExportToCSV(const std::string& filename) const {
+    std::ofstream csvFile(filename);
+    
+    if (!csvFile.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    // Write header
+    csvFile << "NodeID,PacketsSentVia,PacketsDelivered,PacketsDropped,DeliveryRatio,IsBlacklisted,BlacklistTime\n";
+    
+    // Write node monitoring data
+    for (const auto& pair : m_nodeMonitoring) {
+        const NodeMonitoring& monitor = pair.second;
+        csvFile << monitor.nodeId << ","
+                << monitor.packetsSentVia << ","
+                << monitor.packetsDelivered << ","
+                << monitor.packetsDropped << ","
+                << monitor.deliveryRatio << ","
+                << (monitor.isBlacklisted ? 1 : 0) << ","
+                << monitor.blacklistTime.GetSeconds() << "\n";
+    }
+    
+    csvFile.close();
+    std::cout << "[SDVN-BLACKHOLE-MITIGATION] Statistics exported to " << filename << std::endl;
+}
+
+// ============================================================================
+// SDVN BLACKHOLE PERFORMANCE MONITOR IMPLEMENTATION
+// ============================================================================
+
+NS_OBJECT_ENSURE_REGISTERED(SDVNBlackholePerformanceMonitor);
+
+TypeId SDVNBlackholePerformanceMonitor::GetTypeId(void) {
+    static TypeId tid = TypeId("ns3::SDVNBlackholePerformanceMonitor")
+        .SetParent<Object>()
+        .AddConstructor<SDVNBlackholePerformanceMonitor>();
+    return tid;
+}
+
+SDVNBlackholePerformanceMonitor::SDVNBlackholePerformanceMonitor()
+    : m_monitoring(false),
+      m_nextPacketId(1)
+{
+}
+
+SDVNBlackholePerformanceMonitor::~SDVNBlackholePerformanceMonitor() {
+    m_snapshotEvent.Cancel();
+}
+
+void SDVNBlackholePerformanceMonitor::Initialize(std::string scenario) {
+    m_scenario = scenario;
+    m_currentMetrics.scenario = scenario;
+    
+    std::cout << "[SDVN-BLACKHOLE-MONITOR] Initialized for scenario: " << scenario << std::endl;
+}
+
+void SDVNBlackholePerformanceMonitor::StartMonitoring() {
+    m_monitoring = true;
+    m_currentMetrics.timestamp = Simulator::Now();
+    
+    // Schedule first snapshot
+    ScheduleNextSnapshot();
+    
+    std::cout << "[SDVN-BLACKHOLE-MONITOR] Monitoring started at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+}
+
+void SDVNBlackholePerformanceMonitor::StopMonitoring() {
+    m_monitoring = false;
+    m_snapshotEvent.Cancel();
+    
+    CalculateMetrics();
+    
+    std::cout << "[SDVN-BLACKHOLE-MONITOR] Monitoring stopped at " 
+              << Simulator::Now().GetSeconds() << "s\n";
+}
+
+void SDVNBlackholePerformanceMonitor::PacketSent(Ptr<const Packet> packet, uint32_t fromNode, 
+                                                 uint32_t toNode, bool isControl) {
+    if (!m_monitoring) {
+        return;
+    }
+    
+    uint32_t packetId = m_nextPacketId++;
+    
+    PacketInfo info;
+    info.packetId = packetId;
+    info.srcNode = fromNode;
+    info.dstNode = toNode;
+    info.sendTime = Simulator::Now();
+    info.isControl = isControl;
+    info.delivered = false;
+    info.droppedByBlackhole = false;
+    
+    m_packetRecords[packetId] = info;
+    
+    m_currentMetrics.totalPacketsSent++;
+    if (isControl) {
+        m_currentMetrics.controlPackets++;
+    } else {
+        m_currentMetrics.dataPackets++;
+    }
+}
+
+void SDVNBlackholePerformanceMonitor::PacketReceived(Ptr<const Packet> packet, uint32_t atNode) {
+    // Match with sent packet (implementation detail - would need packet ID tagging)
+    m_currentMetrics.totalPacketsReceived++;
+}
+
+void SDVNBlackholePerformanceMonitor::PacketDropped(Ptr<const Packet> packet, uint32_t atNode, 
+                                                    std::string reason) {
+    m_currentMetrics.totalPacketsDropped++;
+}
+
+void SDVNBlackholePerformanceMonitor::BlackholePacketDrop(uint32_t blackholeNode, uint32_t packetId) {
+    m_currentMetrics.packetsDroppedByBlackhole++;
+    
+    if (m_packetRecords.find(packetId) != m_packetRecords.end()) {
+        m_packetRecords[packetId].droppedByBlackhole = true;
+    }
+}
+
+void SDVNBlackholePerformanceMonitor::BlackholeDetected(uint32_t nodeId, Time detectionTime) {
+    m_currentMetrics.blackholeNodesDetected++;
+    m_currentMetrics.detectionTime = detectionTime;
+    
+    std::cout << "[SDVN-BLACKHOLE-MONITOR] Blackhole detected: Node " << nodeId 
+              << " at " << detectionTime.GetSeconds() << "s\n";
+}
+
+void SDVNBlackholePerformanceMonitor::MitigationApplied(uint32_t nodeId, Time mitigationTime) {
+    m_currentMetrics.mitigationTime = mitigationTime;
+    
+    std::cout << "[SDVN-BLACKHOLE-MONITOR] Mitigation applied: Node " << nodeId 
+              << " at " << mitigationTime.GetSeconds() << "s\n";
+}
+
+void SDVNBlackholePerformanceMonitor::FlowAffected(uint32_t flowId, uint32_t blackholeNode) {
+    m_currentMetrics.flowsAffectedByBlackhole++;
+}
+
+void SDVNBlackholePerformanceMonitor::CalculateMetrics() {
+    // Calculate PDR
+    if (m_currentMetrics.totalPacketsSent > 0) {
+        m_currentMetrics.packetDeliveryRatio = 
+            static_cast<double>(m_currentMetrics.totalPacketsReceived) / m_currentMetrics.totalPacketsSent;
+    }
+    
+    // Calculate overhead
+    uint32_t totalPackets = m_currentMetrics.controlPackets + m_currentMetrics.dataPackets;
+    if (totalPackets > 0) {
+        m_currentMetrics.overheadRatio = 
+            static_cast<double>(m_currentMetrics.controlPackets) / totalPackets;
+    }
+    
+    // Calculate latency statistics
+    if (!m_currentMetrics.latencySamples.empty()) {
+        double sum = 0.0;
+        m_currentMetrics.minLatencyMs = 9999.0;
+        m_currentMetrics.maxLatencyMs = 0.0;
+        
+        for (double latency : m_currentMetrics.latencySamples) {
+            sum += latency;
+            m_currentMetrics.minLatencyMs = std::min(m_currentMetrics.minLatencyMs, latency);
+            m_currentMetrics.maxLatencyMs = std::max(m_currentMetrics.maxLatencyMs, latency);
+        }
+        
+        m_currentMetrics.avgLatencyMs = sum / m_currentMetrics.latencySamples.size();
+    }
+    
+    // Calculate recovery percentage
+    if (m_currentMetrics.pdrBeforeMitigation > 0) {
+        m_currentMetrics.recoveryPercentage = 
+            ((m_currentMetrics.pdrAfterMitigation - m_currentMetrics.pdrBeforeMitigation) / 
+             m_currentMetrics.pdrBeforeMitigation) * 100.0;
+    }
+}
+
+void SDVNBlackholePerformanceMonitor::TakeSnapshot() {
+    if (!m_monitoring) {
+        return;
+    }
+    
+    CalculateMetrics();
+    m_snapshots.push_back(m_currentMetrics);
+    
+    ScheduleNextSnapshot();
+}
+
+void SDVNBlackholePerformanceMonitor::ScheduleNextSnapshot() {
+    m_snapshotEvent = Simulator::Schedule(Seconds(1.0), 
+        &SDVNBlackholePerformanceMonitor::TakeSnapshot, this);
+}
+
+void SDVNBlackholePerformanceMonitor::ExportToCSV(const std::string& filename) {
+    std::ofstream csvFile(filename);
+    
+    if (!csvFile.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    // Write header
+    csvFile << "Time,Scenario,PacketsSent,PacketsReceived,PacketsDropped,PDR,"
+            << "AvgLatencyMs,MinLatencyMs,MaxLatencyMs,ControlPackets,DataPackets,OverheadRatio,"
+            << "BlackholeDrops,AffectedFlows,BlackholesDetected,FalsePositives,FalseNegatives,"
+            << "PDRBefore,PDRAfter,RecoveryPct,DetectionTime,MitigationTime\n";
+    
+    // Write snapshots
+    for (const auto& snapshot : m_snapshots) {
+        csvFile << snapshot.timestamp.GetSeconds() << ","
+                << snapshot.scenario << ","
+                << snapshot.totalPacketsSent << ","
+                << snapshot.totalPacketsReceived << ","
+                << snapshot.totalPacketsDropped << ","
+                << snapshot.packetDeliveryRatio << ","
+                << snapshot.avgLatencyMs << ","
+                << snapshot.minLatencyMs << ","
+                << snapshot.maxLatencyMs << ","
+                << snapshot.controlPackets << ","
+                << snapshot.dataPackets << ","
+                << snapshot.overheadRatio << ","
+                << snapshot.packetsDroppedByBlackhole << ","
+                << snapshot.flowsAffectedByBlackhole << ","
+                << snapshot.blackholeNodesDetected << ","
+                << snapshot.falsePositives << ","
+                << snapshot.falseNegatives << ","
+                << snapshot.pdrBeforeMitigation << ","
+                << snapshot.pdrAfterMitigation << ","
+                << snapshot.recoveryPercentage << ","
+                << snapshot.detectionTime.GetSeconds() << ","
+                << snapshot.mitigationTime.GetSeconds() << "\n";
+    }
+    
+    csvFile.close();
+    std::cout << "[SDVN-BLACKHOLE-MONITOR] Performance metrics exported to " << filename << std::endl;
+}
+
+double SDVNBlackholePerformanceMonitor::GetPacketDeliveryRatio() const {
+    return m_currentMetrics.packetDeliveryRatio;
+}
+
+double SDVNBlackholePerformanceMonitor::GetAverageLatency() const {
+    return m_currentMetrics.avgLatencyMs;
+}
+
+double SDVNBlackholePerformanceMonitor::GetOverheadRatio() const {
+    return m_currentMetrics.overheadRatio;
+}
+
+void SDVNBlackholePerformanceMonitor::PrintSummary() const {
+    std::cout << "\n╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║    SDVN BLACKHOLE PERFORMANCE SUMMARY                   ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ Scenario: " << std::left << std::setw(46) << m_scenario << "║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ PACKET DELIVERY RATIO                                    ║" << std::endl;
+    std::cout << "║   Packets Sent:     " << std::setw(34) << m_currentMetrics.totalPacketsSent << "║" << std::endl;
+    std::cout << "║   Packets Received: " << std::setw(34) << m_currentMetrics.totalPacketsReceived << "║" << std::endl;
+    std::cout << "║   Packets Dropped:  " << std::setw(34) << m_currentMetrics.totalPacketsDropped << "║" << std::endl;
+    std::cout << "║   PDR:              " << std::setw(33) << std::fixed << std::setprecision(2) << (m_currentMetrics.packetDeliveryRatio * 100.0) << "% ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ LATENCY                                                  ║" << std::endl;
+    std::cout << "║   Average:          " << std::setw(30) << std::fixed << std::setprecision(3) << m_currentMetrics.avgLatencyMs << " ms ║" << std::endl;
+    std::cout << "║   Minimum:          " << std::setw(30) << m_currentMetrics.minLatencyMs << " ms ║" << std::endl;
+    std::cout << "║   Maximum:          " << std::setw(30) << m_currentMetrics.maxLatencyMs << " ms ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ OVERHEAD                                                 ║" << std::endl;
+    std::cout << "║   Control Packets:  " << std::setw(34) << m_currentMetrics.controlPackets << "║" << std::endl;
+    std::cout << "║   Data Packets:     " << std::setw(34) << m_currentMetrics.dataPackets << "║" << std::endl;
+    std::cout << "║   Overhead Ratio:   " << std::setw(33) << (m_currentMetrics.overheadRatio * 100.0) << "% ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ BLACKHOLE ATTACK IMPACT                                  ║" << std::endl;
+    std::cout << "║   Blackhole Drops:  " << std::setw(34) << m_currentMetrics.packetsDroppedByBlackhole << "║" << std::endl;
+    std::cout << "║   Affected Flows:   " << std::setw(34) << m_currentMetrics.flowsAffectedByBlackhole << "║" << std::endl;
+    std::cout << "║   Blackholes Detected: " << std::setw(31) << m_currentMetrics.blackholeNodesDetected << "║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║ MITIGATION EFFECTIVENESS                                 ║" << std::endl;
+    std::cout << "║   PDR Before:       " << std::setw(33) << (m_currentMetrics.pdrBeforeMitigation * 100.0) << "% ║" << std::endl;
+    std::cout << "║   PDR After:        " << std::setw(33) << (m_currentMetrics.pdrAfterMitigation * 100.0) << "% ║" << std::endl;
+    std::cout << "║   Recovery:         " << std::setw(33) << m_currentMetrics.recoveryPercentage << "% ║" << std::endl;
+    std::cout << "║   Detection Time:   " << std::setw(30) << m_currentMetrics.detectionTime.GetSeconds() << " s ║" << std::endl;
+    std::cout << "║   Mitigation Time:  " << std::setw(30) << m_currentMetrics.mitigationTime.GetSeconds() << " s ║" << std::endl;
     std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
 }
 
