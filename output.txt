@@ -1,0 +1,332 @@
+
+../scratch/routing.cc:1386:28: error: field ‘m_metrics’ has incomplete type ‘ns3::SybilMitigationMetrics’
+ 1386 |     SybilMitigationMetrics m_metrics;
+      |                            ^~~~~~~~~
+../scratch/routing.cc:105:8: note: forward declaration of ‘struct ns3::SybilMitigationMetrics’
+  105 | struct SybilMitigationMetrics;
+      |        ^~~~~~~~~~~~~~~~~~~~~~
+../scratch/routing.cc:1363:47: error: return type ‘struct ns3::SybilMitigationMetrics’ is incomplete
+ 1363 |     SybilMitigationMetrics GetMetrics() const { return m_metrics; }
+      |                                               ^
+../scratch/routing.cc: In member function ‘void ns3::WormholeEndpointApp::SendFakeMetadataToController()’:
+../scratch/routing.cc:97033:12: error: ‘neighbordata’ does not name a type; did you mean ‘neighbor_data’?
+97033 |     extern neighbordata* neighbordata_inst;
+      |            ^~~~~~~~~~~~
+      |            neighbor_data
+../scratch/routing.cc:97036:10: error: ‘neighbordata_inst’ was not declared in this scope; did you mean ‘neighbor_data’?
+97036 |     if (!neighbordata_inst) {
+      |          ^~~~~~~~~~~~~~~~~
+      |          neighbor_data
+../scratch/routing.cc:97044:5: error: ‘neighbordata’ was not declared in this scope; did you mean ‘neighbor_data’?
+97044 |     neighbordata* myNeighborData = neighbordata_inst + myId;
+      |     ^~~~~~~~~~~~
+      |     neighbor_data
+../scratch/routing.cc:97044:19: error: ‘myNeighborData’ was not declared in this scope; did you mean ‘neighbor_data’?
+97044 |     neighbordata* myNeighborData = neighbordata_inst + myId;
+      |                   ^~~~~~~~~~~~~~
+      |                   neighbor_data
+../scratch/routing.cc:97044:36: error: ‘neighbordata_inst’ was not declared in this scope; did you mean ‘neighbor_data’?
+97044 |     neighbordata* myNeighborData = neighbordata_inst + myId;
+      |                                    ^~~~~~~~~~~~~~~~~
+      |                                    neighbor_data
+../scratch/routing.cc: In lambda function:
+../scratch/routing.cc:97082:38: error: ‘myNeighborData’ is not captured
+97082 |             for (uint32_t i = 0; i < myNeighborData->size; i++) {
+      |                                      ^~~~~~~~~~~~~~
+../scratch/routing.cc:97079:72: note: the lambda has no capture-default
+97079 |         Simulator::Schedule(Seconds(1.0), [this, myNeighborData, peerId]() {
+      |                                                                        ^
+../scratch/routing.cc:97044:19: note: ‘<typeprefixerror>myNeighborData’ declared here
+97044 |     neighbordata* myNeighborData = neighbordata_inst + myId;
+      |                   ^~~~~~~~~~~~~~
+../scratch/routing.cc:97083:21: error: ‘myNeighborData’ is not captured
+97083 |                 if (myNeighborData->neighborid[i] == peerId) {
+      |                     ^~~~~~~~~~~~~~
+../scratch/routing.cc:97079:72: note: the lambda has no capture-default
+97079 |         Simulator::Schedule(Seconds(1.0), [this, myNeighborData, peerId]() {
+      |                                                                        ^
+../scratch/routing.cc:97044:19: note: ‘<typeprefixerror>myNeighborData’ declared here
+97044 |     neighbordata* myNeighborData = neighbordata_inst + myId;
+      |                   ^~~~~~~~~~~~~~
+../scratch/routing.cc:97088:27: error: ‘myNeighborData’ is not captured
+97088 |             if (!found && myNeighborData->size < 100) {
+      |                           ^~~~~~~~~~~~~~
+../scratch/routing.cc:97079:72: note: the lambda has no capture-default
+97079 |         Simulator::Schedule(Seconds(1.0), [this, myNeighborData, peerId]() {
+      |                                                                        ^
+../scratch/routing.cc:97044:19: note: ‘<typeprefixerror>myNeighborData’ declared here
+97044 |     neighbordata* myNeighborData = neighbordata_inst + myId;
+      |                   ^~~~~~~~~~~~~~
+../scratch/routing.cc:97089:17: error: ‘myNeighborData’ is not captured
+97089 |                 myNeighborData->neighborid[myNeighborData->size] = peerId;
+      |                 ^~~~~~~~~~~~~~
+../scratch/routing.cc:97079:72: note: the lambda has no capture-default
+97079 |         Simulator::Schedule(Seconds(1.0), [this, myNeighborData, peerId]() {
+      |                                                                        ^
+../scratch/routing.cc:97044:19: note: ‘<typeprefixerror>myNeighborData’ declared here
+97044 |     neighbordata* myNeighborData = neighbordata_inst + myId;
+      |                   ^~~~~~~~~~~~~~
+../scratch/routing.cc:97089:44: error: ‘myNeighborData’ is not captured
+97089 |                 myNeighborData->neighborid[myNeighborData->size] = peerId;
+      |                                            ^~~~~~~~~~~~~~
+../scratch/routing.cc:97079:72: note: the lambda has no capture-default
+97079 |         Simulator::Schedule(Seconds(1.0), [this, myNeighborData, peerId]() {
+      |                                                                        ^
+../scratch/routing.cc:97044:19: note: ‘<typeprefixerror>myNeighborData’ declared here
+97044 |     neighbordata* myNeighborData = neighbordata_inst + myId;
+      |                   ^~~~~~~~~~~~~~
+../scratch/routing.cc:97090:17: error: ‘myNeighborData’ is not captured
+97090 |                 myNeighborData->size++;
+      |                 ^~~~~~~~~~~~~~
+../scratch/routing.cc:97079:72: note: the lambda has no capture-default
+97079 |         Simulator::Schedule(Seconds(1.0), [this, myNeighborData, peerId]() {
+      |                                                                        ^
+../scratch/routing.cc:97044:19: note: ‘<typeprefixerror>myNeighborData’ declared here
+97044 |     neighbordata* myNeighborData = neighbordata_inst + myId;
+      |                   ^~~~~~~~~~~~~~
+../scratch/routing.cc: In member function ‘void ns3::WormholeEndpointApp::SendFakeMetadataToController()’:
+../scratch/routing.cc:97034:21: error: unused variable ‘ns3::total_size’ [-Werror=unused-variable]
+97034 |     extern uint32_t total_size;
+      |                     ^~~~~~~~~~
+../scratch/routing.cc: In member function ‘void ns3::SimpleSDVNBlackholeApp::SetDropProbability(double)’:
+../scratch/routing.cc:2308:13: error: expected unqualified-id before numeric constant
+ 2308 | #define max 40
+      |             ^~
+../scratch/routing.cc:98369:44: note: in expansion of macro ‘max’
+98369 |     m_dropProbability = std::min(1.0, std::max(0.0, probability));
+      |                                            ^~~
+../scratch/routing.cc: In member function ‘void ns3::SDVNBlackholeAttackApp::SendFakeMetadataToController()’:
+../scratch/routing.cc:98619:5: error: ‘neighbordata’ was not declared in this scope; did you mean ‘neighbor_data’?
+98619 |     neighbordata* myNeighborData = neighbordata_inst + m_nodeId;
+      |     ^~~~~~~~~~~~
+      |     neighbor_data
+../scratch/routing.cc:98619:19: error: ‘myNeighborData’ was not declared in this scope; did you mean ‘neighbor_data’?
+98619 |     neighbordata* myNeighborData = neighbordata_inst + m_nodeId;
+      |                   ^~~~~~~~~~~~~~
+      |                   neighbor_data
+../scratch/routing.cc:98619:36: error: ‘neighbordata_inst’ was not declared in this scope; did you mean ‘neighbor_data’?
+98619 |     neighbordata* myNeighborData = neighbordata_inst + m_nodeId;
+      |                                    ^~~~~~~~~~~~~~~~~
+      |                                    neighbor_data
+../scratch/routing.cc: In member function ‘void ns3::SDVNBlackholeMitigationManager::ExcludeFromRouting(uint32_t)’:
+../scratch/routing.cc:98876:9: error: ‘linklifetimeMatrix_dsrc’ was not declared in this scope
+98876 |         linklifetimeMatrix_dsrc[nodeId][i] = 0.0;
+      |         ^~~~~~~~~~~~~~~~~~~~~~~
+../scratch/routing.cc: In member function ‘void ns3::SDVNBlackholePerformanceMonitor::CalculateMetrics()’:
+../scratch/routing.cc:2308:13: error: expected unqualified-id before numeric constant
+ 2308 | #define max 40
+      |             ^~
+../scratch/routing.cc:99079:50: note: in expansion of macro ‘max’
+99079 |             m_currentMetrics.maxLatencyMs = std::max(m_currentMetrics.maxLatencyMs, latency);
+      |                                                  ^~~
+../scratch/routing.cc: In member function ‘void ns3::SDVNSybilAttackApp::CreateFakeIdentities()’:
+../scratch/routing.cc:100353:38: error: unable to find numeric literal operator ‘operator""xKE’
+100353 |         uint8_t macBytes[6] = {0xFA, 0xKE, (uint8_t)m_nodeId, (uint8_t)i, 0x00, 0x00};
+       |                                      ^~~~
+../scratch/routing.cc:100353:38: note: use ‘-fext-numeric-literals’ to enable more built-in suffixes
+../scratch/routing.cc: In member function ‘void ns3::SDVNSybilMitigationManager::MonitorControllerPollution()’:
+../scratch/routing.cc:2308:13: error: expected unqualified-id before numeric constant
+ 2308 | #define max 40
+      |             ^~
+../scratch/routing.cc:100647:57: note: in expansion of macro ‘max’
+100647 |     double avgNeighbors = (double)totalNeighbors / std::max(1u, (uint32_t)m_neighborCounts.size());
+       |                                                         ^~~
+In file included from ./ns3/ipv4-l3-protocol.h:36,
+                 from ./ns3/internet-stack-helper.h:29,
+                 from ./ns3/bsm-application.h:28,
+                 from ./ns3/wave-module.h:10,
+                 from ../scratch/routing.cc:2:
+./ns3/simulator.h: In instantiation of ‘static ns3::EventId ns3::Simulator::Schedule(const ns3::Time&, FUNC, Ts&& ...) [with FUNC = ns3::WormholeEndpointApp::StartApplication()::<lambda()>; typename std::enable_if<(! std::is_convertible<FUNC, ns3::Ptr<ns3::EventImpl> >::value), int>::type <anonymous> = 0; typename std::enable_if<(! std::is_function<typename std::remove_pointer<_Tp>::type>::value), int>::type <anonymous> = 0; Ts = {}]’:
+../scratch/routing.cc:96691:28:   required from here
+96691 |         Simulator::Schedule(Seconds(1.0), [this]() {
+      |         ~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~
+96692 |             uint32_t myId = GetNode()->GetId();
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+96693 |             m_realNeighbors = m_linkDiscovery->GetNeighbors(myId);
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+96694 | 
+      |                             
+96695 |             std::cout << "\n[SDVN-WORMHOLE] Node " << myId << " discovered "
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+96696 |                       << m_realNeighbors.size() << " real neighbors: ";
+      |                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+96697 |             for (auto nid : m_realNeighbors) {
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+96698 |                 std::cout << nid << " ";
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~
+96699 |             }
+      |             ~               
+96700 |             std::cout << std::endl;
+      |             ~~~~~~~~~~~~~~~~~~~~~~~
+96701 | 
+      |                             
+96702 |             // Step 3: Send FAKE metadata to controller
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+96703 |             // Report: "I have neighbors [real_neighbors + FAKE_PEER]"
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+96704 |             SendFakeMetadataToController();
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+96705 |         });
+      |         ~~                  
+./ns3/simulator.h:559:39: error: no matching function for call to ‘MakeEvent(ns3::WormholeEndpointApp::StartApplication()::<lambda()>&)’
+  559 |   return DoSchedule (delay, MakeEvent (f, std::forward<Ts> (args)...));
+      |                             ~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from ./ns3/simulator.h:26:
+./ns3/make-event.h:359:13: note: candidate: ‘template<class MEM, class OBJ> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ)’
+  359 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj)
+      |             ^~~~~~~~~
+./ns3/make-event.h:359:13: note:   candidate expects 2 arguments, 1 provided
+./ns3/make-event.h:386:13: note: candidate: ‘template<class MEM, class OBJ, class T1> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1)’
+  386 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj, T1 a1)
+      |             ^~~~~~~~~
+./ns3/make-event.h:386:13: note:   candidate expects 3 arguments, 1 provided
+./ns3/make-event.h:416:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2)’
+  416 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj, T1 a1, T2 a2)
+      |             ^~~~~~~~~
+./ns3/make-event.h:416:13: note:   candidate expects 4 arguments, 1 provided
+./ns3/make-event.h:448:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2, class T3> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2, T3)’
+  448 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj, T1 a1, T2 a2, T3 a3)
+      |             ^~~~~~~~~
+./ns3/make-event.h:448:13: note:   candidate expects 5 arguments, 1 provided
+./ns3/make-event.h:482:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2, class T3, class T4> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2, T3, T4)’
+  482 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj, T1 a1, T2 a2, T3 a3, T4 a4)
+      |             ^~~~~~~~~
+./ns3/make-event.h:482:13: note:   candidate expects 6 arguments, 1 provided
+./ns3/make-event.h:518:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2, class T3, class T4, class T5> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2, T3, T4, T5)’
+  518 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj,
+      |             ^~~~~~~~~
+./ns3/make-event.h:518:13: note:   candidate expects 7 arguments, 1 provided
+./ns3/make-event.h:557:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2, class T3, class T4, class T5, class T6> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2, T3, T4, T5, T6)’
+  557 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj,
+      |             ^~~~~~~~~
+./ns3/make-event.h:557:13: note:   candidate expects 8 arguments, 1 provided
+./ns3/make-event.h:597:13: note: candidate: ‘template<class U1, class T1> ns3::EventImpl* ns3::MakeEvent(void (*)(U1), T1)’
+  597 | EventImpl * MakeEvent (void (*f)(U1), T1 a1)
+      |             ^~~~~~~~~
+./ns3/make-event.h:597:13: note:   candidate expects 2 arguments, 1 provided
+./ns3/make-event.h:626:13: note: candidate: ‘template<class U1, class U2, class T1, class T2> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2), T1, T2)’
+  626 | EventImpl * MakeEvent (void (*f)(U1,U2), T1 a1, T2 a2)
+      |             ^~~~~~~~~
+./ns3/make-event.h:626:13: note:   candidate expects 3 arguments, 1 provided
+./ns3/make-event.h:658:13: note: candidate: ‘template<class U1, class U2, class U3, class T1, class T2, class T3> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2, U3), T1, T2, T3)’
+  658 | EventImpl * MakeEvent (void (*f)(U1,U2,U3), T1 a1, T2 a2, T3 a3)
+      |             ^~~~~~~~~
+./ns3/make-event.h:658:13: note:   candidate expects 4 arguments, 1 provided
+./ns3/make-event.h:692:13: note: candidate: ‘template<class U1, class U2, class U3, class U4, class T1, class T2, class T3, class T4> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2, U3, U4), T1, T2, T3, T4)’
+  692 | EventImpl * MakeEvent (void (*f)(U1,U2,U3,U4), T1 a1, T2 a2, T3 a3, T4 a4)
+      |             ^~~~~~~~~
+./ns3/make-event.h:692:13: note:   candidate expects 5 arguments, 1 provided
+./ns3/make-event.h:728:13: note: candidate: ‘template<class U1, class U2, class U3, class U4, class U5, class T1, class T2, class T3, class T4, class T5> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2, U3, U4, U5), T1, T2, T3, T4, T5)’
+  728 | EventImpl * MakeEvent (void (*f)(U1,U2,U3,U4,U5), T1 a1, T2 a2, T3 a3, T4 a4, T5 a5)
+      |             ^~~~~~~~~
+./ns3/make-event.h:728:13: note:   candidate expects 6 arguments, 1 provided
+./ns3/make-event.h:766:13: note: candidate: ‘template<class U1, class U2, class U3, class U4, class U5, class U6, class T1, class T2, class T3, class T4, class T5, class T6> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2, U3, U4, U5, U6), T1, T2, T3, T4, T5, T6)’
+  766 | EventImpl * MakeEvent (void (*f)(U1,U2,U3,U4,U5,U6), T1 a1, T2 a2, T3 a3, T4 a4, T5 a5, T6 a6)
+      |             ^~~~~~~~~
+./ns3/make-event.h:766:13: note:   candidate expects 7 arguments, 1 provided
+./ns3/make-event.h:191:13: note: candidate: ‘ns3::EventImpl* ns3::MakeEvent(void (*)())’
+  191 | EventImpl * MakeEvent (void (*f)(void));
+      |             ^~~~~~~~~
+./ns3/make-event.h:191:31: note:   no known conversion for argument 1 from ‘ns3::WormholeEndpointApp::StartApplication()::<lambda()>’ to ‘void (*)()’
+  191 | EventImpl * MakeEvent (void (*f)(void));
+      |                        ~~~~~~~^~~~~~~~
+./ns3/simulator.h: In instantiation of ‘static ns3::EventId ns3::Simulator::Schedule(const ns3::Time&, FUNC, Ts&& ...) [with FUNC = ns3::WormholeEndpointApp::SendFakeMetadataToController()::<lambda()>; typename std::enable_if<(! std::is_convertible<FUNC, ns3::Ptr<ns3::EventImpl> >::value), int>::type <anonymous> = 0; typename std::enable_if<(! std::is_function<typename std::remove_pointer<_Tp>::type>::value), int>::type <anonymous> = 0; Ts = {}]’:
+../scratch/routing.cc:97079:28:   required from here
+97079 |         Simulator::Schedule(Seconds(1.0), [this, myNeighborData, peerId]() {
+      |         ~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+97080 |             // Re-add if removed
+      |             ~~~~~~~~~~~~~~~~~~~~
+97081 |             bool found = false;
+      |             ~~~~~~~~~~~~~~~~~~~
+97082 |             for (uint32_t i = 0; i < myNeighborData->size; i++) {
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+97083 |                 if (myNeighborData->neighborid[i] == peerId) {
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+97084 |                     found = true;
+      |                     ~~~~~~~~~~~~~
+97085 |                     break;
+      |                     ~~~~~~  
+97086 |                 }
+      |                 ~           
+97087 |             }
+      |             ~               
+97088 |             if (!found && myNeighborData->size < 100) {
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+97089 |                 myNeighborData->neighborid[myNeighborData->size] = peerId;
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+97090 |                 myNeighborData->size++;
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~
+97091 |                 std::cout << "[SDVN-WORMHOLE] Re-injected fake neighbor " << peerId << std::endl;
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+97092 |             }
+      |             ~               
+97093 | 
+      |                             
+97094 |             // Schedule next refresh
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~
+97095 |             Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::SendFakeMetadataToController, this);
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+97096 |         });
+      |         ~~                  
+./ns3/simulator.h:559:39: error: no matching function for call to ‘MakeEvent(ns3::WormholeEndpointApp::SendFakeMetadataToController()::<lambda()>&)’
+  559 |   return DoSchedule (delay, MakeEvent (f, std::forward<Ts> (args)...));
+      |                             ~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./ns3/make-event.h:359:13: note: candidate: ‘template<class MEM, class OBJ> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ)’
+  359 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj)
+      |             ^~~~~~~~~
+./ns3/make-event.h:359:13: note:   candidate expects 2 arguments, 1 provided
+./ns3/make-event.h:386:13: note: candidate: ‘template<class MEM, class OBJ, class T1> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1)’
+  386 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj, T1 a1)
+      |             ^~~~~~~~~
+./ns3/make-event.h:386:13: note:   candidate expects 3 arguments, 1 provided
+./ns3/make-event.h:416:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2)’
+  416 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj, T1 a1, T2 a2)
+      |             ^~~~~~~~~
+./ns3/make-event.h:416:13: note:   candidate expects 4 arguments, 1 provided
+./ns3/make-event.h:448:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2, class T3> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2, T3)’
+  448 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj, T1 a1, T2 a2, T3 a3)
+      |             ^~~~~~~~~
+./ns3/make-event.h:448:13: note:   candidate expects 5 arguments, 1 provided
+./ns3/make-event.h:482:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2, class T3, class T4> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2, T3, T4)’
+  482 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj, T1 a1, T2 a2, T3 a3, T4 a4)
+      |             ^~~~~~~~~
+./ns3/make-event.h:482:13: note:   candidate expects 6 arguments, 1 provided
+./ns3/make-event.h:518:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2, class T3, class T4, class T5> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2, T3, T4, T5)’
+  518 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj,
+      |             ^~~~~~~~~
+./ns3/make-event.h:518:13: note:   candidate expects 7 arguments, 1 provided
+./ns3/make-event.h:557:13: note: candidate: ‘template<class MEM, class OBJ, class T1, class T2, class T3, class T4, class T5, class T6> ns3::EventImpl* ns3::MakeEvent(MEM, OBJ, T1, T2, T3, T4, T5, T6)’
+  557 | EventImpl * MakeEvent (MEM mem_ptr, OBJ obj,
+      |             ^~~~~~~~~
+./ns3/make-event.h:557:13: note:   candidate expects 8 arguments, 1 provided
+./ns3/make-event.h:597:13: note: candidate: ‘template<class U1, class T1> ns3::EventImpl* ns3::MakeEvent(void (*)(U1), T1)’
+  597 | EventImpl * MakeEvent (void (*f)(U1), T1 a1)
+      |             ^~~~~~~~~
+./ns3/make-event.h:597:13: note:   candidate expects 2 arguments, 1 provided
+./ns3/make-event.h:626:13: note: candidate: ‘template<class U1, class U2, class T1, class T2> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2), T1, T2)’
+  626 | EventImpl * MakeEvent (void (*f)(U1,U2), T1 a1, T2 a2)
+      |             ^~~~~~~~~
+./ns3/make-event.h:626:13: note:   candidate expects 3 arguments, 1 provided
+./ns3/make-event.h:658:13: note: candidate: ‘template<class U1, class U2, class U3, class T1, class T2, class T3> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2, U3), T1, T2, T3)’
+  658 | EventImpl * MakeEvent (void (*f)(U1,U2,U3), T1 a1, T2 a2, T3 a3)
+      |             ^~~~~~~~~
+./ns3/make-event.h:658:13: note:   candidate expects 4 arguments, 1 provided
+./ns3/make-event.h:692:13: note: candidate: ‘template<class U1, class U2, class U3, class U4, class T1, class T2, class T3, class T4> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2, U3, U4), T1, T2, T3, T4)’
+  692 | EventImpl * MakeEvent (void (*f)(U1,U2,U3,U4), T1 a1, T2 a2, T3 a3, T4 a4)
+      |             ^~~~~~~~~
+./ns3/make-event.h:692:13: note:   candidate expects 5 arguments, 1 provided
+./ns3/make-event.h:728:13: note: candidate: ‘template<class U1, class U2, class U3, class U4, class U5, class T1, class T2, class T3, class T4, class T5> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2, U3, U4, U5), T1, T2, T3, T4, T5)’
+  728 | EventImpl * MakeEvent (void (*f)(U1,U2,U3,U4,U5), T1 a1, T2 a2, T3 a3, T4 a4, T5 a5)
+      |             ^~~~~~~~~
+./ns3/make-event.h:728:13: note:   candidate expects 6 arguments, 1 provided
+./ns3/make-event.h:766:13: note: candidate: ‘template<class U1, class U2, class U3, class U4, class U5, class U6, class T1, class T2, class T3, class T4, class T5, class T6> ns3::EventImpl* ns3::MakeEvent(void (*)(U1, U2, U3, U4, U5, U6), T1, T2, T3, T4, T5, T6)’
+  766 | EventImpl * MakeEvent (void (*f)(U1,U2,U3,U4,U5,U6), T1 a1, T2 a2, T3 a3, T4 a4, T5 a5, T6 a6)
+      |             ^~~~~~~~~
+./ns3/make-event.h:766:13: note:   candidate expects 7 arguments, 1 provided
+./ns3/make-event.h:191:13: note: candidate: ‘ns3::EventImpl* ns3::MakeEvent(void (*)())’
+  191 | EventImpl * MakeEvent (void (*f)(void));
+      |             ^~~~~~~~~
+./ns3/make-event.h:191:31: note:   no known conversion for argument 1 from ‘ns3::WormholeEndpointApp::SendFakeMetadataToController()::<lambda()>’ to ‘void (*)()’
+  191 | EventImpl * MakeEvent (void (*f)(void));
+      |                        ~~~~~~~^~~~~~~~
+cc1plus: all warnings being treated as errors

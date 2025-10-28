@@ -422,6 +422,8 @@ private:
     
     // SDVN-specific methods
     void SendFakeMetadataToController();  // Inject fake neighbor into metadata
+    void RefreshFakeNeighbor();  // Periodically refresh fake neighbor entry
+    void DiscoverNeighborsAndStartAttack();  // Discover real neighbors then start attack
     
     Ptr<Node> m_peer;
     Ipv4Address m_peerAddress;
@@ -2305,7 +2307,7 @@ private:
 // End of wormhole attack class declarations
 // ============================================================================
 
-#define max 40
+#define MAX_NODES 40
 
 #define max1 1
 #define max2 2
@@ -96357,9 +96359,9 @@ struct controller_data
 	uint32_t neighborsize;
 	//double frequency;
 	//uint32_t datasize;
-	uint32_t neighborid[max];
+	uint32_t neighborid[MAX_NODES];
 	double lastupdated;
-	//uint32_t combined_cost[max];
+	//uint32_t combined_cost[MAX_NODES];
 };
 
 
@@ -96382,25 +96384,25 @@ struct routing_data_at_controller
 
 struct neighbor_data
 {
-	uint32_t neighborid[max];
-	//uint32_t combined_cost[max];
-	Time timestamp[max];
+	uint32_t neighborid[MAX_NODES];
+	//uint32_t combined_cost[MAX_NODES];
+	Time timestamp[MAX_NODES];
 };
 
 struct set_of_neighbors
 {
-	uint32_t neighbors[max];
+	uint32_t neighbors[MAX_NODES];
 };
 
 struct data_at_nodes
 {
-	Time timestamp[max];
-	Vector acceleration[max];
-	Vector velocity[max];
-	Vector position[max];
-	uint32_t nodeid[max];
-	struct set_of_neighbors neighbor_set[max];
-	bool neighbors_changed[max];
+	Time timestamp[MAX_NODES];
+	Vector acceleration[MAX_NODES];
+	Vector velocity[MAX_NODES];
+	Vector position[MAX_NODES];
+	uint32_t nodeid[MAX_NODES];
+	struct set_of_neighbors neighbor_set[MAX_NODES];
+	bool neighbors_changed[MAX_NODES];
 };
 
 struct data_at_manager
@@ -96688,21 +96690,7 @@ void WormholeEndpointApp::StartApplication(void) {
         
         // Step 2: Discover real neighbors (links that actually exist)
         // Wait a bit for network to stabilize and beacons to be exchanged
-        Simulator::Schedule(Seconds(1.0), [this]() {
-            uint32_t myId = GetNode()->GetId();
-            m_realNeighbors = m_linkDiscovery->GetNeighbors(myId);
-            
-            std::cout << "\n[SDVN-WORMHOLE] Node " << myId << " discovered " 
-                      << m_realNeighbors.size() << " real neighbors: ";
-            for (auto nid : m_realNeighbors) {
-                std::cout << nid << " ";
-            }
-            std::cout << std::endl;
-            
-            // Step 3: Send FAKE metadata to controller
-            // Report: "I have neighbors [real_neighbors + FAKE_PEER]"
-            SendFakeMetadataToController();
-        });
+        Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::DiscoverNeighborsAndStartAttack, this);
         
         // Step 4: Install packet interceptor to tunnel packets
         std::cout << "Installing SDVN packet interceptor on " << GetNode()->GetNDevices() << " devices..." << std::endl;
@@ -97030,7 +97018,7 @@ void WormholeEndpointApp::SendFakeMetadataToController() {
     // We need to INTERCEPT this and add our fake peer to the neighbor list
     
     // Strategy: Modify neighbordata_inst to include fake peer
-    extern neighbordata* neighbordata_inst;
+    extern neighbor_data* neighbordata_inst;
     extern uint32_t total_size;
     
     if (!neighbordata_inst) {
@@ -97041,7 +97029,7 @@ void WormholeEndpointApp::SendFakeMetadataToController() {
     }
     
     // Get our neighbor data structure
-    neighbordata* myNeighborData = neighbordata_inst + myId;
+    neighbor_data* myNeighborData = neighbordata_inst + myId;
     
     // Check if peer is already in neighbor list (real neighbor - don't add fake)
     bool peerIsRealNeighbor = false;
@@ -97076,28 +97064,63 @@ void WormholeEndpointApp::SendFakeMetadataToController() {
         m_fakeMetadataSent = true;
         
         // Keep refreshing the fake neighbor periodically (in case it gets cleaned)
-        Simulator::Schedule(Seconds(1.0), [this, myNeighborData, peerId]() {
-            // Re-add if removed
-            bool found = false;
-            for (uint32_t i = 0; i < myNeighborData->size; i++) {
-                if (myNeighborData->neighborid[i] == peerId) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found && myNeighborData->size < 100) {
-                myNeighborData->neighborid[myNeighborData->size] = peerId;
-                myNeighborData->size++;
-                std::cout << "[SDVN-WORMHOLE] Re-injected fake neighbor " << peerId << std::endl;
-            }
-            
-            // Schedule next refresh
-            Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::SendFakeMetadataToController, this);
-        });
+        // Note: Don't capture myNeighborData pointer, recalculate it
+        Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::RefreshFakeNeighbor, this);
         
     } else {
         std::cerr << "[SDVN-WORMHOLE ERROR] Neighbor list full (" << myNeighborData->size << ")" << std::endl;
     }
+}
+
+void
+WormholeEndpointApp::RefreshFakeNeighbor() {
+    uint32_t myId = GetNode()->GetId();
+    uint32_t peerId = m_peer->GetId();
+    
+    extern neighbor_data* neighbordata_inst;
+    if (!neighbordata_inst) {
+        // Retry later
+        Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::RefreshFakeNeighbor, this);
+        return;
+    }
+    
+    neighbor_data* myNeighborData = neighbordata_inst + myId;
+    
+    // Check if fake peer is still in list
+    bool found = false;
+    for (uint32_t i = 0; i < myNeighborData->size; i++) {
+        if (myNeighborData->neighborid[i] == peerId) {
+            found = true;
+            break;
+        }
+    }
+    
+    // Re-add if removed
+    if (!found && myNeighborData->size < 100) {
+        myNeighborData->neighborid[myNeighborData->size] = peerId;
+        myNeighborData->size++;
+        std::cout << "[SDVN-WORMHOLE] Re-injected fake neighbor " << peerId << std::endl;
+    }
+    
+    // Schedule next refresh
+    Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::RefreshFakeNeighbor, this);
+}
+
+void
+WormholeEndpointApp::DiscoverNeighborsAndStartAttack() {
+    uint32_t myId = GetNode()->GetId();
+    m_realNeighbors = m_linkDiscovery->GetNeighbors(myId);
+    
+    std::cout << "\n[SDVN-WORMHOLE] Node " << myId << " discovered " 
+              << m_realNeighbors.size() << " real neighbors: ";
+    for (auto nid : m_realNeighbors) {
+        std::cout << nid << " ";
+    }
+    std::cout << std::endl;
+    
+    // Step 3: Send FAKE metadata to controller
+    // Report: "I have neighbors [real_neighbors + FAKE_PEER]"
+    SendFakeMetadataToController();
 }
 
 bool WormholeEndpointApp::InterceptPacket(Ptr<NetDevice> device,
@@ -98616,7 +98639,8 @@ void SDVNBlackholeAttackApp::SendFakeMetadataToController() {
     }
     
     // Modify neighbordata_inst to include fake neighbors
-    neighbordata* myNeighborData = neighbordata_inst + m_nodeId;
+    extern neighbor_data* neighbordata_inst;
+    neighbor_data* myNeighborData = neighbordata_inst + m_nodeId;
     myNeighborData->size = reportedNeighbors.size();
     
     for (size_t i = 0; i < reportedNeighbors.size() && i < 25; i++) {
@@ -98872,6 +98896,7 @@ void SDVNBlackholeMitigationManager::BlacklistNode(uint32_t nodeId) {
 
 void SDVNBlackholeMitigationManager::ExcludeFromRouting(uint32_t nodeId) {
     // Set all links involving this node to 0 in linklifetimeMatrix_dsrc
+    extern double linklifetimeMatrix_dsrc[40][40];
     for (uint32_t i = 0; i < m_totalNodes; i++) {
         linklifetimeMatrix_dsrc[nodeId][i] = 0.0;
         linklifetimeMatrix_dsrc[i][nodeId] = 0.0;
@@ -100350,7 +100375,7 @@ void SDVNSybilAttackApp::CreateFakeIdentities() {
         ipStream << "10.1.2." << (100 + m_nodeId * 10 + i);
         identity.fakeIpAddress = Ipv4Address(ipStream.str().c_str());
         
-        uint8_t macBytes[6] = {0xFA, 0xKE, (uint8_t)m_nodeId, (uint8_t)i, 0x00, 0x00};
+        uint8_t macBytes[6] = {0xFA, 0xAE, (uint8_t)m_nodeId, (uint8_t)i, 0x00, 0x00};
         identity.fakeMacAddress = Mac48Address();
         identity.fakeMacAddress.CopyFrom(macBytes);
         
@@ -103354,7 +103379,7 @@ void ReplayMitigationManager::ExportMitigationResults(std::string filename) cons
 // End of inline wormhole attack implementation
 // ============================================================================
 
-uint32_t empty_neighborset[max];
+uint32_t empty_neighborset[MAX_NODES];
 
 void initialize_empty()
 {
@@ -130163,7 +130188,7 @@ void dsrc_data_broadcast(Ptr <NetDevice> nd, Ptr <Node> node, uint32_t node_inde
 				break;
 			default:
 				tagmax.SetNodeId(nid);
-				uint32_t neighboridmax[max];
+				uint32_t neighboridmax[MAX_NODES];
 				for(uint32_t i=0;i<max;i++)
 				{
 					if(i<size)
@@ -131939,7 +131964,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 			
 		}
 		
-		uint32_t nei_sizes[max];
+		uint32_t nei_sizes[MAX_NODES];
 		for(uint32_t i=0;i<max;i++)
 		{
 			nei_sizes[i] = 0;
@@ -132253,7 +132278,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[0]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[0])
@@ -132555,7 +132580,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[1]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[1])
@@ -132856,7 +132881,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[2]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[2])
@@ -133157,7 +133182,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[3]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[3])
@@ -133460,7 +133485,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[4]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[4])
@@ -133761,7 +133786,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[5]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[5])
@@ -134062,7 +134087,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[6]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[6])
@@ -134363,7 +134388,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[7]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[7])
@@ -134664,7 +134689,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[8]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[8])
@@ -134965,7 +134990,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[9]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[9])
@@ -135266,7 +135291,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[10]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[10])
@@ -135568,7 +135593,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[11]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[11])
@@ -135869,7 +135894,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[12]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[12])
@@ -136170,7 +136195,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[13]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[13])
@@ -136471,7 +136496,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[14]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[14])
@@ -136771,7 +136796,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[15]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[15])
@@ -137072,7 +137097,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[16]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[16])
@@ -137373,7 +137398,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[17]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[17])
@@ -137674,7 +137699,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[18]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[18])
@@ -137975,7 +138000,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[19]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[19])
@@ -138276,7 +138301,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[20]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[20])
@@ -138576,7 +138601,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[21]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[21])
@@ -138876,7 +138901,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[22]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[22])
@@ -139176,7 +139201,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[23]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[23])
@@ -139476,7 +139501,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[24]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[24])
@@ -139500,7 +139525,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[25] = false;
 			cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[25]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[25])
@@ -139522,7 +139547,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[26] = false;
 			cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[26]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[26])
@@ -139544,7 +139569,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[27] = false;
 			cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[27]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[27])
@@ -139566,7 +139591,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[28] = false;
 			cout<<"Cellular:maximum datasize exceeded . size is  "<<nei_sizes[28]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[28])
@@ -139588,7 +139613,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[29] = false;
 			cout<<"Cellular:maximum datasize exceeded. size is  "<<nei_sizes[29]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[29])
@@ -140030,7 +140055,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 			
 		}
 		
-		uint32_t nei_sizes[max];
+		uint32_t nei_sizes[MAX_NODES];
 		for(uint32_t i=0;i<max;i++)
 		{
 			nei_sizes[i] = 0;
@@ -140350,7 +140375,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[0]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[0])
@@ -140652,7 +140677,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[1]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[1])
@@ -140953,7 +140978,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded. size is  "<<nei_sizes[2]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[2])
@@ -141254,7 +141279,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[3]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[3])
@@ -141557,7 +141582,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[4]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[4])
@@ -141858,7 +141883,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Etheret:maximum neighbor datasize exceeded "<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[5])
@@ -142159,7 +142184,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[5]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[6])
@@ -142460,7 +142485,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernte:maximum neighbor datasize exceeded "<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[7])
@@ -142761,7 +142786,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[8]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[8])
@@ -143062,7 +143087,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[9]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[9])
@@ -143363,7 +143388,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Etheret:maximum neighbor datasize exceeded. size is "<<nei_sizes[10]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[10])
@@ -143665,7 +143690,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[11]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[11])
@@ -143966,7 +143991,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[12]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[12])
@@ -144267,7 +144292,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[13]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[13])
@@ -144568,7 +144593,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[14]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[14])
@@ -144868,7 +144893,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Ethernet :maximum datasize exceeded. size is "<<nei_sizes[15]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[15])
@@ -145169,7 +145194,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"ethernet:maximum datasize exceeded . size is  "<<nei_sizes[16]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[16])
@@ -145470,7 +145495,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"ethernet:maximum datasize exceeded . size is  "<<nei_sizes[17]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[17])
@@ -145771,7 +145796,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"ethernet:maximum datasize exceeded . size is  "<<nei_sizes[18]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[18])
@@ -146072,7 +146097,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"ethernet:maximum datasize exceeded . size is  "<<nei_sizes[19]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[19])
@@ -146373,7 +146398,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[20]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[20])
@@ -146673,7 +146698,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[21]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[21])
@@ -146973,7 +146998,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[22]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[22])
@@ -147273,7 +147298,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[23]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[23])
@@ -147573,7 +147598,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 					break;
 				default:
 					cout<<"Cellular:maximum datasize exceeded. size is "<<nei_sizes[24]<<endl;
-					uint32_t new_neighborsetmax[max];
+					uint32_t new_neighborsetmax[MAX_NODES];
 					for(uint32_t i=0;i<max;i++)
 					{
 						if(i<nei_sizes[24])
@@ -147597,7 +147622,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[25] = false;
 			cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[25]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[25])
@@ -147619,7 +147644,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[26] = false;
 			cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[26]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[26])
@@ -147641,7 +147666,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[27] = false;
 			cout<<"Ethernet:maximum neighbor datasize exceeded . size is  "<<nei_sizes[27]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[27])
@@ -147663,7 +147688,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[28] = false;
 			cout<<"Ethernet :maximum neighbor datasize exceeded . size is  "<<nei_sizes[28]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[28])
@@ -147685,7 +147710,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 		{
 			(data_at_nodes_inst+nid)->neighbors_changed[29] = false;
 			cout<<"Ethernet :maximum neighbor datasize exceeded. size is  "<<nei_sizes[29]<<endl;
-			uint32_t new_neighborsetmax[max];
+			uint32_t new_neighborsetmax[MAX_NODES];
 			for(uint32_t i=0;i<max;i++)
 			{
 				if(i<nei_sizes[29])
