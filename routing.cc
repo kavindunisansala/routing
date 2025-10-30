@@ -8209,7 +8209,7 @@ private:
 	Vector m_currentPosition;
 	Vector m_currentVelocity;
 	Vector m_currentAcceleration;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 	Time m_timestamp;
 	
 
@@ -8278,7 +8278,7 @@ void CustomDataTagmax::Serialize (TagBuffer i) const
 	i.WriteDouble (m_currentAcceleration.y);
 	i.WriteDouble (m_currentAcceleration.z);
 	
-	for (uint32_t j=0;j<max;j++)
+	for (uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -8312,7 +8312,7 @@ void CustomDataTagmax::Deserialize (TagBuffer i)
 	m_currentAcceleration.y = i.ReadDouble();
 	m_currentAcceleration.z = i.ReadDouble();
 	
-	for (uint32_t j=0;j<max;j++)
+	for (uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -8375,7 +8375,7 @@ void CustomDataTagmax::SetTimestamp(Time t) {
 
 void CustomDataTagmax::SetNeighborids(uint32_t * nid)
 {
-	for(uint32_t i =0; i<max;i++)
+	for(uint32_t i =0; i<MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(nid+i);
 	}
@@ -8538,11 +8538,11 @@ public:
 	virtual ~CustomDataUnicastTag();
 private:
 	uint32_t m_senderId;
-	uint32_t m_nodeId[max+1];
-	Vector m_acceleration[max+1];
-	Vector m_velocity[max+1];
-	Vector m_position[max+1];
-	Time m_timestamp[max+1];
+	uint32_t m_nodeId[MAX_NODES+1];
+	Vector m_acceleration[MAX_NODES+1];
+	Vector m_velocity[MAX_NODES+1];
+	Vector m_position[MAX_NODES+1];
+	Time m_timestamp[MAX_NODES+1];
 };
 
 
@@ -8580,7 +8580,7 @@ TypeId CustomDataUnicastTag::GetInstanceTypeId (void) const
 uint32_t CustomDataUnicastTag::GetSerializedSize (void) const
 {
 	//return sizeof (m_nodeId) + sizeof(m_acceleration) + sizeof(m_velocity) + sizeof(m_position) + sizeof(m_timestamp) + sizeof(uint32_t);
-	return (sizeof (uint32_t))*(max+1) + (sizeof(double))*3*(max+1) + (sizeof(double))*3*(max+1) + (sizeof(double))*3*(max+1) + (sizeof(double))*(max+1)+ sizeof(uint32_t);
+	return (sizeof (uint32_t))*(MAX_NODES+1) + (sizeof(double))*3*(MAX_NODES+1) + (sizeof(double))*3*(MAX_NODES+1) + (sizeof(double))*3*(MAX_NODES+1) + (sizeof(double))*(MAX_NODES+1)+ sizeof(uint32_t);
 }
 
 /*
@@ -8591,29 +8591,29 @@ uint32_t CustomDataUnicastTag::GetSerializedSize (void) const
 
 void CustomDataUnicastTag::Serialize (TagBuffer i) const
 {
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_nodeId[j]);
 	}
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		i.WriteDouble(m_acceleration[j].x);
 		i.WriteDouble(m_acceleration[j].y);
 		i.WriteDouble(m_acceleration[j].z);
 	}
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		i.WriteDouble(m_velocity[j].x);
 		i.WriteDouble(m_velocity[j].y);
 		i.WriteDouble(m_velocity[j].z);
 	}
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		i.WriteDouble(m_position[j].x);
 		i.WriteDouble(m_position[j].y);
 		i.WriteDouble(m_position[j].z);
 	}
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		i.WriteDouble(m_timestamp[j].GetDouble());
 	}
@@ -8626,26 +8626,26 @@ void CustomDataUnicastTag::Serialize (TagBuffer i) const
 void CustomDataUnicastTag::Deserialize (TagBuffer i)
 {
 	
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		m_nodeId[j] = i.ReadU32();
 	}
 	
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		m_acceleration[j].x = i.ReadDouble();
 		m_acceleration[j].y = i.ReadDouble();
 		m_acceleration[j].z = i.ReadDouble();
 	}
 	
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		m_velocity[j].x = i.ReadDouble();
 		m_velocity[j].y = i.ReadDouble();
 		m_velocity[j].z = i.ReadDouble();
 	}
 	
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		m_position[j].x = i.ReadDouble();
 		m_position[j].y = i.ReadDouble();
@@ -8653,7 +8653,7 @@ void CustomDataUnicastTag::Deserialize (TagBuffer i)
 	}
 	
 	
-	for(int j=0;j<max;j++)
+	for(int j=0;j<MAX_NODES;j++)
 	{
 		m_timestamp[j] =  Time::FromDouble (i.ReadDouble(), Time::NS);
 	}
@@ -8674,7 +8674,7 @@ uint32_t * CustomDataUnicastTag::GetNodeId() {
 }
 
 void CustomDataUnicastTag::SetNodeId(uint32_t * node_id) {
-	for(uint32_t i=0;i<max;i++)
+	for(uint32_t i=0;i<MAX_NODES;i++)
 	{
 		m_nodeId[i] = *(node_id+i);
 	}
@@ -8688,7 +8688,7 @@ Vector * CustomDataUnicastTag::Getacceleration()
 
 void CustomDataUnicastTag::Setacceleration (Vector * accn)
 {
-	for(uint32_t i=0;i<max;i++)
+	for(uint32_t i=0;i<MAX_NODES;i++)
 	{
 		m_acceleration[i].x = accn[i].x;
 		m_acceleration[i].y = accn[i].y;
@@ -8703,7 +8703,7 @@ Vector * CustomDataUnicastTag::Getvelocity()
 
 void CustomDataUnicastTag::Setvelocity (Vector * vel)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_velocity[i].x = vel[i].x;
 		m_velocity[i].y = vel[i].y;
@@ -8718,7 +8718,7 @@ Vector * CustomDataUnicastTag::Getposition()
 
 void CustomDataUnicastTag::Setposition (Vector * pos)
 {
-	for(uint32_t i=0;i<max;i++)
+	for(uint32_t i=0;i<MAX_NODES;i++)
 	{
 		m_position[i].x = pos[i].x;
 		m_position[i].y = pos[i].y;
