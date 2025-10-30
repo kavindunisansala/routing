@@ -2309,6 +2309,13 @@ private:
     uint32_t m_totalPacketsProcessed;
 };
 
+// Global variables needed by attack/mitigation classes (MUST be inside ns3 namespace for proper linkage)
+bool use_sdvn_wormhole = true;  // Will be set from global config
+LinkDiscoveryModule* g_linkDiscoveryModule = nullptr;  // Will be initialized in main
+neighbor_data* neighbordata_inst = nullptr;  // Will point to array defined later
+std::vector<std::vector<double>> linklifetimeMatrix_dsrc;  // Defined here
+uint32_t total_size = 40;  // Default value, will be set from config
+
 } // namespace ns3
 
 // End of wormhole attack class declarations
@@ -2393,7 +2400,7 @@ bool present_routing_table_poisoning_attack_controllers = false;
 
 // Enhanced Wormhole Attack Configuration
 bool use_enhanced_wormhole = false;              // Use AODV-based wormhole attack (realistic)
-bool use_sdvn_wormhole = true;                   // Use SDVN-aware wormhole (controller-based attack)
+// REMOVED: bool use_sdvn_wormhole = true; (now defined inside ns3 namespace above)
 std::string wormhole_tunnel_bandwidth = "1000Mbps"; // Tunnel bandwidth
 uint32_t wormhole_tunnel_delay_us = 50000;      // Tunnel delay in microseconds (50ms = realistic long-distance tunnel)
 bool wormhole_random_pairing = true;            // Random vs sequential pairing
@@ -2505,8 +2512,8 @@ std::vector<bool> routing_table_poisoning_malicious_controllers(controllers, fal
 // Global wormhole attack manager instance
 ns3::WormholeAttackManager* g_wormholeManager = nullptr;
 
-// Global SDVN-specific instances
-ns3::LinkDiscoveryModule* g_linkDiscoveryModule = nullptr;
+// REMOVED: Global SDVN-specific instances now defined inside ns3 namespace
+// ns3::LinkDiscoveryModule* g_linkDiscoveryModule = nullptr;
 ns3::SDVNWormholeMitigationManager* g_sdvnWormholeMitigation = nullptr;
 ns3::SDVNPerformanceMonitor* g_performanceMonitor = nullptr;
 
@@ -103500,8 +103507,18 @@ void clear_controllerdata(struct controller_data * nd1)
 	nd1->lastupdated = Simulator::Now().GetSeconds();
 }
 
-struct neighbor_data neighbordata_inst[total_size+2];
-struct controller_data con_data_inst[total_size+2];
+struct neighbor_data neighbordata_inst_array[MAX_NODES+2];  // Actual array storage (was total_size+2)
+struct controller_data con_data_inst[MAX_NODES+2];  // Use MAX_NODES since total_size is runtime
+
+// Initialize the ns3-scoped pointer to point to the array
+namespace {
+    struct NeighborDataInitializer {
+        NeighborDataInitializer() {
+            ns3::neighbordata_inst = neighbordata_inst_array;
+            ns3::total_size = MAX_NODES;  // Sync runtime value with compile-time constant
+        }
+    } g_neighbordata_initializer;
+}
 
 double sum_of_nodeids = 0;
 void nodeid_sum()
@@ -124472,7 +124489,7 @@ void write_csv_results_routing()
 
 
 vector<vector<double>> adjacencyMatrix;
-vector<vector<double>> linklifetimeMatrix_dsrc;
+// REMOVED: vector<vector<double>> linklifetimeMatrix_dsrc; (now defined inside ns3 namespace)
 vector<vector<double>> linklifetimeMatrix_ethernet;
 vector<vector<double>> delayMatrix_dsrc;
 vector<vector<double>> delayMatrix_ethernet;
