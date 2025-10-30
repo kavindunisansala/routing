@@ -31498,7 +31498,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -31543,7 +31543,7 @@ uint32_t CustomMetaDataUnicastTagN5max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN5max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -31554,7 +31554,7 @@ void CustomMetaDataUnicastTagN5max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN5max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -31579,7 +31579,7 @@ uint32_t * CustomMetaDataUnicastTagN5max::Getneighborid()
 
 void CustomMetaDataUnicastTagN5max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -34540,7 +34540,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -34585,7 +34585,7 @@ uint32_t CustomMetaDataUnicastTagN6max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN6max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -34596,7 +34596,7 @@ void CustomMetaDataUnicastTagN6max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN6max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -34621,7 +34621,7 @@ uint32_t * CustomMetaDataUnicastTagN6max::Getneighborid()
 
 void CustomMetaDataUnicastTagN6max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -37572,7 +37572,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -37617,7 +37617,7 @@ uint32_t CustomMetaDataUnicastTagN7max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN7max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -37628,7 +37628,7 @@ void CustomMetaDataUnicastTagN7max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN7max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -37653,7 +37653,7 @@ uint32_t * CustomMetaDataUnicastTagN7max::Getneighborid()
 
 void CustomMetaDataUnicastTagN7max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -40605,7 +40605,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -40650,7 +40650,7 @@ uint32_t CustomMetaDataUnicastTagN8max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN8max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -40661,7 +40661,7 @@ void CustomMetaDataUnicastTagN8max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN8max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -40686,7 +40686,7 @@ uint32_t * CustomMetaDataUnicastTagN8max::Getneighborid()
 
 void CustomMetaDataUnicastTagN8max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -43636,7 +43636,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -43681,7 +43681,7 @@ uint32_t CustomMetaDataUnicastTagN9max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN9max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -43692,7 +43692,7 @@ void CustomMetaDataUnicastTagN9max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN9max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -43717,7 +43717,7 @@ uint32_t * CustomMetaDataUnicastTagN9max::Getneighborid()
 
 void CustomMetaDataUnicastTagN9max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -46672,7 +46672,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -46717,7 +46717,7 @@ uint32_t CustomMetaDataUnicastTagN10max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN10max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -46728,7 +46728,7 @@ void CustomMetaDataUnicastTagN10max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN10max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -46753,7 +46753,7 @@ uint32_t * CustomMetaDataUnicastTagN10max::Getneighborid()
 
 void CustomMetaDataUnicastTagN10max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -49703,7 +49703,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -49748,7 +49748,7 @@ uint32_t CustomMetaDataUnicastTagN11max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN11max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -49759,7 +49759,7 @@ void CustomMetaDataUnicastTagN11max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN11max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -49784,7 +49784,7 @@ uint32_t * CustomMetaDataUnicastTagN11max::Getneighborid()
 
 void CustomMetaDataUnicastTagN11max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -52733,7 +52733,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -52778,7 +52778,7 @@ uint32_t CustomMetaDataUnicastTagN12max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN12max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -52789,7 +52789,7 @@ void CustomMetaDataUnicastTagN12max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN12max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -52814,7 +52814,7 @@ uint32_t * CustomMetaDataUnicastTagN12max::Getneighborid()
 
 void CustomMetaDataUnicastTagN12max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -55763,7 +55763,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -55808,7 +55808,7 @@ uint32_t CustomMetaDataUnicastTagN13max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN13max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -55819,7 +55819,7 @@ void CustomMetaDataUnicastTagN13max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN13max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -55844,7 +55844,7 @@ uint32_t * CustomMetaDataUnicastTagN13max::Getneighborid()
 
 void CustomMetaDataUnicastTagN13max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -58794,7 +58794,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -58839,7 +58839,7 @@ uint32_t CustomMetaDataUnicastTagN14max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN14max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -58850,7 +58850,7 @@ void CustomMetaDataUnicastTagN14max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN14max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -58875,7 +58875,7 @@ uint32_t * CustomMetaDataUnicastTagN14max::Getneighborid()
 
 void CustomMetaDataUnicastTagN14max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -61823,7 +61823,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -61868,7 +61868,7 @@ uint32_t CustomMetaDataUnicastTagN15max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN15max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -61879,7 +61879,7 @@ void CustomMetaDataUnicastTagN15max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN15max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -61904,7 +61904,7 @@ uint32_t * CustomMetaDataUnicastTagN15max::Getneighborid()
 
 void CustomMetaDataUnicastTagN15max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -61940,7 +61940,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -61985,7 +61985,7 @@ uint32_t CustomMetaDataUnicastTagN16max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN16max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -61996,7 +61996,7 @@ void CustomMetaDataUnicastTagN16max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN16max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -62021,7 +62021,7 @@ uint32_t * CustomMetaDataUnicastTagN16max::Getneighborid()
 
 void CustomMetaDataUnicastTagN16max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -62057,7 +62057,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -62102,7 +62102,7 @@ uint32_t CustomMetaDataUnicastTagN17max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN17max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -62113,7 +62113,7 @@ void CustomMetaDataUnicastTagN17max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN17max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -62138,7 +62138,7 @@ uint32_t * CustomMetaDataUnicastTagN17max::Getneighborid()
 
 void CustomMetaDataUnicastTagN17max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -62174,7 +62174,7 @@ public:
 	virtual ~CustomMetaDataUnicastTagN18max();
 private:
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -62219,7 +62219,7 @@ uint32_t CustomMetaDataUnicastTagN18max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN18max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -62230,7 +62230,7 @@ void CustomMetaDataUnicastTagN18max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN18max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -62255,7 +62255,7 @@ uint32_t * CustomMetaDataUnicastTagN18max::Getneighborid()
 
 void CustomMetaDataUnicastTagN18max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -62291,7 +62291,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -62336,7 +62336,7 @@ uint32_t CustomMetaDataUnicastTagN19max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN19max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -62347,7 +62347,7 @@ void CustomMetaDataUnicastTagN19max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN19max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -62372,7 +62372,7 @@ uint32_t * CustomMetaDataUnicastTagN19max::Getneighborid()
 
 void CustomMetaDataUnicastTagN19max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -62408,7 +62408,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -62453,7 +62453,7 @@ uint32_t CustomMetaDataUnicastTagN20max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN20max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -62464,7 +62464,7 @@ void CustomMetaDataUnicastTagN20max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN20max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -62489,7 +62489,7 @@ uint32_t * CustomMetaDataUnicastTagN20max::Getneighborid()
 
 void CustomMetaDataUnicastTagN20max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -62525,7 +62525,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -62570,7 +62570,7 @@ uint32_t CustomMetaDataUnicastTagN21max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN21max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -62581,7 +62581,7 @@ void CustomMetaDataUnicastTagN21max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN21max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -62606,7 +62606,7 @@ uint32_t * CustomMetaDataUnicastTagN21max::Getneighborid()
 
 void CustomMetaDataUnicastTagN21max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -62642,7 +62642,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -62687,7 +62687,7 @@ uint32_t CustomMetaDataUnicastTagN22max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN22max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -62698,7 +62698,7 @@ void CustomMetaDataUnicastTagN22max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN22max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -62723,7 +62723,7 @@ uint32_t * CustomMetaDataUnicastTagN22max::Getneighborid()
 
 void CustomMetaDataUnicastTagN22max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -62759,7 +62759,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -62804,7 +62804,7 @@ uint32_t CustomMetaDataUnicastTagN23max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN23max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -62815,7 +62815,7 @@ void CustomMetaDataUnicastTagN23max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN23max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -62840,7 +62840,7 @@ uint32_t * CustomMetaDataUnicastTagN23max::Getneighborid()
 
 void CustomMetaDataUnicastTagN23max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -62876,7 +62876,7 @@ public:
 private:
 	uint32_t m_nodeid;
 
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -62921,7 +62921,7 @@ uint32_t CustomMetaDataUnicastTagN24max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN24max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -62932,7 +62932,7 @@ void CustomMetaDataUnicastTagN24max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN24max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -62957,7 +62957,7 @@ uint32_t * CustomMetaDataUnicastTagN24max::Getneighborid()
 
 void CustomMetaDataUnicastTagN24max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -62993,7 +62993,7 @@ public:
 	virtual ~CustomMetaDataUnicastTagN25max();
 private:
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -63038,7 +63038,7 @@ uint32_t CustomMetaDataUnicastTagN25max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN25max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -63049,7 +63049,7 @@ void CustomMetaDataUnicastTagN25max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN25max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -63074,7 +63074,7 @@ uint32_t * CustomMetaDataUnicastTagN25max::Getneighborid()
 
 void CustomMetaDataUnicastTagN25max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -63111,7 +63111,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -63156,7 +63156,7 @@ uint32_t CustomMetaDataUnicastTagN26max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN26max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -63167,7 +63167,7 @@ void CustomMetaDataUnicastTagN26max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN26max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -63192,7 +63192,7 @@ uint32_t * CustomMetaDataUnicastTagN26max::Getneighborid()
 
 void CustomMetaDataUnicastTagN26max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -63228,7 +63228,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -63273,7 +63273,7 @@ uint32_t CustomMetaDataUnicastTagN27max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN27max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -63284,7 +63284,7 @@ void CustomMetaDataUnicastTagN27max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN27max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -63309,7 +63309,7 @@ uint32_t * CustomMetaDataUnicastTagN27max::Getneighborid()
 
 void CustomMetaDataUnicastTagN27max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -63346,7 +63346,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -63391,7 +63391,7 @@ uint32_t CustomMetaDataUnicastTagN28max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN28max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -63402,7 +63402,7 @@ void CustomMetaDataUnicastTagN28max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN28max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -63427,7 +63427,7 @@ uint32_t * CustomMetaDataUnicastTagN28max::Getneighborid()
 
 void CustomMetaDataUnicastTagN28max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -63465,7 +63465,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -63510,7 +63510,7 @@ uint32_t CustomMetaDataUnicastTagN29max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN29max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -63521,7 +63521,7 @@ void CustomMetaDataUnicastTagN29max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN29max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -63546,7 +63546,7 @@ uint32_t * CustomMetaDataUnicastTagN29max::Getneighborid()
 
 void CustomMetaDataUnicastTagN29max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -63584,7 +63584,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -63629,7 +63629,7 @@ uint32_t CustomMetaDataUnicastTagN30max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN30max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -63640,7 +63640,7 @@ void CustomMetaDataUnicastTagN30max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN30max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -63665,7 +63665,7 @@ uint32_t * CustomMetaDataUnicastTagN30max::Getneighborid()
 
 void CustomMetaDataUnicastTagN30max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -96449,7 +96449,7 @@ void clear_data_at_nodes(struct data_at_nodes * nd1)
 		nd1->velocity[i] = Vector(0,0,0);
 		nd1->position[i] = Vector(0,0,0);
 		nd1->nodeid[i] = large;
-		for(uint32_t j=0;j<max;j++)
+		for(uint32_t j=0;j<MAX_NODES;j++)
 		{
 			nd1->neighbor_set[i].neighbors[j] = large;
 		}
@@ -96553,7 +96553,7 @@ void refresh_data_at_nodes(struct data_at_nodes * nd1)//If data is old, remove t
 			nd1->velocity[i] = Vector(0,0,0);
 			nd1->position[i] = Vector(0,0,0);
 			nd1->nodeid[i] = large;
-			for(uint32_t j=0;j<max;j++)
+			for(uint32_t j=0;j<MAX_NODES;j++)
 			{	
 				if((nd1->neighbor_set[i].neighbors[j]) != large)//If existing neighbor data is deleted, set neighbor changed to true.
 				{
@@ -103417,7 +103417,7 @@ void add_received_data_at_nodes(struct data_at_nodes * nd1,Vector pos, Vector ve
 			nd1->velocity[i] = vel;
 			nd1->position[i] = pos;
 			nd1->nodeid[i] = nid;
-			for(uint32_t j=0;j<max;j++)
+			for(uint32_t j=0;j<MAX_NODES;j++)
 			{
 				if(j< size)
 				{
@@ -103447,7 +103447,7 @@ void add_received_data_at_nodes(struct data_at_nodes * nd1,Vector pos, Vector ve
 			nd1->position[i] = pos;
 			nd1->nodeid[i] = nid;
 			nd1->neighbors_changed[i] = true;
-			for(uint32_t j=0;j<max;j++)
+			for(uint32_t j=0;j<MAX_NODES;j++)
 			{
 				if(j< size)
 				{
@@ -103511,7 +103511,7 @@ double calculate_network_entropy()
 		{
 			int vehicle_neighbors = 0;
 			int rsu_neighbors = 0;
-			for (uint32_t j=0;j<max;j++)
+			for (uint32_t j=0;j<MAX_NODES;j++)
 			{
 				if((con_data_inst[i+2].neighborid[j]) != large)
 				{
@@ -103581,7 +103581,7 @@ void add_neighbor_info(struct neighbor_data * nd1, uint32_t node_id)
 		}
 	}
 	
-	for(uint32_t j=0; j<max;j++)
+	for(uint32_t j=0; j<MAX_NODES;j++)
 	{
 		if((setter == false) and (found==false) and (nd1->neighborid[j] == large))// If node is not found, add it at the first empty location
 		{
@@ -103902,7 +103902,7 @@ double calculate_wireless_entropy()
 		int wireless_neighbors = 0;
 		if( con_data_inst[i+2].neighborsize != 0)
 		{
-			for (uint32_t j=0;j<max;j++)
+			for (uint32_t j=0;j<MAX_NODES;j++)
 			{
 				if((con_data_inst[i+2].neighborid[j]) != large)
 				{
@@ -103989,7 +103989,7 @@ void compute_Qnei()
 		double Q_sum = 0.0;
 		if(con_data_inst[i+2].neighborsize != 0)
 		{
-			for (uint32_t j=0;j<max;j++)
+			for (uint32_t j=0;j<MAX_NODES;j++)
 			{
 				if((con_data_inst[i+2].neighborid[j]) != large)
 				{
@@ -122136,12 +122136,12 @@ void write_csv()
 		     << con_data_inst[i].neighborsize << ", ";
 		     //<< con_data_inst[i].frequency << ", "
 		     //<< con_data_inst[i].datasize << ", ";
-		     for(uint32_t j=0;j<max;j++)
+		     for(uint32_t j=0;j<MAX_NODES;j++)
 		     {
 		     	fout<< con_data_inst[i].neighborid[j] << ", ";
 		     }
 		     /*
-		     for(uint32_t j=0;j<max;j++)
+		     for(uint32_t j=0;j<MAX_NODES;j++)
 		     {
 		     	fout<< con_data_inst[i].combined_cost[j] << ", ";
 		     }
@@ -131940,7 +131940,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 			acceleration[i] = Vector(0,0,0);
 			velocity[i] = Vector(0,0,0);
 			timestamp[i] = Simulator::Now();
-			for (uint32_t j=0;j<max;j++)
+			for (uint32_t j=0;j<MAX_NODES;j++)
 			{
 				neighbor_set[i].neighbors[j] = large;
 			}
@@ -131972,7 +131972,7 @@ void send_LTE_data_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_sou
 		
 		for(uint32_t i=0;i<size;i++)
 		{
-			for(uint32_t j=0;j<max;j++)
+			for(uint32_t j=0;j<MAX_NODES;j++)
 			{
 
 				if((neighbor_set[i].neighbors[j]) != large)
@@ -140031,7 +140031,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 			acceleration[i] = Vector(0,0,0);
 			velocity[i] = Vector(0,0,0);
 			timestamp[i] = Simulator::Now();
-			for (uint32_t j=0;j<max;j++)
+			for (uint32_t j=0;j<MAX_NODES;j++)
 			{
 				neighbor_set[i].neighbors[j] = large;
 			}
@@ -140063,7 +140063,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 		
 		for(uint32_t i=0;i<size;i++)
 		{
-			for(uint32_t j=0;j<max;j++)
+			for(uint32_t j=0;j<MAX_NODES;j++)
 			{
 
 				if((neighbor_set[i].neighbors[j]) != large)
@@ -151174,3 +151174,5 @@ int main(int argc, char *argv[])
   //apb.SetFinish();
   return 0;  
 }
+
+
