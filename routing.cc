@@ -2309,12 +2309,15 @@ private:
     uint32_t m_totalPacketsProcessed;
 };
 
+// Forward declaration for struct defined later in file
+struct neighbor_data;
+
 // Global variables needed by attack/mitigation classes (MUST be inside ns3 namespace for proper linkage)
 bool use_sdvn_wormhole = true;  // Will be set from global config
 LinkDiscoveryModule* g_linkDiscoveryModule = nullptr;  // Will be initialized in main
 neighbor_data* neighbordata_inst = nullptr;  // Will point to array defined later
 std::vector<std::vector<double>> linklifetimeMatrix_dsrc;  // Defined here
-uint32_t total_size = 40;  // Default value, will be set from config
+uint32_t ns3::total_size = 40;  // Default value, will be set from config
 
 } // namespace ns3
 
@@ -2354,7 +2357,7 @@ int lambda = 30;
 const int Flow_size = 55;
 uint32_t flow_size = 55;
 
-const int total_size = 28;  // Maximum network size for compile-time arrays
+// Removed duplicate ns3::total_size definition - using ns3::ns3::total_size instead
 uint32_t N_RSUs = 10;
 uint32_t N_Vehicles = 18;
 uint32_t actual_total_nodes = 28;  // Runtime node count (N_Vehicles + N_RSUs)
@@ -2494,12 +2497,12 @@ uint32_t seqno_window_size = 64;                // Sequence number window size
 const int controllers = 6;
 
 // Malicious state arrays for nodes
-std::vector<bool> blackhole_malicious_nodes(total_size, false);
-std::vector<bool> wormhole_malicious_nodes(total_size, false);
-std::vector<bool> sybil_malicious_nodes(total_size, false);
-std::vector<bool> reply_malicious_nodes(total_size, false);
-std::vector<bool> replay_malicious_nodes(total_size, false);  // Alias for reply
-std::vector<bool> routing_table_poisoning_malicious_nodes(total_size, false);
+std::vector<bool> blackhole_malicious_nodes(ns3::total_size, false);
+std::vector<bool> wormhole_malicious_nodes(ns3::total_size, false);
+std::vector<bool> sybil_malicious_nodes(ns3::total_size, false);
+std::vector<bool> reply_malicious_nodes(ns3::total_size, false);
+std::vector<bool> replay_malicious_nodes(ns3::total_size, false);  // Alias for reply
+std::vector<bool> routing_table_poisoning_malicious_nodes(ns3::total_size, false);
 
 // Malicious state arrays for controllers
 std::vector<bool> blackhole_malicious_controllers(controllers, false);
@@ -95873,7 +95876,7 @@ public:
 	virtual void Print (std::ostream & os) const;
 
 	//These are custom accessor & mutator functions
-	double (*Getdeltas())[total_size] ;
+	double (*Getdeltas())[MAX_NODES] ;
 	uint32_t * Getsources();
 	uint32_t * Getdestinations();
 	uint32_t * Getflow_ids();
@@ -95882,7 +95885,7 @@ public:
 	double * Getload();
 
 
-	void Setdeltas (double (*deltas)[total_size]);
+	void Setdeltas (double (*deltas)[MAX_NODES]);
 	void Setsources (uint32_t * sources);
 	void Setdestinations (uint32_t * destinations);
 	void Setflow_ids (uint32_t * flowids);
@@ -95895,7 +95898,7 @@ public:
 	virtual ~CustomDeltavaluesDownlinkUnicastTag();
 private:
 
-	double m_deltas[2*flows][total_size];
+	double m_deltas[2*flows][MAX_NODES];
  	uint32_t m_source_f[2*flows];
  	uint32_t m_destination_f[2*flows];
  	uint32_t m_flow_id[2*flows];
@@ -95938,7 +95941,7 @@ TypeId CustomDeltavaluesDownlinkUnicastTag::GetInstanceTypeId (void) const
  
 uint32_t CustomDeltavaluesDownlinkUnicastTag::GetSerializedSize (void) const
 {
-	return ((((total_size*2*flows)+1)*sizeof(double)) + ((2*flows+1)*sizeof(uint32_t)) + ((2*flows+1)*sizeof(uint32_t)) + ((2*flows+1)*sizeof(uint32_t)) + ((2*flows+1)*sizeof(uint32_t))+ sizeof(uint32_t) + (((2*flows)+1)*sizeof(double)));
+	return ((((ns3::total_size*2*flows)+1)*sizeof(double)) + ((2*flows+1)*sizeof(uint32_t)) + ((2*flows+1)*sizeof(uint32_t)) + ((2*flows+1)*sizeof(uint32_t)) + ((2*flows+1)*sizeof(uint32_t))+ sizeof(uint32_t) + (((2*flows)+1)*sizeof(double)));
 }
 
 /*
@@ -95951,7 +95954,7 @@ void CustomDeltavaluesDownlinkUnicastTag::Serialize (TagBuffer i) const
 {
 	for(uint32_t j=0;j<2*flows;j++)
 	{
-		for(uint32_t k=0;k<total_size;k++)
+		for(uint32_t k=0;k<ns3::total_size;k++)
 		{
 			i.WriteDouble(m_deltas[j][k]);
 		}
@@ -95987,7 +95990,7 @@ void CustomDeltavaluesDownlinkUnicastTag::Deserialize (TagBuffer i)
 	
 	for(uint32_t j=0;j<2*flows;j++)
 	{
-		for(uint32_t k=0;k<total_size;k++)
+		for(uint32_t k=0;k<ns3::total_size;k++)
 		{
 			m_deltas[j][k] = i.ReadDouble();
 		}
@@ -96025,13 +96028,13 @@ void CustomDeltavaluesDownlinkUnicastTag::Print (std::ostream &os) const
 //Your accessor and mutator functions 
 
 
-double (*CustomDeltavaluesDownlinkUnicastTag::Getdeltas())[total_size]  {
+double (*CustomDeltavaluesDownlinkUnicastTag::Getdeltas())[MAX_NODES]  {
 	return m_deltas;
 }
 
-void CustomDeltavaluesDownlinkUnicastTag::Setdeltas(double (*deltas)[total_size]) {
+void CustomDeltavaluesDownlinkUnicastTag::Setdeltas(double (*deltas)[MAX_NODES]) {
     for (int i = 0; i < 2*flows; ++i) {
-        for (int j = 0; j < total_size; ++j) {
+        for (int j = 0; j < ns3::total_size; ++j) {
             m_deltas[i][j] = deltas[i][j];
         }
     }
@@ -96125,34 +96128,34 @@ void CustomDeltavaluesDownlinkUnicastTag::Setload (double * load)
 double dsrc_utilization_time = 0.0;
 double lte_utilization_time = 0.0;
 double ethernet_utilization_time = 0.0;
-double packet_delay[total_size+2];
-double packet_delay_dsrc[total_size+2];
+double packet_delay[MAX_NODES+2];
+double packet_delay_dsrc[MAX_NODES+2];
 
-double dsrc_packet_initial_timestamp[total_size+2];
-double packet_initial_timestamp[total_size+2];
+double dsrc_packet_initial_timestamp[MAX_NODES+2];
+double packet_initial_timestamp[MAX_NODES+2];
 double dsrc_initial_timestamp;
 double lte_initial_timestamp;
 double ethernet_initial_timestamp;
-double aodv_initial_timestamp[total_size+2];
+double aodv_initial_timestamp[MAX_NODES+2];
 
-double dsrc_packet_final_timestamp[total_size+2];
-double packet_final_timestamp[total_size+2];
+double dsrc_packet_final_timestamp[MAX_NODES+2];
+double packet_final_timestamp[MAX_NODES+2];
 double dsrc_final_timestamp;
 double dsrc_total_received_packets = 0.0;
 double lte_final_timestamp;
 double ethernet_final_timestamp;
-double aodv_final_timestamp[total_size+2];
+double aodv_final_timestamp[MAX_NODES+2];
 
-double max_distance[total_size+2];
+double max_distance[MAX_NODES+2];
 
 struct Q_fi
 {
-	double Q_values[total_size];
+	double Q_values[MAX_NODES];
 };
 
 struct Q_f
 {
- 	struct Q_fi Q_fi_inst[total_size];
+ 	struct Q_fi Q_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96163,12 +96166,12 @@ struct Q_f Q_at_controller_inst[2*flows];
 
 struct L_fi
 {
-	double L_values[total_size];
+	double L_values[MAX_NODES];
 };
 
 struct L_f
 {
- 	struct L_fi L_fi_inst[total_size];
+ 	struct L_fi L_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96179,12 +96182,12 @@ struct L_f L_at_controller_inst[2*flows];
 
 struct W_fi
 {
-	double W_values[total_size];
+	double W_values[MAX_NODES];
 };
 
 struct W_f
 {
- 	struct W_fi W_fi_inst[total_size];
+ 	struct W_fi W_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96196,12 +96199,12 @@ struct W_f W_at_controller_inst[2*flows];
 
 struct Omega_fi
 {
-	double Omega_values[total_size];
+	double Omega_values[MAX_NODES];
 };
 
 struct Omega_f
 {
- 	struct Omega_fi Omega_fi_inst[total_size];
+ 	struct Omega_fi Omega_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96212,12 +96215,12 @@ struct Omega_f Omega_at_controller_inst[2*flows];
 
 struct Theta_fi
 {
-	double Theta_values[total_size];
+	double Theta_values[MAX_NODES];
 };
 
 struct Theta_f
 {
- 	struct Theta_fi Theta_fi_inst[total_size];
+ 	struct Theta_fi Theta_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96228,12 +96231,12 @@ struct Theta_f Theta_at_controller_inst[2*flows];
 
 struct T_fi
 {
-	double T_values[total_size];
+	double T_values[MAX_NODES];
 };
 
 struct T_f
 {
- 	struct T_fi T_fi_inst[total_size];
+ 	struct T_fi T_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96244,12 +96247,12 @@ struct T_f T_at_controller_inst[2*flows];
 
 struct t_fi
 {
-	double t_values[total_size];
+	double t_values[MAX_NODES];
 };
 
 struct t_f
 {
- 	struct t_fi t_fi_inst[total_size];
+ 	struct t_fi t_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96259,12 +96262,12 @@ struct t_f t_at_controller_inst[2*flows];
 
 struct U_fi
 {
-	double U_values[total_size];
+	double U_values[MAX_NODES];
 };
 
 struct U_f
 {
- 	struct U_fi U_fi_inst[total_size];
+ 	struct U_fi U_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96275,12 +96278,12 @@ struct U_f U_at_controller_inst[2*flows];
 
 struct Y_fi
 {
-	double Y_values[total_size];
+	double Y_values[MAX_NODES];
 };
 
 struct Y_f
 {
- 	struct Y_fi Y_fi_inst[total_size];
+ 	struct Y_fi Y_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96290,12 +96293,12 @@ struct Y_f Y_at_controller_inst[2*flows];
 
 struct delta_fi
 {
-	double delta_values[total_size];
+	double delta_values[MAX_NODES];
 };
 
 struct delta_f
 {
- 	struct delta_fi delta_fi_inst[total_size];
+ 	struct delta_fi delta_fi_inst[MAX_NODES];
  	uint32_t source_f;
  	uint32_t destination_f;
  	uint32_t flow_id;
@@ -96307,7 +96310,7 @@ struct delta_f delta_at_nodes_inst[2*flows];
 
 struct load_f
 {
-	double load_f[total_size];
+	double load_f[MAX_NODES];
 };
 
 struct load_f load_at_nodes[2*flows];
@@ -96320,9 +96323,9 @@ void clear_delta_at_controller(struct delta_f * nd1)
 		(nd1+i)->source_f = 0;
 		(nd1+i)->destination_f = 0;
 		(nd1+i)->flow_id = 0;
-		for(uint32_t j=0;j<total_size;j++)
+		for(uint32_t j=0;j<ns3::total_size;j++)
 		{
-			for(uint32_t k=0;k<total_size;k++)
+			for(uint32_t k=0;k<ns3::total_size;k++)
 			{
 				(nd1+i)->delta_fi_inst[j].delta_values[k] = 0.0;
 			}
@@ -96338,9 +96341,9 @@ void clear_delta_at_nodes(struct delta_f * nd1)
 		(nd1+i)->source_f = 0;
 		(nd1+i)->destination_f = 0;
 		(nd1+i)->flow_id = 0;
-		for(uint32_t j=0;j<total_size;j++)
+		for(uint32_t j=0;j<ns3::total_size;j++)
 		{
-			for(uint32_t k=0;k<total_size;k++)
+			for(uint32_t k=0;k<ns3::total_size;k++)
 			{
 				(nd1+i)->delta_fi_inst[j].delta_values[k] = 0.0;
 			}
@@ -96434,16 +96437,16 @@ struct data_at_manager
 struct demanding_flow_struct_nodes demanding_flow_struct_nodes_inst[2*flows];
 struct demanding_flow_struct_controller demanding_flow_struct_controller_inst[2*flows];
 
-struct routing_data_at_nodes routing_data_at_nodes_inst[total_size];
-struct routing_data_at_controller routing_data_at_controller_inst[total_size];
+struct routing_data_at_nodes routing_data_at_nodes_inst[MAX_NODES];
+struct routing_data_at_controller routing_data_at_controller_inst[MAX_NODES];
 
 
-struct data_at_nodes data_at_nodes_inst[total_size+2];
-struct data_at_manager data_at_manager_inst[total_size+2];
+struct data_at_nodes data_at_nodes_inst[MAX_NODES+2];
+struct data_at_manager data_at_manager_inst[MAX_NODES+2];
 
 void print_management_data()
 {
-	for(uint32_t i=0;i<total_size+2;i++)
+	for(uint32_t i=0;i<ns3::total_size+2;i++)
 	{
 		cout<<"i ="<<i<<"node id "<<(data_at_manager_inst+i)->nodeid<<"acceleration "<<(data_at_manager_inst+i)->acceleration<<"velocity "<<(data_at_manager_inst+i)->velocity<<"position "<<(data_at_manager_inst+i)->position<<"timestamp "<<(data_at_manager_inst+i)->timestamp<<endl;
 	}
@@ -96474,7 +96477,7 @@ void clear_data_at_nodes(struct data_at_nodes * nd1)
 	}
 }
 
-Vector previous_velocity_dsrc[total_size];
+Vector previous_velocity_dsrc[MAX_NODES];
 
 Vector calculate_acceleration (Vector initial_vel, Vector final_vel, double time)
 {
@@ -96699,8 +96702,8 @@ void WormholeEndpointApp::StartApplication(void) {
         if (!g_linkDiscoveryModule) {
             std::cout << "Creating global LinkDiscoveryModule..." << std::endl;
             g_linkDiscoveryModule = new ns3::LinkDiscoveryModule();
-            extern uint32_t total_size;
-            g_linkDiscoveryModule->Initialize(total_size);
+            extern uint32_t ns3::total_size;
+            g_linkDiscoveryModule->Initialize(ns3::total_size);
             g_linkDiscoveryModule->StartDiscovery();
         }
         m_linkDiscovery = g_linkDiscoveryModule;
@@ -103416,7 +103419,7 @@ uint32_t get_size_of_data_at_nodes(struct data_at_nodes * nd1)
 	uint32_t size = 0;
 	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
-		if((nd1->nodeid[i] != large) and (nd1->nodeid[i] < (total_size+2)) and (nd1->nodeid[i]>1))
+		if((nd1->nodeid[i] != large) and (nd1->nodeid[i] < (ns3::total_size+2)) and (nd1->nodeid[i]>1))
 		{
 			size++;
 		}
@@ -103507,15 +103510,15 @@ void clear_controllerdata(struct controller_data * nd1)
 	nd1->lastupdated = Simulator::Now().GetSeconds();
 }
 
-struct neighbor_data neighbordata_inst_array[MAX_NODES+2];  // Actual array storage (was total_size+2)
-struct controller_data con_data_inst[MAX_NODES+2];  // Use MAX_NODES since total_size is runtime
+struct neighbor_data neighbordata_inst_array[MAX_NODES+2];  // Actual array storage (was ns3::total_size+2)
+struct controller_data con_data_inst[MAX_NODES+2];  // Use MAX_NODES since ns3::total_size is runtime
 
 // Initialize the ns3-scoped pointer to point to the array
 namespace {
     struct NeighborDataInitializer {
         NeighborDataInitializer() {
             ns3::neighbordata_inst = neighbordata_inst_array;
-            ns3::total_size = MAX_NODES;  // Sync runtime value with compile-time constant
+            ns3::ns3::total_size = MAX_NODES;  // Sync runtime value with compile-time constant
         }
     } g_neighbordata_initializer;
 }
@@ -103524,7 +103527,7 @@ double sum_of_nodeids = 0;
 void nodeid_sum()
 {
 	sum_of_nodeids = 0;
-	for (uint32_t i=2;i<total_size+2;i++)
+	for (uint32_t i=2;i<ns3::total_size+2;i++)
 	{
 		sum_of_nodeids = sum_of_nodeids + i;
 	}
@@ -103536,7 +103539,7 @@ double calculate_network_entropy()
 {
 	double summation_veh = 0.0;
 	double summation_rsu = 0.0;
-	for (uint32_t i=0;i<total_size; i++)
+	for (uint32_t i=0;i<ns3::total_size; i++)
 	{
 		if( con_data_inst[i+2].neighborsize != 0)
 		{
@@ -103550,7 +103553,7 @@ double calculate_network_entropy()
 					{
 						vehicle_neighbors++;
 					}
-					else if ((con_data_inst[i+2].neighborid[j]) < (total_size+2))
+					else if ((con_data_inst[i+2].neighborid[j]) < (ns3::total_size+2))
 					{
 						rsu_neighbors++;
 					}
@@ -103650,7 +103653,7 @@ uint32_t getNeighborsize(struct neighbor_data * nd1)
 	uint32_t  neighborsize = 0;
 	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
-		if((nd1->neighborid[i] != large) and (nd1->neighborid[i] > 1) and (nd1->neighborid[i] < (total_size+2)))
+		if((nd1->neighborid[i] != large) and (nd1->neighborid[i] > 1) and (nd1->neighborid[i] < (ns3::total_size+2)))
 		{
 			neighborsize++;	
 		}
@@ -103690,7 +103693,7 @@ struct proposed_routing_table_row
 {
 	uint32_t source_node;
 	uint32_t destination_node;
-	uint32_t path[total_size];
+	uint32_t path[MAX_NODES];
 };
 
 struct routing_table_row
@@ -103702,29 +103705,29 @@ struct routing_table_row
 
 struct routing_table
 {
-	struct routing_table_row rows[total_size];
+	struct routing_table_row rows[MAX_NODES];
 };
 
 struct proposed_routing_table
 {
-	struct proposed_routing_table_row rows[total_size];
+	struct proposed_routing_table_row rows[MAX_NODES];
 };
 
-struct proposed_routing_table proposed_routing_tables[total_size];
-struct routing_table routing_tables[total_size];
+struct proposed_routing_table proposed_routing_tables[MAX_NODES];
+struct routing_table routing_tables[MAX_NODES];
 
 void initialize_all_routing_tables()
 {
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	{
-		for(uint32_t j=0;j<total_size;j++)
+		for(uint32_t j=0;j<ns3::total_size;j++)
 		{
 			routing_tables[i].rows[j].source_node = large;
 			proposed_routing_tables[i].rows[j].source_node = large;
 			routing_tables[i].rows[j].destination_node = large;
 			proposed_routing_tables[i].rows[j].destination_node = large;
 			routing_tables[i].rows[j].next_hop = large;
-			for(uint32_t k=0;k<total_size;k++)
+			for(uint32_t k=0;k<ns3::total_size;k++)
 			{
 				proposed_routing_tables[i].rows[j].path[k] = large;
 			}
@@ -103743,7 +103746,7 @@ void update_proposed_route(uint32_t source, uint32_t destination, uint32_t * pat
 {
 	proposed_routing_tables[source].rows[destination].source_node = source;
 	proposed_routing_tables[source].rows[destination].destination_node = destination;
-	for(uint32_t k=0;k<total_size;k++)
+	for(uint32_t k=0;k<ns3::total_size;k++)
 	{
 		//cout<<path[0]<<endl;
 		proposed_routing_tables[source].rows[destination].path[k] = *(path+k);
@@ -103794,19 +103797,19 @@ NodeContainer dsrc_Nodes;
 
 double data_gathering_cycle_number = 1.0;
 double M;
-uint32_t Y[total_size];
-double R[total_size];
-double Q[total_size];
-double N_WL[total_size];
-double N_WI[total_size];
-double Q_nei[total_size];
+uint32_t Y[MAX_NODES];
+double R[MAX_NODES];
+double Q[MAX_NODES];
+double N_WL[MAX_NODES];
+double N_WI[MAX_NODES];
+double Q_nei[MAX_NODES];
 double Q_bar;
-double D_wl_bar[total_size];
-double D_wi_bar[total_size];
-double one_hop_delay_training_wl[total_size];
-double packets_received_wl[total_size];
-double one_hop_delay_training_wi[total_size];
-double packets_received_wi[total_size];
+double D_wl_bar[MAX_NODES];
+double D_wi_bar[MAX_NODES];
+double one_hop_delay_training_wl[MAX_NODES];
+double packets_received_wl[MAX_NODES];
+double one_hop_delay_training_wi[MAX_NODES];
+double packets_received_wi[MAX_NODES];
 double d_cont_wl_bar;
 double d_cont_wl_max;
 double d_cont_wi_bar;
@@ -103830,7 +103833,7 @@ double CW_min = 15.0;
 
 void reset_delays_and_packets()
 {
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	{
 		one_hop_delay_training_wl[i] = 0.0;
 		packets_received_wl[i] = 0.0;
@@ -103871,7 +103874,7 @@ void write_csv_delay_prediction()
 {
 	fstream fout;
 	fout.open("/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/scratch/delay_data_for_prediction.csv",ios::out|ios::trunc);
-	for (uint32_t index=0;index<total_size;index++)
+	for (uint32_t index=0;index<ns3::total_size;index++)
 	{
 		for(double mode=0.0;mode < 2.0;mode++)
 		{
@@ -103902,7 +103905,7 @@ void write_csv_delay_prediction()
 
 void compute_1hop_delay()
 {
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	{
 		if (packets_received_wl[i] > 0)
 		{
@@ -103928,7 +103931,7 @@ void compute_1hop_delay()
 double calculate_wireless_entropy()
 {
 	double summation_wl = 0.0;
-	for (uint32_t i=0;i<total_size; i++)
+	for (uint32_t i=0;i<ns3::total_size; i++)
 	{
 		int wireless_neighbors = 0;
 		if( con_data_inst[i+2].neighborsize != 0)
@@ -103947,7 +103950,7 @@ double calculate_wireless_entropy()
 						{
 							wireless_neighbors++;
 						}
-						else if ((con_data_inst[i+2].neighborid[j]) < (total_size+2))
+						else if ((con_data_inst[i+2].neighborid[j]) < (ns3::total_size+2))
 						{
 						
 						}
@@ -103969,9 +103972,9 @@ double calculate_wireless_entropy()
 	{
 		rsu_deno = (N_RSUs*log(N_RSUs-1));
 	}
-	if (total_size > 1)
+	if (ns3::total_size > 1)
 	{
-		total_deno =  (total_size*log(total_size-1));	
+		total_deno =  (ns3::total_size*log(ns3::total_size-1));	
 	}
 	entropy_wl = (summation_wl)/(total_deno-rsu_deno);
 	return entropy_wl;		
@@ -103980,7 +103983,7 @@ double calculate_wireless_entropy()
 double calculate_wired_entropy()
 {
 	double summation_wi = 0.0;
-	for (uint32_t i=0;i<total_size; i++)
+	for (uint32_t i=0;i<ns3::total_size; i++)
 	{	
 		int wired_neighbors = 0;
 		if(i>(N_Vehicles-1))
@@ -104005,16 +104008,16 @@ double calculate_wired_entropy()
 void compute_Qbar()
 {
 	double sum = 0.0;
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	{
 		sum = sum + Q[i];
 	}
-	Q_bar = sum/total_size;
+	Q_bar = sum/ns3::total_size;
 }
 
 void compute_Qnei()
 {
-	for (uint32_t i=0;i<total_size; i++)
+	for (uint32_t i=0;i<ns3::total_size; i++)
 	{
 		double neighbors = 0;
 		double Q_sum = 0.0;
@@ -104094,7 +104097,7 @@ void compute_wired_average_delay(uint32_t nodeID)
 
 void compute_average_delays()
 {
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	{
 		compute_wireless_average_delay(i);
 		compute_wired_average_delay(i);
@@ -104106,7 +104109,7 @@ void calculate_contention()
 {
 	double contention_wl = (d_cont_wl_bar)/(d_cont_wl_max);
 	double contention_wi = (d_cont_wi_bar)/(d_cont_wi_max);
-	contention = ((N_Vehicles*contention_wl)+(N_RSUs*contention_wi))/(total_size);
+	contention = ((N_Vehicles*contention_wl)+(N_RSUs*contention_wi))/(ns3::total_size);
 	//contention = contention_wl;
 }
 
@@ -104162,11 +104165,11 @@ class SimpleUdpApplication : public Application
 #define END_CODE "\033[0m"
 
 
-bool Z_gurobi[total_size+2];
-bool X_gurobi[total_size+2];
+bool Z_gurobi[MAX_NODES+2];
+bool X_gurobi[MAX_NODES+2];
 
-bool Z_nodes[total_size+2];
-bool X_nodes[total_size+2];
+bool Z_nodes[MAX_NODES+2];
+bool X_nodes[MAX_NODES+2];
 
 
   //NS_LOG_COMPONENT_DEFINE("SimpleUdpApplication");
@@ -104313,7 +104316,7 @@ bool X_nodes[total_size+2];
 				{
 					cout<<"routing loop. stopping routing"<<endl;
 				}
-				else if (next_hop < total_size)
+				else if (next_hop < ns3::total_size)
 				{
 					Ptr <Packet> packet_i = Create<Packet> (packet_additional_size);
 					tag_routing.SetNodeId(&nid);
@@ -104372,7 +104375,7 @@ bool X_nodes[total_size+2];
 	CustomDeltavaluesDownlinkUnicastTag tagroutingsolution;
 	if(packet->PeekPacketTag(tagroutingsolution))
 	{	
-		double (*delta_Set)[total_size];
+		double (*delta_Set)[MAX_NODES];
 		uint32_t * sources;
 		uint32_t * destinations;
 		uint32_t * flow_ids;
@@ -104387,7 +104390,7 @@ bool X_nodes[total_size+2];
 		load_sum = tagroutingsolution.Getload();
 		for(uint32_t i=0;i<2*flows;i++)
 		{
-			for(uint32_t j=0;j<total_size;j++)	
+			for(uint32_t j=0;j<ns3::total_size;j++)	
 			{
 				(delta_at_nodes_inst+i)->delta_fi_inst[nodeid].delta_values[j] = delta_Set[i][j];
 				//cout<< "i = "<<i<<"nid = "<<nid<<"j= "<<j<<"value="<<(delta_at_controller_inst+i)->delta_fi_inst[nid-2].delta_values[j]<<endl;
@@ -104476,7 +104479,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag30.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104500,7 +104503,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag31.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104528,7 +104531,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag32.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104557,7 +104560,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag33.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104586,7 +104589,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag34.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104615,7 +104618,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag35.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104644,7 +104647,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag36.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104673,7 +104676,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag37.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104702,7 +104705,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag38.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104731,7 +104734,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag39.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104760,7 +104763,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag310.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104789,7 +104792,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag311.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104818,7 +104821,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag312.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104847,7 +104850,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag313.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104876,7 +104879,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag314.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104905,7 +104908,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag315.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104934,7 +104937,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag316.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104963,7 +104966,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag317.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -104991,7 +104994,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag318.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -105020,7 +105023,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag319.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -105049,7 +105052,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag320.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -105079,7 +105082,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag321.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -105108,7 +105111,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag322.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -105138,7 +105141,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag323.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -105168,7 +105171,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag324.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -105198,7 +105201,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag325.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -105227,7 +105230,7 @@ bool X_nodes[total_size+2];
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
 		  	(con_data_inst+source_node_id)->B = 40 + (Now().GetMilliSeconds()-tag3.GetTimestamp().GetMilliSeconds());
 		  }
-		  else if (source_node_id < (2+total_size))
+		  else if (source_node_id < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 	          	packet_final_timestamp[source_node_id] = Simulator::Now().GetSeconds();
@@ -105821,7 +105824,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN01max.Getneighborid()+i) != large) and (*(tagN01max.Getneighborid()+i) > 1) and (*(tagN01max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN01max.Getneighborid()+i) != large) and (*(tagN01max.Getneighborid()+i) > 1) and (*(tagN01max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN01max.Getneighborid()+i);
@@ -106409,7 +106412,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN2max.Getneighborid()+i) != large) and (*(tagN2max.Getneighborid()+i) > 1) and (*(tagN2max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN2max.Getneighborid()+i) != large) and (*(tagN2max.Getneighborid()+i) > 1) and (*(tagN2max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN2max.Getneighborid()+i);
@@ -106998,7 +107001,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN3max.Getneighborid()+i) != large) and (*(tagN3max.Getneighborid()+i) > 1) and (*(tagN3max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN3max.Getneighborid()+i) != large) and (*(tagN3max.Getneighborid()+i) > 1) and (*(tagN3max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN3max.Getneighborid()+i);
@@ -107586,7 +107589,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN4max.Getneighborid()+i) != large) and (*(tagN4max.Getneighborid()+i) > 1) and (*(tagN4max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN4max.Getneighborid()+i) != large) and (*(tagN4max.Getneighborid()+i) > 1) and (*(tagN4max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN4max.Getneighborid()+i);
@@ -108175,7 +108178,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN5max.Getneighborid()+i) != large) and (*(tagN5max.Getneighborid()+i) > 1) and (*(tagN5max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN5max.Getneighborid()+i) != large) and (*(tagN5max.Getneighborid()+i) > 1) and (*(tagN5max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN5max.Getneighborid()+i);
@@ -108764,7 +108767,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN6max.Getneighborid()+i) != large) and (*(tagN6max.Getneighborid()+i) > 1) and (*(tagN6max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN6max.Getneighborid()+i) != large) and (*(tagN6max.Getneighborid()+i) > 1) and (*(tagN6max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN6max.Getneighborid()+i);
@@ -109352,7 +109355,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN7max.Getneighborid()+i) != large) and (*(tagN7max.Getneighborid()+i) > 1) and (*(tagN7max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN7max.Getneighborid()+i) != large) and (*(tagN7max.Getneighborid()+i) > 1) and (*(tagN7max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN7max.Getneighborid()+i);
@@ -109940,7 +109943,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN8max.Getneighborid()+i) != large) and (*(tagN8max.Getneighborid()+i) > 1) and (*(tagN8max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN8max.Getneighborid()+i) != large) and (*(tagN8max.Getneighborid()+i) > 1) and (*(tagN8max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN8max.Getneighborid()+i);
@@ -110528,7 +110531,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN9max.Getneighborid()+i) != large) and (*(tagN9max.Getneighborid()+i) > 1) and (*(tagN9max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN9max.Getneighborid()+i) != large) and (*(tagN9max.Getneighborid()+i) > 1) and (*(tagN9max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN9max.Getneighborid()+i);
@@ -111117,7 +111120,7 @@ bool X_nodes[total_size+2];
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	(con_data_inst+source_node_id)->neighborid[i] = *(tagN10max.Getneighborid()+i);
-		  	if ((*(tagN10max.Getneighborid()+i) != large) and (*(tagN10max.Getneighborid()+i) > 1) and (*(tagN10max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN10max.Getneighborid()+i) != large) and (*(tagN10max.Getneighborid()+i) > 1) and (*(tagN10max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN10max.Getneighborid()+i);
@@ -111705,7 +111708,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN11max.Getneighborid()+i) != large) and (*(tagN11max.Getneighborid()+i) > 1) and (*(tagN11max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN11max.Getneighborid()+i) != large) and (*(tagN11max.Getneighborid()+i) > 1) and (*(tagN11max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN11max.Getneighborid()+i);
@@ -112293,7 +112296,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN12max.Getneighborid()+i) != large) and (*(tagN12max.Getneighborid()+i) > 1) and (*(tagN12max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN12max.Getneighborid()+i) != large) and (*(tagN12max.Getneighborid()+i) > 1) and (*(tagN12max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN12max.Getneighborid()+i);
@@ -112881,7 +112884,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN13max.Getneighborid()+i) != large) and (*(tagN13max.Getneighborid()+i) > 1) and (*(tagN13max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN13max.Getneighborid()+i) != large) and (*(tagN13max.Getneighborid()+i) > 1) and (*(tagN13max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN13max.Getneighborid()+i);
@@ -113469,7 +113472,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN14max.Getneighborid()+i) != large) and (*(tagN14max.Getneighborid()+i) > 1) and (*(tagN14max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN14max.Getneighborid()+i) != large) and (*(tagN14max.Getneighborid()+i) > 1) and (*(tagN14max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN14max.Getneighborid()+i);
@@ -114057,7 +114060,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN15max.Getneighborid()+i) != large) and (*(tagN15max.Getneighborid()+i) > 1) and (*(tagN15max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN15max.Getneighborid()+i) != large) and (*(tagN15max.Getneighborid()+i) > 1) and (*(tagN15max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN15max.Getneighborid()+i);
@@ -114644,7 +114647,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN16max.Getneighborid()+i) != large) and (*(tagN16max.Getneighborid()+i) > 1) and (*(tagN16max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN16max.Getneighborid()+i) != large) and (*(tagN16max.Getneighborid()+i) > 1) and (*(tagN16max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN16max.Getneighborid()+i);
@@ -115795,7 +115798,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN17max.Getneighborid()+i) != large) and (*(tagN17max.Getneighborid()+i) > 1) and (*(tagN17max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN17max.Getneighborid()+i) != large) and (*(tagN17max.Getneighborid()+i) > 1) and (*(tagN17max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN17max.Getneighborid()+i);
@@ -115818,7 +115821,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN18max.Getneighborid()+i) != large) and (*(tagN18max.Getneighborid()+i) > 1) and (*(tagN18max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN18max.Getneighborid()+i) != large) and (*(tagN18max.Getneighborid()+i) > 1) and (*(tagN18max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN18max.Getneighborid()+i);
@@ -116405,7 +116408,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN19max.Getneighborid()+i) != large) and (*(tagN19max.Getneighborid()+i) > 1) and (*(tagN19max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN19max.Getneighborid()+i) != large) and (*(tagN19max.Getneighborid()+i) > 1) and (*(tagN19max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN19max.Getneighborid()+i);
@@ -116993,7 +116996,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN20max.Getneighborid()+i) != large) and (*(tagN20max.Getneighborid()+i) > 1) and (*(tagN20max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN20max.Getneighborid()+i) != large) and (*(tagN20max.Getneighborid()+i) > 1) and (*(tagN20max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN20max.Getneighborid()+i);
@@ -117581,7 +117584,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN21max.Getneighborid()+i) != large) and (*(tagN21max.Getneighborid()+i) > 1) and (*(tagN21max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN21max.Getneighborid()+i) != large) and (*(tagN21max.Getneighborid()+i) > 1) and (*(tagN21max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN21max.Getneighborid()+i);
@@ -118169,7 +118172,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN22max.Getneighborid()+i) != large) and (*(tagN22max.Getneighborid()+i) > 1) and (*(tagN22max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN22max.Getneighborid()+i) != large) and (*(tagN22max.Getneighborid()+i) > 1) and (*(tagN22max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN22max.Getneighborid()+i);
@@ -118757,7 +118760,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN23max.Getneighborid()+i) != large) and (*(tagN23max.Getneighborid()+i) > 1) and (*(tagN23max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN23max.Getneighborid()+i) != large) and (*(tagN23max.Getneighborid()+i) > 1) and (*(tagN23max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN23max.Getneighborid()+i);
@@ -119345,7 +119348,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN24max.Getneighborid()+i) != large) and (*(tagN24max.Getneighborid()+i) > 1) and (*(tagN24max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN24max.Getneighborid()+i) != large) and (*(tagN24max.Getneighborid()+i) > 1) and (*(tagN24max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN24max.Getneighborid()+i);
@@ -119933,7 +119936,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN25max.Getneighborid()+i) != large) and (*(tagN25max.Getneighborid()+i) > 1) and (*(tagN25max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN25max.Getneighborid()+i) != large) and (*(tagN25max.Getneighborid()+i) > 1) and (*(tagN25max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN25max.Getneighborid()+i);
@@ -119956,7 +119959,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN26max.Getneighborid()+i) != large) and (*(tagN26max.Getneighborid()+i) > 1) and (*(tagN26max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN26max.Getneighborid()+i) != large) and (*(tagN26max.Getneighborid()+i) > 1) and (*(tagN26max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN26max.Getneighborid()+i);
@@ -119979,7 +119982,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN27max.Getneighborid()+i) != large) and (*(tagN27max.Getneighborid()+i) > 1) and (*(tagN27max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN27max.Getneighborid()+i) != large) and (*(tagN27max.Getneighborid()+i) > 1) and (*(tagN27max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN27max.Getneighborid()+i);
@@ -120002,7 +120005,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN28max.Getneighborid()+i) != large) and (*(tagN28max.Getneighborid()+i) > 1) and (*(tagN28max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN28max.Getneighborid()+i) != large) and (*(tagN28max.Getneighborid()+i) > 1) and (*(tagN28max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN28max.Getneighborid()+i);
@@ -120025,7 +120028,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN29max.Getneighborid()+i) != large) and (*(tagN29max.Getneighborid()+i) > 1) and (*(tagN29max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN29max.Getneighborid()+i) != large) and (*(tagN29max.Getneighborid()+i) > 1) and (*(tagN29max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN29max.Getneighborid()+i);
@@ -120048,7 +120051,7 @@ bool X_nodes[total_size+2];
 		  uint32_t neighborsize = 0;
 		  for(int i=0; i<MAX_NODES; i++)
 		  {
-		  	if ((*(tagN30max.Getneighborid()+i) != large) and (*(tagN30max.Getneighborid()+i) > 1) and (*(tagN30max.Getneighborid()+i) < (total_size+2)))
+		  	if ((*(tagN30max.Getneighborid()+i) != large) and (*(tagN30max.Getneighborid()+i) > 1) and (*(tagN30max.Getneighborid()+i) < (ns3::total_size+2)))
 		  	{
 		  		neighborsize++;
 		  		(con_data_inst+source_node_id)->neighborid[i] = *(tagN30max.Getneighborid()+i);
@@ -120099,7 +120102,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120116,7 +120119,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag51.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag51.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120134,7 +120137,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120151,7 +120154,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag52.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag52.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120168,7 +120171,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120185,7 +120188,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag53.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag53.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120203,7 +120206,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120220,7 +120223,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag54.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag54.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120238,7 +120241,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120255,7 +120258,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag55.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag55.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120274,7 +120277,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120291,7 +120294,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag56.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag56.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120309,7 +120312,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120327,7 +120330,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag57.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag57.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120345,7 +120348,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120362,7 +120365,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag58.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag58.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120380,7 +120383,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120397,7 +120400,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag59.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag59.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120415,7 +120418,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120433,7 +120436,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag510.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
@@ -120452,7 +120455,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120470,7 +120473,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag511.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
@@ -120489,7 +120492,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120506,7 +120509,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag512.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag512.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120524,7 +120527,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120543,7 +120546,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag513.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
@@ -120562,7 +120565,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120581,7 +120584,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag514.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
@@ -120600,7 +120603,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120618,7 +120621,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag515.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag515.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120636,7 +120639,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120654,7 +120657,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag516.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag516.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120672,7 +120675,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120690,7 +120693,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag517.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag517.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120708,7 +120711,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120726,7 +120729,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag518.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag518.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120744,7 +120747,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120763,7 +120766,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag519.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
@@ -120782,7 +120785,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120800,7 +120803,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag520.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag520.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120818,7 +120821,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120836,7 +120839,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag521.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag521.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120854,7 +120857,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120872,7 +120875,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag522.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag522.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120890,7 +120893,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120908,7 +120911,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag523.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag523.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120926,7 +120929,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120944,7 +120947,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag524.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag524.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120962,7 +120965,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -120980,7 +120983,7 @@ bool X_nodes[total_size+2];
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag525.GetTimestamp()+i)->GetMilliSeconds())/10);
 			}
-			else if (source_node_id[i]< (2+total_size))
+			else if (source_node_id[i]< (2+ns3::total_size))
 			{
 				packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 			  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag525.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -120999,7 +121002,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	lte_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  else if (real_source < (2+total_size))
+		  else if (real_source < (2+ns3::total_size))
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
@@ -121019,7 +121022,7 @@ bool X_nodes[total_size+2];
 					packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 				  	(con_data_inst+source_node_id[i])->B = 40 + uint32_t((Now().GetMilliSeconds()-(tag5.GetTimestamp()+i)->GetMilliSeconds())/10);
 				}
-				else if (source_node_id[i]< (2+total_size))
+				else if (source_node_id[i]< (2+ns3::total_size))
 				{
 					packet_final_timestamp[source_node_id[i]] = Simulator::Now().GetSeconds();
 				  	(con_data_inst+source_node_id[i])->B = 1 + uint32_t((Now().GetMilliSeconds()-(tag5.GetTimestamp()+i)->GetMilliSeconds())/10);
@@ -121241,7 +121244,7 @@ double average_latency_dsrc = 0.0;
 
 void clear_solution()
 {
-	for (int i=0;i<(total_size+2);i++)
+	for (int i=0;i<(ns3::total_size+2);i++)
 	{
 		Z_gurobi[i] = 1;
 		X_gurobi[i] = 1;
@@ -121653,7 +121656,7 @@ void send_LTE_deltavalues_downlink_alone(Ptr <SimpleUdpApplication> udp_app, Ptr
 	uint32_t nid = uint32_t(destination_node->GetId());
 	//cout<<"node id is "<<nid<<"dest ip "<<dest_ip<<"custom value is"<<(delta_at_controller_inst+3)->delta_fi_inst[4].delta_values[5]<<endl;
 	
-	double delta_Set[2*flows][total_size];
+	double delta_Set[2*flows][MAX_NODES];
 	uint32_t sources[2*flows];
 	uint32_t destinations[2*flows];
 	uint32_t flow_ids[2*flows];
@@ -121664,7 +121667,7 @@ void send_LTE_deltavalues_downlink_alone(Ptr <SimpleUdpApplication> udp_app, Ptr
 	for(uint32_t i=0;i<2*flows;i++)
 	{
 		load[i] = 0.0;
-		for(uint32_t j=0;j<total_size;j++)	
+		for(uint32_t j=0;j<ns3::total_size;j++)	
 		{
 			load[i] = load[i] + (L_at_controller_inst+i)->L_fi_inst[nid-2].L_values[j];
 			delta_Set[i][j] = (delta_at_controller_inst+i)->delta_fi_inst[nid-2].delta_values[j];
@@ -121713,7 +121716,7 @@ void RSU_deltavalues_downlink_unicast(Ptr <SimpleUdpApplication> udp_app, Ptr <N
 	CustomDeltavaluesDownlinkUnicastTag tag;
 	//cout<<"node id is "<<nid<<"dest ip "<<dest_ip<<"custom value is"<<(delta_at_controller_inst+3)->delta_fi_inst[4].delta_values[5]<<endl;
 	
-	double delta_Set[2*flows][total_size];
+	double delta_Set[2*flows][MAX_NODES];
 	uint32_t sources[2*flows];
 	uint32_t destinations[2*flows];
 	uint32_t flow_ids[2*flows];
@@ -121724,7 +121727,7 @@ void RSU_deltavalues_downlink_unicast(Ptr <SimpleUdpApplication> udp_app, Ptr <N
 	for(uint32_t i=0;i<2*flows;i++)
 	{
 		load[i] = 0.0;
-		for(uint32_t j=0;j<total_size;j++)	
+		for(uint32_t j=0;j<ns3::total_size;j++)	
 		{
 			load[i] = load[i] + (L_at_controller_inst+i)->L_fi_inst[nid-2].L_values[j];
 			delta_Set[i][j] = (delta_at_controller_inst+i)->delta_fi_inst[nid-2].delta_values[j];
@@ -122133,7 +122136,7 @@ void RSU_metadata_uplink_unicast(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> 
 	}
 	cout<<"RSU total packet size is "<<ethernet_total_packet_size<<endl;
 }
-bool sent_IDS[2*flows][total_size][Flow_size+2];
+bool sent_IDS[2*flows][MAX_NODES][Flow_size+2];
 
 void RSU_metadata_downlink_unicast(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source_node, Ptr <Node> destination_node)
 {
@@ -122160,9 +122163,9 @@ void write_csv()
 {
 	fstream fout;
 	fout.open("/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/scratch/optimization_data.csv",ios::out|ios::trunc);
-	for (uint32_t i=2; i<total_size+2 ;i++)
+	for (uint32_t i=2; i<ns3::total_size+2 ;i++)
 	{
-		fout << total_size << ", "
+		fout << ns3::total_size << ", "
 		     <<	con_data_inst[i].B << ", "
 		     << con_data_inst[i].neighborsize << ", ";
 		     //<< con_data_inst[i].frequency << ", "
@@ -122225,10 +122228,10 @@ void write_csv_status_lifetime()
 			fout.open("/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/scratch/optimization_link_lifetime_data.csv",ios::out|ios::trunc);
 			break;
 	}
-	for (uint32_t i=0; i<total_size ;i++)
+	for (uint32_t i=0; i<ns3::total_size ;i++)
 	{
 		//cout<<"writing status "<<i<<endl;
-		fout << total_size << ", "
+		fout << ns3::total_size << ", "
 		     << (routing_data_at_controller_inst+i)->nodeid << ", "
 		     << (routing_data_at_controller_inst+i)->position.x << ", "
 		     << (routing_data_at_controller_inst+i)->position.y << ", "
@@ -122249,7 +122252,7 @@ void write_csv_status()
 {
 	fstream fout;
 	fout.open("/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/scratch/optimization_link_lifetime_data.csv",ios::out|ios::trunc);
-	for (uint32_t i=2; i<total_size+2 ;i++)
+	for (uint32_t i=2; i<ns3::total_size+2 ;i++)
 	{
 		Ptr <Node> node;
 		if ((i-2) < N_Vehicles)
@@ -122265,7 +122268,7 @@ void write_csv_status()
         	Vector position = mdl->GetPosition();
         	Vector velocity = mdl->GetVelocity();
 		//cout<<"writing status "<<i<<endl;
-		fout << total_size << ", "
+		fout << ns3::total_size << ", "
 		     << position.x << ", "
 		     <<	position.y << ", "
 		     << velocity.x<< ", "
@@ -122407,7 +122410,7 @@ void write_csv_results()
 
 				break;
 			case (2): //number of nodes
-				switch(total_size)
+				switch(ns3::total_size)
 				{
 					case (4):
 						filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results/centralized_nodes_4.csv";
@@ -122667,7 +122670,7 @@ void write_csv_results()
 				}
 				break;
 			case (10): //number of nodes for routing
-				switch(total_size)
+				switch(ns3::total_size)
 				{
 					case (4):
 						filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results_routing/centralized_routing_nodes_4.csv";
@@ -122860,7 +122863,7 @@ void write_csv_results()
 
 				break;
 			case (2): //number of nodes
-				switch(total_size)
+				switch(ns3::total_size)
 				{
 					case (4):
 						filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results/distributed_nodes_4.csv";
@@ -123087,7 +123090,7 @@ void write_csv_results()
 
 				break;
 			case (10): //number of nodes for routing
-				switch(total_size)
+				switch(ns3::total_size)
 				{
 					case (4):
 						filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results_routing/distributed_routing_nodes_4.csv";
@@ -123316,7 +123319,7 @@ void write_csv_results()
 
 				break;
 			case (2): //number of nodes
-				switch(total_size)
+				switch(ns3::total_size)
 				{
 					case (4):
 						filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results/hybrid_nodes_4.csv";
@@ -123655,7 +123658,7 @@ void write_csv_results()
 
 				break;
 			case (10): //number of nodes-routing
-				switch(total_size)
+				switch(ns3::total_size)
 				{
 					case (4):
 						filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results_routing/hybrid_routing_nodes_4.csv";
@@ -123839,8 +123842,8 @@ double packet_delay_routing [2*flows][Flow_size+1];
 double packet_jitter_routing [2*flows][Flow_size+1];
 double routing_packet_initial_timestamp [2*flows][Flow_size+1];
 double routing_packet_final_timestamp [2*flows][Flow_size+1];
-double routing_packet_general_final_timestamp [2*flows][total_size][Flow_size+1];
-double routing_packet_general_initial_timestamp [2*flows][total_size][Flow_size+1];
+double routing_packet_general_final_timestamp [2*flows][MAX_NODES][Flow_size+1];
+double routing_packet_general_initial_timestamp [2*flows][MAX_NODES][Flow_size+1];
 
 double average_latency_routing = 0.0;
 double current_latency_routing = 0.0;
@@ -124313,7 +124316,7 @@ void write_csv_results_routing()
 			switch(routing_algorithm)
 			{
 				case(0)://ECMP
-					switch(total_size)
+					switch(ns3::total_size)
 					{
 						case(150):
 							filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results/nodesize/ECMP_nodes_150.csv";
@@ -124338,7 +124341,7 @@ void write_csv_results_routing()
 					}
 					break;
 				case(1)://RR
-					switch(total_size)
+					switch(ns3::total_size)
 					{
 						case(150):
 							filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results/nodesize/RR_nodes_150.csv";
@@ -124363,7 +124366,7 @@ void write_csv_results_routing()
 					}
 					break;
 				case(2)://QRSDN
-					switch(total_size)
+					switch(ns3::total_size)
 					{
 						case(150):
 							filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results/nodesize/QRSDN_nodes_150.csv";
@@ -124388,7 +124391,7 @@ void write_csv_results_routing()
 					}
 					break;
 				case(3)://RLMR
-					switch(total_size)
+					switch(ns3::total_size)
 					{
 						case(150):
 							filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results/nodesize/RLMR_nodes_150.csv";
@@ -124413,7 +124416,7 @@ void write_csv_results_routing()
 					}
 					break;
 				case(4)://Proposed
-					switch(total_size)
+					switch(ns3::total_size)
 					{
 						case(150):
 							filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results/nodesize/Proposed_nodes_150.csv";
@@ -124438,7 +124441,7 @@ void write_csv_results_routing()
 					}
 					break;
 				case(5)://
-					switch(total_size)
+					switch(ns3::total_size)
 					{
 						case(150):
 							filename = "/home/kanisa/Downloads/ns-allinone-3.35/ns-3.35/results/nodesize/DCMR_nodes_150.csv";
@@ -124494,8 +124497,8 @@ vector<vector<double>> linklifetimeMatrix_ethernet;
 vector<vector<double>> delayMatrix_dsrc;
 vector<vector<double>> delayMatrix_ethernet;
 
-double shortestDistances[total_size];
-vector<int> parents[total_size];
+double shortestDistances[MAX_NODES];
+vector<int> parents[MAX_NODES];
 int NO_PARENT = -1;
  
 // Function to print shortest path
@@ -124516,7 +124519,7 @@ void printPath(uint32_t vertexIndex)
 // array and shortest paths
 void printSolution(int startVertex)
 {
-    uint32_t nVertices = total_size;
+    uint32_t nVertices = ns3::total_size;
     cout << "Vertex\t Distance\tPath";
  
     for (uint32_t vertexIndex = 0; vertexIndex < nVertices; vertexIndex++) 
@@ -124564,7 +124567,7 @@ void dijkstra(vector<vector<double> > adjacencyMatrix,
  
     // Parent array to store shortest
     // path tree
-    vector<int> new_parents[total_size];
+    vector<int> new_parents[MAX_NODES];
  
     // The starting vertex does not
     // have a parent
@@ -124613,13 +124616,13 @@ void dijkstra(vector<vector<double> > adjacencyMatrix,
             }
         }
     }
-    for (uint32_t source=0;source<total_size;source++)
+    for (uint32_t source=0;source<ns3::total_size;source++)
     {
     	parents[source] = new_parents[source];
     	uint32_t n = new_parents[source].size();	
-    	uint32_t path[total_size];
+    	uint32_t path[MAX_NODES];
     	path[0] = source;
-    	for (uint32_t i=1;i<total_size;i++)
+    	for (uint32_t i=1;i<ns3::total_size;i++)
     	{
     		int sh = n-i+1;
     		if((sh) > 0)
@@ -124647,14 +124650,14 @@ double get_length(Vector posi_1, Vector posi_2)
 	return result;	
 }
 
-vector<double> node_distance[total_size];
+vector<double> node_distance[MAX_NODES];
 
 vector<double> calculate_distance_to_each_node(uint32_t source_node)
 {
 	vector<double> x;
 	/*
 	Vector source_position = data_at_manager_inst[source_node].position;
-	for (uint32_t index = 2; index < (total_size + 2); index++)
+	for (uint32_t index = 2; index < (ns3::total_size + 2); index++)
 	{
 		double dis = get_length(source_position, data_at_manager_inst[index].position);
 		x.push_back(dis);
@@ -124667,7 +124670,7 @@ vector<double> calculate_distance_to_each_node(uint32_t source_node)
 	if (source_node < 2) {
 		std::cerr << "ERROR: Invalid source_node " << source_node << " (must be >= 2)" << std::endl;
 		// Return empty vector with large distances
-		for (uint32_t i = 0; i < total_size; i++) {
+		for (uint32_t i = 0; i < ns3::total_size; i++) {
 			x.push_back(1e9);
 		}
 		return x;
@@ -124677,7 +124680,7 @@ vector<double> calculate_distance_to_each_node(uint32_t source_node)
 	{	
 		if ((source_node-2) >= Vehicle_Nodes.GetN()) {
 			std::cerr << "ERROR: source_node-2=" << (source_node-2) << " exceeds Vehicle_Nodes count=" << Vehicle_Nodes.GetN() << std::endl;
-			for (uint32_t i = 0; i < total_size; i++) {
+			for (uint32_t i = 0; i < ns3::total_size; i++) {
 				x.push_back(1e9);
 			}
 			return x;
@@ -124689,7 +124692,7 @@ vector<double> calculate_distance_to_each_node(uint32_t source_node)
 		uint32_t rsu_index = source_node-N_Vehicles-2;
 		if (rsu_index >= RSU_Nodes.GetN()) {
 			std::cerr << "ERROR: RSU index=" << rsu_index << " exceeds RSU_Nodes count=" << RSU_Nodes.GetN() << std::endl;
-			for (uint32_t i = 0; i < total_size; i++) {
+			for (uint32_t i = 0; i < ns3::total_size; i++) {
 				x.push_back(1e9);
 			}
 			return x;
@@ -124700,7 +124703,7 @@ vector<double> calculate_distance_to_each_node(uint32_t source_node)
 	// Check if reference_node is valid
 	if (!reference_node) {
 		std::cerr << "ERROR: reference_node is NULL for source_node=" << source_node << std::endl;
-		for (uint32_t i = 0; i < total_size; i++) {
+		for (uint32_t i = 0; i < ns3::total_size; i++) {
 			x.push_back(1e9);
 		}
 		return x;
@@ -124711,14 +124714,14 @@ vector<double> calculate_distance_to_each_node(uint32_t source_node)
 	// Check if mobility model is valid
 	if (!mdl1) {
 		std::cerr << "ERROR: Could not get MobilityModel for source_node=" << source_node << std::endl;
-		for (uint32_t i = 0; i < total_size; i++) {
+		for (uint32_t i = 0; i < ns3::total_size; i++) {
 			x.push_back(1e9);
 		}
 		return x;
 	}
 	
 	Vector posi_reference = mdl1->GetPosition();
-        for (uint32_t index = 2; index < (total_size + 2); index++)
+        for (uint32_t index = 2; index < (ns3::total_size + 2); index++)
 	{
 		if ((index-2) < N_Vehicles)
 		{	
@@ -124763,7 +124766,7 @@ vector<double> calculate_distance_to_each_node(uint32_t source_node)
 void generate_adjacency_matrix()
 {
 	
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	{
 		node_distance[i] = calculate_distance_to_each_node(i+2);	
 	}
@@ -124782,18 +124785,18 @@ void generate_adjacency_matrix()
 	*/
 	
 	vector<vector<double>> new_adjacencyMatrix;
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	//for(uint32_t i=0;i<9;i++)
 	{
 		new_adjacencyMatrix.push_back(node_distance[i]);
 	}
 	adjacencyMatrix = new_adjacencyMatrix;
 	/*	VISUALIZE ADJACENCY MATRIX-----------------------
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	//for (uint32_t i=0;i<9;i++)
 	{
 		
-		for (uint32_t j=0;j<total_size;j++)
+		for (uint32_t j=0;j<ns3::total_size;j++)
 		//for (uint32_t j=0;j<9;j++)
 		{
 			cout<<"distance from source node"<<(i)<<"to node "<<(j)<<"is "<<adjacencyMatrix[i][j]<<endl;
@@ -124807,10 +124810,10 @@ void generate_adjacency_matrix()
 
 struct proposed_algo2_output
 {
-	uint32_t Y[total_size];
-	double U[total_size];
-	int32_t conn[total_size];
-	bool met[total_size];
+	uint32_t Y[MAX_NODES];
+	double U[MAX_NODES];
+	int32_t conn[MAX_NODES];
+	bool met[MAX_NODES];
 	uint32_t paths;
 };
 
@@ -124818,10 +124821,10 @@ struct proposed_algo2_output proposed_algo2_output_inst[2*flows];
 
 struct distance_algo2_output
 {
-	uint32_t Y[total_size];
-	double D[total_size];
-	int32_t conn[total_size];
-	bool met[total_size];
+	uint32_t Y[MAX_NODES];
+	double D[MAX_NODES];
+	int32_t conn[MAX_NODES];
+	bool met[MAX_NODES];
 	uint32_t paths;
 };
 
@@ -124868,7 +124871,7 @@ void update_stable(uint32_t flow_id, uint32_t current_hop)
 		update_stable_depth--;
 		return;
 	}
-	if (current_hop >= (uint32_t)total_size) {
+	if (current_hop >= (uint32_t)ns3::total_size) {
 		update_stable_depth--;
 		return;
 	}
@@ -124876,13 +124879,13 @@ void update_stable(uint32_t flow_id, uint32_t current_hop)
 		update_stable_depth--;
 		return;
 	}
-	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)total_size) {
+	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)ns3::total_size) {
 		update_stable_depth--;
 		return;
 	}
 	
 	proposed_algo2_output_inst[flow_id].met[current_hop] = true;
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	{
 		if(linklifetimeMatrix_dsrc[current_hop][i] >link_lifetime_threshold)
 		{
@@ -124926,8 +124929,8 @@ void run_stable_path_finding(uint32_t flow_id)
 	}
 	
 	// Check if matrices are ready
-	if (linklifetimeMatrix_dsrc.size() == 0 || linklifetimeMatrix_dsrc.size() < (size_t)total_size) {
-		std::cerr << "WARNING: linklifetimeMatrix_dsrc not ready yet (size=" << linklifetimeMatrix_dsrc.size() << ", need " << total_size << "), skipping path finding for flow " << flow_id << std::endl;
+	if (linklifetimeMatrix_dsrc.size() == 0 || linklifetimeMatrix_dsrc.size() < (size_t)ns3::total_size) {
+		std::cerr << "WARNING: linklifetimeMatrix_dsrc not ready yet (size=" << linklifetimeMatrix_dsrc.size() << ", need " << ns3::total_size << "), skipping path finding for flow " << flow_id << std::endl;
 		return;
 	}
 	
@@ -124940,12 +124943,12 @@ void run_stable_path_finding(uint32_t flow_id)
 	cout << "DEBUG run_stable_path_finding: source=" << source << ", destination=" << destination << endl;
 	
 	// Validate source/destination
-	if (source >= (uint32_t)total_size || destination >= (uint32_t)total_size) {
-		std::cerr << "ERROR: Invalid source/destination (src=" << source << ", dst=" << destination << ", max=" << total_size-1 << ")" << std::endl;
+	if (source >= (uint32_t)ns3::total_size || destination >= (uint32_t)ns3::total_size) {
+		std::cerr << "ERROR: Invalid source/destination (src=" << source << ", dst=" << destination << ", max=" << ns3::total_size-1 << ")" << std::endl;
 		return;
 	}
 	
-	for(uint32_t i=0; i<total_size; i++)
+	for(uint32_t i=0; i<ns3::total_size; i++)
 	{
 		proposed_algo2_output_inst[flow_id].met[i] = false;
 		proposed_algo2_output_inst[flow_id].Y[i] = 1000;
@@ -124977,7 +124980,7 @@ void update_unstable(uint32_t flow_id, uint32_t current_hop)
 		update_unstable_depth--;
 		return;
 	}
-	if (current_hop >= (uint32_t)total_size) {
+	if (current_hop >= (uint32_t)ns3::total_size) {
 		update_unstable_depth--;
 		return;
 	}
@@ -124985,7 +124988,7 @@ void update_unstable(uint32_t flow_id, uint32_t current_hop)
 		update_unstable_depth--;
 		return;
 	}
-	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)total_size) {
+	if (linklifetimeMatrix_dsrc[current_hop].size() < (size_t)ns3::total_size) {
 		update_unstable_depth--;
 		return;
 	}
@@ -124993,13 +124996,13 @@ void update_unstable(uint32_t flow_id, uint32_t current_hop)
 		update_unstable_depth--;
 		return;
 	}
-	if (adjacencyMatrix[current_hop].size() < (size_t)total_size) {
+	if (adjacencyMatrix[current_hop].size() < (size_t)ns3::total_size) {
 		update_unstable_depth--;
 		return;
 	}
 	
 	distance_algo2_output_inst[flow_id].met[current_hop] = true;
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	{
 		if(linklifetimeMatrix_dsrc[current_hop][i] >0.0)
 		{
@@ -125041,12 +125044,12 @@ void run_distance_path_finding(uint32_t flow_id)
 	}
 	
 	// Check if matrices are ready
-	if (linklifetimeMatrix_dsrc.size() == 0 || linklifetimeMatrix_dsrc.size() < (size_t)total_size) {
-		std::cerr << "WARNING: linklifetimeMatrix_dsrc not ready yet (size=" << linklifetimeMatrix_dsrc.size() << ", need " << total_size << "), skipping path finding for flow " << flow_id << std::endl;
+	if (linklifetimeMatrix_dsrc.size() == 0 || linklifetimeMatrix_dsrc.size() < (size_t)ns3::total_size) {
+		std::cerr << "WARNING: linklifetimeMatrix_dsrc not ready yet (size=" << linklifetimeMatrix_dsrc.size() << ", need " << ns3::total_size << "), skipping path finding for flow " << flow_id << std::endl;
 		return;
 	}
-	if (adjacencyMatrix.size() == 0 || adjacencyMatrix.size() < (size_t)total_size) {
-		std::cerr << "WARNING: adjacencyMatrix not ready yet (size=" << adjacencyMatrix.size() << ", need " << total_size << "), skipping path finding for flow " << flow_id << std::endl;
+	if (adjacencyMatrix.size() == 0 || adjacencyMatrix.size() < (size_t)ns3::total_size) {
+		std::cerr << "WARNING: adjacencyMatrix not ready yet (size=" << adjacencyMatrix.size() << ", need " << ns3::total_size << "), skipping path finding for flow " << flow_id << std::endl;
 		return;
 	}
 	
@@ -125059,12 +125062,12 @@ void run_distance_path_finding(uint32_t flow_id)
 	cout << "DEBUG run_distance_path_finding: source=" << source << ", destination=" << destination << endl;
 	
 	// Validate source/destination
-	if (source >= (uint32_t)total_size || destination >= (uint32_t)total_size) {
-		std::cerr << "ERROR: Invalid source/destination (src=" << source << ", dst=" << destination << ", max=" << total_size-1 << ")" << std::endl;
+	if (source >= (uint32_t)ns3::total_size || destination >= (uint32_t)ns3::total_size) {
+		std::cerr << "ERROR: Invalid source/destination (src=" << source << ", dst=" << destination << ", max=" << ns3::total_size-1 << ")" << std::endl;
 		return;
 	}
 	
-	for(uint32_t i=0; i<total_size; i++)
+	for(uint32_t i=0; i<ns3::total_size; i++)
 	{
 		distance_algo2_output_inst[flow_id].met[i] = false;
 		distance_algo2_output_inst[flow_id].Y[i] = 1000;
@@ -125083,7 +125086,7 @@ void run_distance_path_finding(uint32_t flow_id)
 void update_flows()
 {
 	  cout<<"updating flows - path finding at"<<Now().GetSeconds()<<endl;
-	  cout<<"DEBUG: flows=" << flows << ", total_size=" << total_size << ", 2*flows=" << 2*flows << endl;
+	  cout<<"DEBUG: flows=" << flows << ", ns3::total_size=" << ns3::total_size << ", 2*flows=" << 2*flows << endl;
 	  if(routing_algorithm == 4)
 	  {	
 	  	for(uint32_t i=0;i<2*flows;i++)
@@ -125212,8 +125215,8 @@ void dijkstra_stable(uint32_t startVertex)
  
     // Parent array to store shortest
     // path tree
-    vector<int> new_parents[total_size];
-    vector<int> parent_link[total_size];
+    vector<int> new_parents[MAX_NODES];
+    vector<int> parent_link[MAX_NODES];
  
     // The starting vertex does not
     // have a parent
@@ -125354,7 +125357,7 @@ void dijkstra_stable(uint32_t startVertex)
 	    	//cout<<"edge distance is "<<edgeDistance<<endl;
  	  }   
     }
-    for (uint32_t source=0;source<total_size;source++)
+    for (uint32_t source=0;source<ns3::total_size;source++)
     {
     	parents[source] = new_parents[source];
     	uint32_t n = new_parents[source].size();
@@ -125365,12 +125368,12 @@ void dijkstra_stable(uint32_t startVertex)
     	//uint32_t hop_count = 5;
     	//uint32_t reverse_next_hop[hop_count];
     	//bool routing_loop = false;
-    	uint32_t path[total_size];
-    	uint32_t alternative_path[total_size];
+    	uint32_t path[MAX_NODES];
+    	uint32_t alternative_path[MAX_NODES];
     	path[0] = source;
     	alternative_path[0] = source;
     	alternative_path[1] = startVertex;
-    	for (uint32_t i=1;i<total_size;i++)
+    	for (uint32_t i=1;i<ns3::total_size;i++)
     	{
     		int sh = n-i+1;
     		if((sh) > 0)
@@ -125383,7 +125386,7 @@ void dijkstra_stable(uint32_t startVertex)
     			path[i] = large;
     		}
     	}
-    	for (uint32_t i=2;i<total_size;i++)
+    	for (uint32_t i=2;i<ns3::total_size;i++)
     	{
 		alternative_path[i] = large;
     	}
@@ -125439,9 +125442,9 @@ void dijkstra_stable(uint32_t startVertex)
 	}
     }
     /*
-    for (uint32_t source=0;source<total_size;source++)
+    for (uint32_t source=0;source<ns3::total_size;source++)
     {
-    	for (uint32_t k=0;k<total_size;k++)
+    	for (uint32_t k=0;k<ns3::total_size;k++)
     	{
     		cout<<"destination is "<<startVertex<<" "<<"source is "<<source<<" "<<k<<"th hop is "<<proposed_routing_tables[source].rows[startVertex].path[k]<<endl;
     	}
@@ -125601,9 +125604,9 @@ void calculate_average_load_balance_routing()
 				double packet_rec_counter = 0.0;
 				double q_count = 0.0;
 				double latency_sum = 0.0;
-				for(uint32_t j=0;j<total_size;j++)
+				for(uint32_t j=0;j<ns3::total_size;j++)
 				{
-					for(uint32_t l=0;l<total_size;l++)
+					for(uint32_t l=0;l<ns3::total_size;l++)
 					{
 						if ((routing_packet_general_final_timestamp[fid][j][i] > routing_packet_general_initial_timestamp[fid][l][i])&((delta_at_controller_inst+fid)->delta_fi_inst[l].delta_values[j] > 0.0)&(sent_IDS[fid][l][i] == true))
 						{
@@ -125635,9 +125638,9 @@ void calculate_average_load_balance_routing()
 			//cout<<"phi bar for flow id "<<fid<<" is "<<phifbar[fid]<<endl;
 
 			double q_count = 0;
-			for(uint32_t j=0;j<total_size;j++)
+			for(uint32_t j=0;j<ns3::total_size;j++)
 			{
-				for(uint32_t l=0;l<total_size;l++)
+				for(uint32_t l=0;l<ns3::total_size;l++)
 				{
 					double local_count = 0.0;
 					double local_sum = 0.0;
@@ -125655,7 +125658,7 @@ void calculate_average_load_balance_routing()
 							//total_latency = total_latency + packet_delay_routing[fid][i];
 						}
 					}
-					//double local_average = local_sum/(total_size*f_size);
+					//double local_average = local_sum/(ns3::total_size*f_size);
 					if (((delta_at_controller_inst+fid)->delta_fi_inst[l].delta_values[j] > 0.0))
 					{
 						double load_imbalance = 0.0;
@@ -125714,7 +125717,7 @@ void calculate_performance_evaluation_metrics()
 void calculate_average_latency()
 {
 	double total_latency = 0.0;
-	for (uint32_t i=2; i<total_size+2;i++)
+	for (uint32_t i=2; i<ns3::total_size+2;i++)
 	{
 		if (packet_final_timestamp[i] > packet_initial_timestamp[i])
 		{
@@ -125723,10 +125726,10 @@ void calculate_average_latency()
 		//cout<<"packet "<<i<<"final timestamp "<<packet_final_timestamp[i]<<"initial timestamp: "<<packet_initial_timestamp[i]<<endl;
 		total_latency = total_latency + packet_delay[i];
 	}
-	current_latency = total_latency/(total_size);
-	double previous_cumulative_latency = average_latency*(data_gathering_cycle_number - 1)*total_size;
+	current_latency = total_latency/(ns3::total_size);
+	double previous_cumulative_latency = average_latency*(data_gathering_cycle_number - 1)*ns3::total_size;
 	double current_cumulative_latency = previous_cumulative_latency + total_latency;
-	average_latency = (current_cumulative_latency)/((data_gathering_cycle_number)*(total_size));
+	average_latency = (current_cumulative_latency)/((data_gathering_cycle_number)*(ns3::total_size));
 	cout<<"average_latency "<<1000*average_latency<<" ms"<<endl;
 	
 }
@@ -125734,7 +125737,7 @@ void calculate_average_latency()
 void calculate_packet_delivery_ratio()
 {
 	double delivered_packets = 0.0;
-	for (uint32_t i=2; i<total_size+2;i++)
+	for (uint32_t i=2; i<ns3::total_size+2;i++)
 	{
 		if (packet_final_timestamp[i] > packet_initial_timestamp[i])
 		{
@@ -125742,7 +125745,7 @@ void calculate_packet_delivery_ratio()
 		}
 	}
 	
-	current_packet_delivery_ratio = delivered_packets/(total_size);
+	current_packet_delivery_ratio = delivered_packets/(ns3::total_size);
 	if (architecture == 2)
 	{
 		double previous_cumulative_ratio = average_packet_delivery_ratio*(data_gathering_cycle_number - 2);
@@ -125764,7 +125767,7 @@ void calculate_packet_delivery_ratio()
 void calculate_packet_delivery_ratio_dsrc()
 {
 	double delivered_packets = 0.0;
-	for (uint32_t i=2; i<total_size+2;i++)
+	for (uint32_t i=2; i<ns3::total_size+2;i++)
 	{
 		if (dsrc_packet_final_timestamp[i] > dsrc_packet_initial_timestamp[i])
 		{
@@ -125772,7 +125775,7 @@ void calculate_packet_delivery_ratio_dsrc()
 		}
 	}
 	
-	current_packet_delivery_ratio_dsrc = delivered_packets/(total_size);
+	current_packet_delivery_ratio_dsrc = delivered_packets/(ns3::total_size);
 	cout<<"current packet delivery ratio is "<<100*current_packet_delivery_ratio_dsrc<<endl;
 	double previous_cumulative_ratio = average_packet_delivery_ratio_dsrc*(data_gathering_cycle_number - 1);
 	double current_cumulative_ratio = previous_cumulative_ratio + current_packet_delivery_ratio_dsrc;
@@ -125785,7 +125788,7 @@ void calculate_packet_delivery_ratio_dsrc()
 void calculate_packet_delivery_ratio_dsrc_hybrid()
 {
 	double delivered_packets = 0.0;
-	for (uint32_t i=2; i<total_size+2;i++)
+	for (uint32_t i=2; i<ns3::total_size+2;i++)
 	{
 		if (dsrc_packet_final_timestamp[i] > dsrc_packet_initial_timestamp[i])
 		{
@@ -125793,7 +125796,7 @@ void calculate_packet_delivery_ratio_dsrc_hybrid()
 		}
 	}
 	
-	current_packet_delivery_ratio_dsrc = delivered_packets/(total_size);
+	current_packet_delivery_ratio_dsrc = delivered_packets/(ns3::total_size);
 	cout<<"current packet delivery ratio is "<<100*current_packet_delivery_ratio_dsrc<<endl;
 	double previous_cumulative_ratio = average_packet_delivery_ratio_dsrc*(data_gathering_cycle_number - 2);
 	double current_cumulative_ratio = previous_cumulative_ratio + current_packet_delivery_ratio_dsrc;
@@ -125805,7 +125808,7 @@ void calculate_packet_delivery_ratio_dsrc_hybrid()
 void calculate_average_latency_hybrid()
 {
 	double total_latency = 0.0;
-	for (uint32_t i=2; i<total_size+2;i++)
+	for (uint32_t i=2; i<ns3::total_size+2;i++)
 	{
 		if (dsrc_packet_final_timestamp[i] > dsrc_packet_initial_timestamp[i])
 		{
@@ -125819,10 +125822,10 @@ void calculate_average_latency_hybrid()
 		total_latency = total_latency + packet_delay_dsrc[i];
 	}
 	total_latency = total_latency;
-	current_latency_dsrc = total_latency/(total_size);
-	double previous_cumulative_latency = average_latency_dsrc*(data_gathering_cycle_number - 1)*total_size;
+	current_latency_dsrc = total_latency/(ns3::total_size);
+	double previous_cumulative_latency = average_latency_dsrc*(data_gathering_cycle_number - 1)*ns3::total_size;
 	double current_cumulative_latency = previous_cumulative_latency + total_latency;
-	average_latency_dsrc = (current_cumulative_latency)/((data_gathering_cycle_number)*(total_size));
+	average_latency_dsrc = (current_cumulative_latency)/((data_gathering_cycle_number)*(ns3::total_size));
 	cout<<"average_latency "<<1000*average_latency_dsrc<<" ms"<<endl;	
 }
 
@@ -125830,7 +125833,7 @@ void calculate_average_latency_hybrid()
 void calculate_average_latency_dsrc()
 {
 	double total_latency = 0.0;
-	for (uint32_t i=2; i<total_size+2;i++)
+	for (uint32_t i=2; i<ns3::total_size+2;i++)
 	{
 		if (dsrc_packet_final_timestamp[i] > dsrc_packet_initial_timestamp[i])
 		{
@@ -125840,10 +125843,10 @@ void calculate_average_latency_dsrc()
 		total_latency = total_latency + packet_delay_dsrc[i];
 	}
 	total_latency = total_latency;
-	current_latency_dsrc = total_latency/(total_size);
-	double previous_cumulative_latency = average_latency_dsrc*(data_gathering_cycle_number - 1)*total_size;
+	current_latency_dsrc = total_latency/(ns3::total_size);
+	double previous_cumulative_latency = average_latency_dsrc*(data_gathering_cycle_number - 1)*ns3::total_size;
 	double current_cumulative_latency = previous_cumulative_latency + total_latency;
-	average_latency_dsrc = (current_cumulative_latency)/((data_gathering_cycle_number)*(total_size));
+	average_latency_dsrc = (current_cumulative_latency)/((data_gathering_cycle_number)*(ns3::total_size));
 	cout<<"average_latency "<<1000*average_latency_dsrc<<" ms"<<endl;	
 }
 
@@ -125851,14 +125854,14 @@ void calculate_average_latency_dsrc()
 void calculate_aodv_packet_delivery_ratio()
 {
 	double delivered_packets = 0.0;
-	for (uint32_t i=2; i< (total_size+2); i++)
+	for (uint32_t i=2; i< (ns3::total_size+2); i++)
 	{
 		if (aodv_final_timestamp[i] > aodv_initial_timestamp[i])
 		{
 			delivered_packets = delivered_packets + 1;
 		}
 	}
-	current_packet_delivery_ratio_dsrc = delivered_packets/(total_size);
+	current_packet_delivery_ratio_dsrc = delivered_packets/(ns3::total_size);
 	cout<<"current packet delivery ratio is "<<100*current_packet_delivery_ratio_dsrc<<endl;
 	double previous_cumulative_ratio = average_packet_delivery_ratio_dsrc*(data_gathering_cycle_number - 1);
 	double current_cumulative_ratio = previous_cumulative_ratio + current_packet_delivery_ratio_dsrc;
@@ -125869,7 +125872,7 @@ void calculate_aodv_packet_delivery_ratio()
 void calculate_aodv_latency()
 {
 	double total_latency = 0.0;
-	for (uint32_t i=2;i<(total_size+2);i++)
+	for (uint32_t i=2;i<(ns3::total_size+2);i++)
 	{
 		if (aodv_final_timestamp[i] > aodv_initial_timestamp[i])
 		{
@@ -125882,10 +125885,10 @@ void calculate_aodv_latency()
 		total_latency = total_latency + packet_delay[i];	
 	}
 	//cout<<"packet "<<i<<"final timestamp "<<packet_final_timestamp[i]<<"initial timestamp: "<<packet_initial_timestamp[i]<<endl;
-	current_latency_dsrc = total_latency/(total_size);
-	double previous_cumulative_latency = average_latency_dsrc*(data_gathering_cycle_number - 1)*(total_size);
+	current_latency_dsrc = total_latency/(ns3::total_size);
+	double previous_cumulative_latency = average_latency_dsrc*(data_gathering_cycle_number - 1)*(ns3::total_size);
 	double current_cumulative_latency = previous_cumulative_latency + total_latency;
-	average_latency_dsrc = (current_cumulative_latency)/((data_gathering_cycle_number)*(total_size));
+	average_latency_dsrc = (current_cumulative_latency)/((data_gathering_cycle_number)*(ns3::total_size));
 	cout<<"average_latency "<<1000*average_latency_dsrc<<" ms"<<"current latency is "<<current_latency_dsrc*1000<<" ms"<<endl;
 }
 
@@ -125950,11 +125953,11 @@ void calculate_average_cost_with_solution()
 	double lte_cost = 40.0;
 	//calculate total cost in kilo bytes
 	double current_total_cost = ((ethernet_cost*ethernet_total_packet_size) + (dsrc_cost*dsrc_total_packet_size) + (lte_cost*lte_total_packet_size) + (lte_cost*2*N_Vehicles) + (ethernet_cost*2*N_RSUs))/1024.0;
-	current_cost = current_total_cost/(total_size);
+	current_cost = current_total_cost/(ns3::total_size);
 	cout<<"current average cost is "<<current_cost<<endl;
-	double previous_cumulative_total_cost = (total_size)*(data_gathering_cycle_number - 1.0)*(average_cost);
+	double previous_cumulative_total_cost = (ns3::total_size)*(data_gathering_cycle_number - 1.0)*(average_cost);
 	double current_cumulative_total_cost = previous_cumulative_total_cost + current_total_cost;
-	average_cost = (current_cumulative_total_cost)/((data_gathering_cycle_number)*(total_size));
+	average_cost = (current_cumulative_total_cost)/((data_gathering_cycle_number)*(ns3::total_size));
 	cout<<"average cost per node is "<< average_cost<<endl;
 	ethernet_total_packet_size = 0;
 	dsrc_total_packet_size = 0;
@@ -125968,11 +125971,11 @@ void calculate_average_cost_without_solution()
 	double lte_cost = 40.0;
 	//calculate total cost in kilo bytes
 	double current_total_cost = ((ethernet_cost*ethernet_total_packet_size) + (dsrc_cost*dsrc_total_packet_size) + (lte_cost*lte_total_packet_size))/1024.0;
-	current_cost = current_total_cost/(total_size);
+	current_cost = current_total_cost/(ns3::total_size);
 	cout<<"current average cost is "<<current_cost<<endl;
-	double previous_cumulative_total_cost = (total_size)*(data_gathering_cycle_number - 1.0)*(average_cost);
+	double previous_cumulative_total_cost = (ns3::total_size)*(data_gathering_cycle_number - 1.0)*(average_cost);
 	double current_cumulative_total_cost = previous_cumulative_total_cost + current_total_cost;
-	average_cost = (current_cumulative_total_cost)/((data_gathering_cycle_number)*(total_size));
+	average_cost = (current_cumulative_total_cost)/((data_gathering_cycle_number)*(ns3::total_size));
 	cout<<"average cost per node is "<< average_cost<<endl;
 	ethernet_total_packet_size = 0;
 	dsrc_total_packet_size = 0;
@@ -125985,11 +125988,11 @@ void calculate_average_cost_without_solution_dsrc()
 	double dsrc_cost =2.0;
 	//calculate total cost in kilo bytes
 	double current_total_cost =  (dsrc_cost*dsrc_total_packet_size)*10/1024.0;
-	current_cost = current_total_cost/(total_size);
+	current_cost = current_total_cost/(ns3::total_size);
 	cout<<"current average cost is "<<current_cost<<endl;
-	double previous_cumulative_total_cost = (total_size)*(data_gathering_cycle_number - 1.0)*(average_cost);
+	double previous_cumulative_total_cost = (ns3::total_size)*(data_gathering_cycle_number - 1.0)*(average_cost);
 	double current_cumulative_total_cost = previous_cumulative_total_cost + current_total_cost;
-	average_cost = (current_cumulative_total_cost)/((data_gathering_cycle_number)*(total_size));
+	average_cost = (current_cumulative_total_cost)/((data_gathering_cycle_number)*(ns3::total_size));
 	cout<<"average cost per node is "<< average_cost<<endl;
 	ethernet_total_packet_size = 0;
 	dsrc_total_packet_size = 0;
@@ -126137,21 +126140,21 @@ void optimize_first_time()
 }
 
 
-vector<double> link_lifetime_dsrc[total_size];
-vector<double> link_lifetime_ethernet[total_size];
-vector<double> delay_dsrc[total_size];
-vector<double> delay_ethernet[total_size];
-double link_lifetime_vector[total_size*total_size];
-double delay_vector[2*total_size];
+vector<double> link_lifetime_dsrc[MAX_NODES];
+vector<double> link_lifetime_ethernet[MAX_NODES];
+vector<double> delay_dsrc[MAX_NODES];
+vector<double> delay_ethernet[MAX_NODES];
+double link_lifetime_vector[ns3::total_size*ns3::total_size];
+double delay_vector[2*ns3::total_size];
 
 void convert_link_lifetimes_dsrc()
 {
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	{
 		vector<double> x_dsrc;
-		for (uint32_t j = 0;j < (total_size);j++)
+		for (uint32_t j = 0;j < (ns3::total_size);j++)
 		{
-			x_dsrc.push_back(link_lifetime_vector[(i*total_size)+j]);
+			x_dsrc.push_back(link_lifetime_vector[(i*ns3::total_size)+j]);
 
 		}
 		
@@ -126159,7 +126162,7 @@ void convert_link_lifetimes_dsrc()
 	}
 		
 	vector<vector<double>> new_adjacencyMatrix_dsrc;
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	//for(uint32_t i=0;i<9;i++)
 	{
 		new_adjacencyMatrix_dsrc.push_back(link_lifetime_dsrc[i]);
@@ -126168,11 +126171,11 @@ void convert_link_lifetimes_dsrc()
 	//cout<<"link lifetime matrix converted"<<endl;
 	
 	/*
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	//for (uint32_t i=0;i<9;i++)
 	{
 	
-		for (uint32_t j=0;j<total_size;j++)
+		for (uint32_t j=0;j<ns3::total_size;j++)
 		//for (uint32_t j=0;j<9;j++)
 		{
 			cout<<"DSRC Link lifetime from source node"<<(i)<<"to node "<<(j)<<"is "<<linklifetimeMatrix_dsrc[i][j]<<endl;
@@ -126187,13 +126190,13 @@ void convert_link_lifetimes_dsrc()
 
 void convert_link_lifetimes()
 {
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	{
 		vector<double> x_dsrc;
 		vector<double> x_ethernet;
-		for (uint32_t j = 0;j < (total_size);j++)
+		for (uint32_t j = 0;j < (ns3::total_size);j++)
 		{
-			x_dsrc.push_back(link_lifetime_vector[(i*total_size)+j]);
+			x_dsrc.push_back(link_lifetime_vector[(i*ns3::total_size)+j]);
 			if(i<N_Vehicles)
 			{
 				x_ethernet.push_back(0.0);
@@ -126224,7 +126227,7 @@ void convert_link_lifetimes()
 		
 	vector<vector<double>> new_adjacencyMatrix_dsrc;
 	vector<vector<double>> new_adjacencyMatrix_ethernet;
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	//for(uint32_t i=0;i<9;i++)
 	{
 		new_adjacencyMatrix_dsrc.push_back(link_lifetime_dsrc[i]);
@@ -126235,11 +126238,11 @@ void convert_link_lifetimes()
 	cout<<"link lifetime matrix converted"<<endl;
 	
 	
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	//for (uint32_t i=0;i<9;i++)
 	{
 		
-		for (uint32_t j=0;j<total_size;j++)
+		for (uint32_t j=0;j<ns3::total_size;j++)
 		//for (uint32_t j=0;j<9;j++)
 		{
 			cout<<"DSRC Link lifetime from source node"<<(i)<<"to node "<<(j)<<"is "<<linklifetimeMatrix_dsrc[i][j]<<endl;
@@ -126351,9 +126354,9 @@ void run_ECMP()
 		//uint32_t f_destination = (demanding_flow_struct_controller_inst+fid)->destination;
 		if((demanding_flow_struct_controller_inst+fid)->f_size == 0)
 		{
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					(delta_at_controller_inst+fid)->delta_fi_inst[cid].delta_values[nid] = 0.0;
 					(L_at_controller_inst+fid)->L_fi_inst[cid].L_values[nid] = 0.0;
@@ -126362,10 +126365,10 @@ void run_ECMP()
 		}
 		else
 		{
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{
 				uint32_t next_hops_count = 0;
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if ((distance_algo2_output_inst[fid].D[nid] < distance_algo2_output_inst[fid].D[cid])&&(distance_algo2_output_inst[fid].conn[nid]==1)&& (distance_algo2_output_inst[fid].conn[cid]==1)&&(linklifetimeMatrix_dsrc[cid][nid]>0.0))
 					{
@@ -126373,7 +126376,7 @@ void run_ECMP()
 					}
 				}
 				
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if ((distance_algo2_output_inst[fid].D[nid] < distance_algo2_output_inst[fid].D[cid])&&(distance_algo2_output_inst[fid].conn[nid]==1)&& (distance_algo2_output_inst[fid].conn[cid]==1)&&(linklifetimeMatrix_dsrc[cid][nid]>0.0))
 					{
@@ -126393,7 +126396,7 @@ void run_ECMP()
 					else
 					{
 						double summation = 0;
-						for(int i=0;i<total_size;i++)
+						for(int i=0;i<ns3::total_size;i++)
 						{
 							summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 						}
@@ -126433,10 +126436,10 @@ double compute_packet_delay_DCMR(uint32_t fid, uint32_t nid, uint32_t packet_siz
 void run_DCMR()
 {
 	cout<<"Running DCMR started at "<<Now().GetSeconds()<<endl;
-	double RBW[total_size];
-	double congestion_level[total_size];
+	double RBW[MAX_NODES];
+	double congestion_level[MAX_NODES];
 	
-	for(uint32_t i=0; i<total_size;i++)
+	for(uint32_t i=0; i<ns3::total_size;i++)
 	{
 		RBW[i] = 1.0;
 		congestion_level[i] = 0.0001;
@@ -126450,9 +126453,9 @@ void run_DCMR()
 		
 		if((demanding_flow_struct_controller_inst+fid)->f_size == 0)
 		{
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					(delta_at_controller_inst+fid)->delta_fi_inst[cid].delta_values[nid] = 0.0;
 					(L_at_controller_inst+fid)->L_fi_inst[cid].L_values[nid] = 0.0;
@@ -126463,26 +126466,26 @@ void run_DCMR()
 		{	
 			//uint32_t cid = f_source;
 			//while(cid != f_destination)
-			for(uint32_t cid=0;cid<total_size;cid++)
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)
 			{
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					(delta_at_controller_inst+fid)->delta_fi_inst[cid].delta_values[nid] = 0.0;
 					(L_at_controller_inst+fid)->L_fi_inst[cid].L_values[nid] = 0.0;
 				}
 				//uint32_t next_hops_count = 0;
-				double RBW_local[total_size];
-				double congestion_level_local[total_size];
-				double PUF_local[total_size];
-				int32_t cost_local[total_size];
-				for(uint32_t i=0; i<total_size;i++)
+				double RBW_local[MAX_NODES];
+				double congestion_level_local[MAX_NODES];
+				double PUF_local[MAX_NODES];
+				int32_t cost_local[MAX_NODES];
+				for(uint32_t i=0; i<ns3::total_size;i++)
 				{
 					RBW_local[i] = 1.0;
 					congestion_level_local[i] = 0.0001;
 					PUF_local[i] = 0.0;
 					cost_local[i] = 100000;
 				}
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					double packet_delay = compute_packet_delay_DCMR(fid, nid, f_psize);
 					if ((distance_algo2_output_inst[fid].D[nid] < distance_algo2_output_inst[fid].D[cid])&&(distance_algo2_output_inst[fid].conn[nid]==1)&& (distance_algo2_output_inst[fid].conn[cid]==1)&&(linklifetimeMatrix_dsrc[cid][nid]>0.0)&&(packet_delay < latency_max))
@@ -126512,7 +126515,7 @@ void run_DCMR()
 				
 				uint32_t least_cost_hop = cid;
 				int32_t least_cost = 100000;
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if(cost_local[nid] < least_cost)
 					{
@@ -126529,7 +126532,7 @@ void run_DCMR()
 				
 				uint32_t second_least_cost_hop = cid;
 				int32_t second_least_cost = 100000;
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if((cost_local[nid] < second_least_cost)&&(cost_local[nid] > least_cost))
 					{
@@ -126543,7 +126546,7 @@ void run_DCMR()
 				RBW[second_least_cost_hop] = RBW_local[second_least_cost_hop];
 				congestion_level[second_least_cost_hop] = congestion_level_local[second_least_cost_hop];
 				
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if(second_least_cost_hop == cid)
 					{
@@ -126573,9 +126576,9 @@ void run_DCMR()
 					}
 				}
 			}
-			for(uint32_t cid=0;cid<total_size;cid++)
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)
 			{
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if(cid == f_source)
 					{
@@ -126584,7 +126587,7 @@ void run_DCMR()
 					else
 					{
 						double summation = 0;
-						for(int i=0;i<total_size;i++)
+						for(int i=0;i<ns3::total_size;i++)
 						{
 							summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 						}
@@ -126614,9 +126617,9 @@ void run_QRSDN()
 		
 		if((demanding_flow_struct_controller_inst+fid)->f_size == 0)
 		{
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					(delta_at_controller_inst+fid)->delta_fi_inst[cid].delta_values[nid] = 0.0;
 					(L_at_controller_inst+fid)->L_fi_inst[cid].L_values[nid] = 0.0;
@@ -126627,10 +126630,10 @@ void run_QRSDN()
 		else
 		{
 			//cout<<"Running RL in fid "<<fid<<endl;
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{
 				//Initialize Q values with lifetime
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if ((cid==f_destination) || (nid==f_source))
 					{
@@ -126650,10 +126653,10 @@ void run_QRSDN()
 			}
 			//cout<<"Q-values initialized"<<endl;
 			
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{	
 				//convert to acyclic graph
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					
 					(Y_at_controller_inst+fid)->Y_fi_inst[cid].Y_values[nid] = distance_algo2_output_inst[fid].Y[cid];
@@ -126683,18 +126686,18 @@ void run_QRSDN()
 			}
 			//cout<<"Converted to acyclic graph"<<endl;
 			//Initialize delta, load values
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{	
 				//count actions
 				uint32_t actions=0;
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] > 0.0)
 					{
 						actions++;
 					}
 				}//Intialize delta, load values
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					
 					if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] > 0.0)
@@ -126707,7 +126710,7 @@ void run_QRSDN()
 						else
 						{
 							double summation = 0.0;
-							for(int i=0;i<total_size;i++)
+							for(int i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -126727,7 +126730,7 @@ void run_QRSDN()
 					uint32_t actions=0;
 					list<uint32_t> action_set;
 					
-					for(uint32_t nid=0;nid<total_size;nid++)	
+					for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 					{
 						if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] > 0.0)
 						{
@@ -126744,7 +126747,7 @@ void run_QRSDN()
 					 	(Omega_at_controller_inst+fid)->Omega_fi_inst[cid].Omega_values[nid]	= distance_algo2_output_inst[fid].conn[nid];
 					 	
 					 	double y_summation = 0.0;
-					 	for(int j=0;j<total_size;j++)
+					 	for(int j=0;j<ns3::total_size;j++)
 					 	{
 					 		y_summation = y_summation + (((delta_at_controller_inst+fid)->delta_fi_inst[nid].delta_values[j])*((Y_at_controller_inst+fid)->Y_fi_inst[nid].Y_values[j]));
 					 	}
@@ -126754,7 +126757,7 @@ void run_QRSDN()
 						//Compute delta_values
 						double q_summation = 0.0;
 						double q_max = 0.0;
-						for(int j=0;j<total_size;j++)
+						for(int j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -126786,7 +126789,7 @@ void run_QRSDN()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<total_size;i++)
+							for(int i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -126805,7 +126808,7 @@ void run_QRSDN()
 						//Compute delta_values
 						double q_summation_again = 0.0;
 						double q_max_again = 0.0;
-						for(int j=0;j<total_size;j++)
+						for(int j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -126837,7 +126840,7 @@ void run_QRSDN()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<total_size;i++)
+							for(int i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -126849,7 +126852,7 @@ void run_QRSDN()
 						uint32_t local_actions=0;
 						list<uint32_t> local_action_set;
 						
-						for(uint32_t j=0;j<total_size;j++)	
+						for(uint32_t j=0;j<ns3::total_size;j++)	
 						{
 							if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j] > 0.0)
 							{
@@ -126879,9 +126882,9 @@ void run_RLMR()
 		
 		if((demanding_flow_struct_controller_inst+fid)->f_size == 0)
 		{
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					(delta_at_controller_inst+fid)->delta_fi_inst[cid].delta_values[nid] = 0.0;
 					(L_at_controller_inst+fid)->L_fi_inst[cid].L_values[nid] = 0.0;
@@ -126892,10 +126895,10 @@ void run_RLMR()
 		else
 		{
 			//cout<<"Running RL in fid "<<fid<<endl;
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{
 				//Initialize Q values with lifetime
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if ((cid==f_destination) || (nid==f_source))
 					{
@@ -126915,10 +126918,10 @@ void run_RLMR()
 			}
 			//cout<<"Q-values initialized"<<endl;
 			
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{	
 				//convert to acyclic graph
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					
 					(Y_at_controller_inst+fid)->Y_fi_inst[cid].Y_values[nid] = distance_algo2_output_inst[fid].Y[cid];
@@ -126948,18 +126951,18 @@ void run_RLMR()
 			}
 			//cout<<"Converted to acyclic graph"<<endl;
 			//Initialize delta, load values
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{	
 				//count actions
 				uint32_t actions=0;
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] > 0.0)
 					{
 						actions++;
 					}
 				}//Intialize delta, load values
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					
 					if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] > 0.0)
@@ -126972,7 +126975,7 @@ void run_RLMR()
 						else
 						{
 							double summation = 0.0;
-							for(int i=0;i<total_size;i++)
+							for(int i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -126992,7 +126995,7 @@ void run_RLMR()
 					uint32_t actions=0;
 					list<uint32_t> action_set;
 					
-					for(uint32_t nid=0;nid<total_size;nid++)	
+					for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 					{
 						if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] > 0.0)
 						{
@@ -127018,7 +127021,7 @@ void run_RLMR()
 					 	}
 					 	
 					 	double y_summation = 0.0;
-					 	for(int j=0;j<total_size;j++)
+					 	for(int j=0;j<ns3::total_size;j++)
 					 	{
 					 		y_summation = y_summation + (((delta_at_controller_inst+fid)->delta_fi_inst[nid].delta_values[j])*((Y_at_controller_inst+fid)->Y_fi_inst[nid].Y_values[j]));
 					 	}
@@ -127028,7 +127031,7 @@ void run_RLMR()
 						//Compute delta_values
 						double q_summation = 0.0;
 						double q_max = 0.0;
-						for(int j=0;j<total_size;j++)
+						for(int j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -127061,7 +127064,7 @@ void run_RLMR()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<total_size;i++)
+							for(int i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127080,7 +127083,7 @@ void run_RLMR()
 						//Compute delta_values
 						double q_summation_again = 0.0;
 						double q_max_again = 0.0;
-						for(int j=0;j<total_size;j++)
+						for(int j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -127111,7 +127114,7 @@ void run_RLMR()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<total_size;i++)
+							for(int i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127123,7 +127126,7 @@ void run_RLMR()
 						uint32_t local_actions=0;
 						list<uint32_t> local_action_set;
 						
-						for(uint32_t j=0;j<total_size;j++)	
+						for(uint32_t j=0;j<ns3::total_size;j++)	
 						{
 							if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j] > 0.0)
 							{
@@ -127143,7 +127146,7 @@ void run_RLMR()
 
 struct flow_cardinality
 {
-	uint32_t cardinality[total_size];
+	uint32_t cardinality[MAX_NODES];
 };
 
 struct flow_cardinality f_card_inst[2*flows];
@@ -127221,7 +127224,7 @@ double compute_path_delay(uint32_t fid, uint32_t cid, uint32_t nid, double link_
 	}
 	
 	double link_lat_summation = 0.0;
-	for(uint32_t i =0;i<total_size; i++)
+	for(uint32_t i =0;i<ns3::total_size; i++)
 	{
 		if (((delta_at_controller_inst+fid)->delta_fi_inst[cid].delta_values[nid]) >= ((delta_at_controller_inst+fid)->delta_fi_inst[cid].delta_values[i]))
 		{
@@ -127230,7 +127233,7 @@ double compute_path_delay(uint32_t fid, uint32_t cid, uint32_t nid, double link_
 	}
 	
 	double y_summation = 0.0;
-	for(uint32_t i =0;i<total_size; i++)
+	for(uint32_t i =0;i<ns3::total_size; i++)
 	{
 		y_summation = y_summation + (((delta_at_controller_inst+fid)->delta_fi_inst[nid].delta_values[i])*((Y_at_controller_inst+fid)->Y_fi_inst[nid].Y_values[i]));
 	}
@@ -127267,9 +127270,9 @@ void run_proposed_RL()
 		
 		if((demanding_flow_struct_controller_inst+fid)->f_size == 0)
 		{
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					(delta_at_controller_inst+fid)->delta_fi_inst[cid].delta_values[nid] = 0.0;
 					(L_at_controller_inst+fid)->L_fi_inst[cid].L_values[nid] = 0.0;
@@ -127281,10 +127284,10 @@ void run_proposed_RL()
 		else
 		{
 			//cout<<"Running RL in fid "<<fid<<endl;
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{
 				//Initialize Q values with lifetime
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if ((cid==f_destination) || (nid==f_source))
 					{
@@ -127307,10 +127310,10 @@ void run_proposed_RL()
 			//cout<<"Q-values initialized"<<endl;
 			
 			//find cardinality
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{	
 				uint32_t summation = 0;
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					double lt = unit_step(linklifetimeMatrix_dsrc[cid][nid]-link_lifetime_threshold, 0);
 					double product = (proposed_algo2_output_inst[fid].conn[nid])*lt;
@@ -127322,9 +127325,9 @@ void run_proposed_RL()
 			
 			
 			//convert to directed acyclic graph
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{	
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					
 					(Y_at_controller_inst+fid)->Y_fi_inst[cid].Y_values[nid] = proposed_algo2_output_inst[fid].Y[cid];
@@ -127399,18 +127402,18 @@ void run_proposed_RL()
 			
 			
 			//Initialize delta, load, and latency values
-			for(uint32_t cid=0;cid<total_size;cid++)	
+			for(uint32_t cid=0;cid<ns3::total_size;cid++)	
 			{	
 				//count actions
 				uint32_t actions=0;
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] > 0.0)
 					{
 						actions++;
 					}
 				}//Intialize delta, load values, latency values
-				for(uint32_t nid=0;nid<total_size;nid++)	
+				for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 				{
 					
 					
@@ -127424,7 +127427,7 @@ void run_proposed_RL()
 						else
 						{
 							double summation = 0.0;
-							for(int i=0;i<total_size;i++)
+							for(int i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127462,9 +127465,9 @@ void run_proposed_RL()
 					//compute Lf_bar
 					double load_sum = 0.0;
 					uint32_t load_count = 0;
-					for(uint32_t i=0;i<total_size;i++)	
+					for(uint32_t i=0;i<ns3::total_size;i++)	
 					{
-						for(uint32_t j=0;j<total_size;j++)	
+						for(uint32_t j=0;j<ns3::total_size;j++)	
 						{
 							load_sum = load_sum + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[j];
 							if((L_at_controller_inst+fid)->L_fi_inst[i].L_values[j] > 0.0)
@@ -127484,7 +127487,7 @@ void run_proposed_RL()
 						Lf_bar[fid] = 0.0;
 					}
 					
-					for(uint32_t nid=0;nid<total_size;nid++)	
+					for(uint32_t nid=0;nid<ns3::total_size;nid++)	
 					{
 						if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[nid] > 0.0)
 						{
@@ -127535,7 +127538,7 @@ void run_proposed_RL()
 					 	//cout<<"flow id "<<fid<<"current hop "<<cid<<" next hop "<<nid<<" Omega value "<<(Omega_at_controller_inst+fid)->Omega_fi_inst[cid].Omega_values[nid]<<" Theta value is "<<(Theta_at_controller_inst+fid)->Theta_fi_inst[cid].Theta_values[nid]<<endl;
 					 	
 					 	double y_summation = 0.0;
-					 	for(int j=0;j<total_size;j++)
+					 	for(int j=0;j<ns3::total_size;j++)
 					 	{
 					 		y_summation = y_summation + (((delta_at_controller_inst+fid)->delta_fi_inst[nid].delta_values[j])*((Y_at_controller_inst+fid)->Y_fi_inst[nid].Y_values[j]));
 					 	}
@@ -127544,7 +127547,7 @@ void run_proposed_RL()
 						if(nid != f_destination)
 						{
 						double u_summation = 0.0;
-						 	for(int j=0;j<total_size;j++)
+						 	for(int j=0;j<ns3::total_size;j++)
 						 	{
 						 		u_summation = u_summation + (((delta_at_controller_inst+fid)->delta_fi_inst[nid].delta_values[j])*((U_at_controller_inst+fid)->U_fi_inst[nid].U_values[j]));
 						 	}
@@ -127555,7 +127558,7 @@ void run_proposed_RL()
 						//Compute delta_values
 						double q_summation = 0.0;
 						double q_max = 0.0;
-						for(int j=0;j<total_size;j++)
+						for(int j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -127587,7 +127590,7 @@ void run_proposed_RL()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<total_size;i++)
+							for(int i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127636,7 +127639,7 @@ void run_proposed_RL()
 						double mu2t = 2.0;
 						uint32_t tucount =0;
 						double tusum = 0.0;
-						for(uint32_t i=0;i<total_size;i++)
+						for(uint32_t i=0;i<ns3::total_size;i++)
 						{
 							if((delta_at_controller_inst+fid)->delta_fi_inst[cid].delta_values[i] > 0.0)
 							{
@@ -127695,7 +127698,7 @@ void run_proposed_RL()
 						//Compute delta_values
 						double q_summation_again = 0.0;
 						double q_max_again = 0.0;
-						for(int j=0;j<total_size;j++)
+						for(int j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -127726,7 +127729,7 @@ void run_proposed_RL()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<total_size;i++)
+							for(int i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127740,7 +127743,7 @@ void run_proposed_RL()
 						uint32_t local_actions=0;
 						list<uint32_t> local_action_set;
 						
-						for(uint32_t j=0;j<total_size;j++)	
+						for(uint32_t j=0;j<ns3::total_size;j++)	
 						{
 							if((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j] > 0.0)
 							{
@@ -127770,7 +127773,7 @@ void  run_optimization_link_lifetime()
 
 void  run_optimization_subsequent()
 {
-	for (uint32_t i=2;i<(total_size + 2);i++)
+	for (uint32_t i=2;i<(ns3::total_size + 2);i++)
 	{
 		refresh_controller_data(con_data_inst+i);
 	}
@@ -127873,11 +127876,11 @@ void  run_DNN_delay()
 void convert_delay()
 {
 	cout<<"converting delay"<<endl;
-	for(uint32_t i=0;i<(2*total_size);i=i+2)
+	for(uint32_t i=0;i<(2*ns3::total_size);i=i+2)
 	{
 		vector<double> x_dsrc;
 		vector<double> x_ethernet;
-		for (uint32_t j = 0;j < total_size;j++)
+		for (uint32_t j = 0;j < ns3::total_size;j++)
 		{
 			double dij_dsrc;
 			double dij_ethernet;
@@ -127902,7 +127905,7 @@ void convert_delay()
 	
 	vector<vector<double>> new_adjacencyMatrix_dsrc;
 	vector<vector<double>> new_adjacencyMatrix_ethernet;
-	for(uint32_t i=0;i<total_size;i++)
+	for(uint32_t i=0;i<ns3::total_size;i++)
 	//for(uint32_t i=0;i<9;i++)
 	{
 		new_adjacencyMatrix_dsrc.push_back(delay_dsrc[i]);
@@ -127913,11 +127916,11 @@ void convert_delay()
 	cout<<"delay matrix converted"<<endl;
 	
 	
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	//for (uint32_t i=0;i<9;i++)
 	{
 		
-		for (uint32_t j=0;j<total_size;j++)
+		for (uint32_t j=0;j<ns3::total_size;j++)
 		//for (uint32_t j=0;j<9;j++)
 		{
 			cout<<"DSRC delay from source node"<<(i)<<"to node "<<(j)<<"is "<<delayMatrix_dsrc[i][j]<<endl;
@@ -128011,7 +128014,7 @@ void write_distance_metrics()
 	fout.open(filename,ios::out|ios::app);
 	
 	fout << Simulator::Now().GetSeconds();
-	for (uint32_t i=3;i<total_size+2; i=i+2)
+	for (uint32_t i=3;i<ns3::total_size+2; i=i+2)
 	{
 		fout << max_distance[i] << ", ";
 	}
@@ -128024,7 +128027,7 @@ void write_distance_metrics()
 void calculate_normalized_mobility()
 {
 	double sum = 0.0;
-	for (uint32_t i=2; i<total_size+2 ;i++)
+	for (uint32_t i=2; i<ns3::total_size+2 ;i++)
 	{
 		double xi,yi,zi;
 		
@@ -128035,7 +128038,7 @@ void calculate_normalized_mobility()
 		sum = sum + sqrt ((xi*xi) + (yi*yi) + (zi*zi));
 	}
 	
-	normalized_mobility = sum/(total_size*maxspeed*(5.0/18.0));
+	normalized_mobility = sum/(ns3::total_size*maxspeed*(5.0/18.0));
 	cout<<"normalized mobility: "<<normalized_mobility<<endl;	
 }
 
@@ -128161,9 +128164,9 @@ void RSU_routing_dataunicast_alone(Ptr <SimpleUdpApplication> udp_app, Ptr <Node
 
 struct transmit_opportunity
 {	
-	Time last_set_timestamp[185][total_size];
-	bool busy[185][total_size];
-	uint32_t pending_packets[185][total_size];
+	Time last_set_timestamp[185][MAX_NODES];
+	bool busy[185][MAX_NODES];
+	uint32_t pending_packets[185][MAX_NODES];
 };
 
 struct transmit_opportunity txop_inst[2*flows];
@@ -128202,7 +128205,7 @@ void updateTxop(uint32_t fid, uint32_t nodeid, uint32_t receiver_id, uint32_t pe
 			}
 		}
 		//update other node status
-		for(uint32_t i=0;i<total_size;i++)
+		for(uint32_t i=0;i<ns3::total_size;i++)
 		{
 			if((linklifetimeMatrix_dsrc[nodeid][i]) > 0.0)
 			{
@@ -128211,7 +128214,7 @@ void updateTxop(uint32_t fid, uint32_t nodeid, uint32_t receiver_id, uint32_t pe
 					txop_inst[f].busy[arguments.channel][i] = busy;
 					txop_inst[f].last_set_timestamp[arguments.channel][i] = Seconds(Now().GetSeconds());
 					//cout<<"Set node "<<i<<"as busy at "<<Now().GetSeconds()<<endl;
-					for(uint32_t j=0;j<total_size;j++)
+					for(uint32_t j=0;j<ns3::total_size;j++)
 					{
 						if((linklifetimeMatrix_dsrc[i][j]) > 0.0)
 						{
@@ -128234,7 +128237,7 @@ void updateTxop(uint32_t fid, uint32_t nodeid, uint32_t receiver_id, uint32_t pe
 						//cout<<"Node "<<i<<"remains busy "<<Now().GetSeconds()<<endl;
 					}
 					
-					for(uint32_t j=0;j<total_size;j++)
+					for(uint32_t j=0;j<ns3::total_size;j++)
 					{
 						if((linklifetimeMatrix_dsrc[i][j]) > 0.0)
 						{
@@ -128262,7 +128265,7 @@ void updateTxop(uint32_t fid, uint32_t nodeid, uint32_t receiver_id, uint32_t pe
 					txop_inst[f].busy[arguments.channel][i] = busy;
 					txop_inst[f].last_set_timestamp[arguments.channel][i] = Seconds(Now().GetSeconds());
 					//cout<<"Set node "<<i<<"as busy at "<<Now().GetSeconds()<<endl;
-					for(uint32_t j=0;j<total_size;j++)
+					for(uint32_t j=0;j<ns3::total_size;j++)
 					{
 						if((linklifetimeMatrix_dsrc[i][j]) > 0.0)
 						{
@@ -128285,7 +128288,7 @@ void updateTxop(uint32_t fid, uint32_t nodeid, uint32_t receiver_id, uint32_t pe
 						//cout<<"Node "<<i<<"remains busy "<<Now().GetSeconds()<<endl;
 					}
 					
-					for(uint32_t j=0;j<total_size;j++)
+					for(uint32_t j=0;j<ns3::total_size;j++)
 					{
 						if((linklifetimeMatrix_dsrc[i][j]) > 0.0)
 						{
@@ -128350,13 +128353,13 @@ struct packet_delivery
 
 struct pd_all
 {
-	struct packet_delivery pd_inst[total_size];
+	struct packet_delivery pd_inst[MAX_NODES];
 };
 
 struct pd_all pd_all_inst[2*flows];
 
-bool retransmitted [2*flows][total_size][Flow_size+2];
-uint32_t s_flow_counter[2*flows][total_size][Flow_size+2];
+bool retransmitted [2*flows][MAX_NODES][Flow_size+2];
+uint32_t s_flow_counter[2*flows][MAX_NODES][Flow_size+2];
 
 
 
@@ -128408,12 +128411,12 @@ void check_delivery_and_retransmit(uint32_t flow_id, uint32_t packet_id, uint32_
 			{
 				
 				bool neighborhood_busy = false;
-				for(uint32_t i=0;i<total_size;i++)
+				for(uint32_t i=0;i<ns3::total_size;i++)
 				{
 					if((linklifetimeMatrix_dsrc[current_hop][i]) > 0.0)
 					{
 						neighborhood_busy = neighborhood_busy | txop_inst[flow_id].busy[arguments.channel][i];	
-						for(uint32_t j=0;j<total_size;j++)
+						for(uint32_t j=0;j<ns3::total_size;j++)
 						{
 							if((linklifetimeMatrix_dsrc[i][j]) > 0.0)
 							{
@@ -128577,7 +128580,7 @@ void MacRx (std::string context, Ptr <const Packet> pkt)
 			//cout<<"testing "<<destination_node_id;
 		}
 		
-		if ((destination_node_id > (total_size+1)) or (destination_node_id < 2))
+		if ((destination_node_id > (ns3::total_size+1)) or (destination_node_id < 2))
 		{
 			cout<<"invalid conversion. setting default value to 2"<<endl;
 			destination_node_id = 2;
@@ -128680,7 +128683,7 @@ void MacRx (std::string context, Ptr <const Packet> pkt)
 						if (routing_algorithm == 1)
 						{
 							list<uint32_t> indices;
-							for(uint32_t j =0;j<total_size;j++)
+							for(uint32_t j =0;j<ns3::total_size;j++)
 							{
 								auto index_innermost = index_middle->begin();
 								//cout<<subflow_start_time<<total_packet_counter<<total_packets<<endl;
@@ -128742,7 +128745,7 @@ void MacRx (std::string context, Ptr <const Packet> pkt)
 						}
 						else
 						{
-							for(uint32_t j =0;j<total_size;j++)
+							for(uint32_t j =0;j<ns3::total_size;j++)
 							{
 								//cout<<"value of j is "<<j<<endl;
 								auto index_innermost = index_middle->begin();
@@ -128756,7 +128759,7 @@ void MacRx (std::string context, Ptr <const Packet> pkt)
 								uint32_t sub_flow_counter = 0;
 								//cout<<sub_flow_counter<<endl;
 									
-								if((sub_flow_packets>0) | (j==(total_size-1)))
+								if((sub_flow_packets>0) | (j==(ns3::total_size-1)))
 								{	
 									//cout<<"sub flow packet size is "<<sub_flow_packets<<endl;
 									//Ptr <NetDevice> destination_nd = wifidevices.Get(nid);
@@ -128874,7 +128877,7 @@ void MacRx (std::string context, Ptr <const Packet> pkt)
 				{
 					cout<<"routing loop. stopping routing"<<endl;
 				}
-				else if (next_hop < total_size)
+				else if (next_hop < ns3::total_size)
 				{
 					Ptr <Packet> packet_i = Create<Packet> (packet_additional_size);
 					tag_routing.SetNodeId(&destination_node_id);
@@ -128992,7 +128995,7 @@ void Rx (std::string context, Ptr <const Packet> pkt, uint16_t channelFreqMhz,  
 				//cout<<"testing "<<destination_node_id;
 			}
 			
-			if ((destination_node_id > (total_size+1)) or (destination_node_id < 2))
+			if ((destination_node_id > (ns3::total_size+1)) or (destination_node_id < 2))
 			{
 				cout<<"invalid conversion. setting default value to 2"<<endl;
 				destination_node_id = 2;
@@ -130334,7 +130337,7 @@ void hybrid_data_unicast(Ptr <NetDevice> source_nd, Ptr <Node> source_node, uint
 	uint32_t next_hop = find_next_hop(node_index,destination,node_index);
 	cout<<endl<<"next hop from routing table is "<< next_hop <<endl;
 	dsrc_packet_initial_timestamp[nid] = Simulator::Now().GetSeconds();
-	if (next_hop < total_size)
+	if (next_hop < ns3::total_size)
 	{
 		CustomDataUnicastTag_Routing tag;
 		//uint32_t nid = uint32_t(ni->GetId());
@@ -130464,7 +130467,7 @@ void centralized_dsrc_data_unicast(Ptr <NetDevice> source_nd, Ptr <Node> source_
 	//uint32_t next_hop = routing_tables[node_index].rows[destination].next_hop;
 	uint32_t next_hop = find_next_hop(node_index,destination,node_index);
 	cout<<endl<<"next hop from routing table is "<< next_hop <<endl;
-	if (next_hop < total_size)
+	if (next_hop < ns3::total_size)
 	{
 		Ptr <NetDevice> destination_nd = wifidevices.Get(next_hop);
 		Address addr = destination_nd->GetAddress();
@@ -130508,7 +130511,7 @@ void centralized_dsrc_data_unicast(Ptr <NetDevice> source_nd, Ptr <Node> source_
 
 void clear_RQY()
 {
-    for (int i=0; i<total_size;i++)
+    for (int i=0; i<ns3::total_size;i++)
     {
     	Y[i] = 0;
 	R[i] = 0;
@@ -130519,7 +130522,7 @@ void clear_RQY()
 
 void compute_RandQ(uint32_t timestep)
 {
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	{
 		R[i] = ((R[i]*(timestep-1)) + Y[i])/timestep;
 		double U;
@@ -130537,7 +130540,7 @@ void compute_RandQ(uint32_t timestep)
 
 void print_RandQ()
 {
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	{
 		cout<<"R "<<i<<"value is "<<R[i]<<endl;
 		cout<<"Q "<<i<<"value is "<<Q[i]<<endl;
@@ -130554,7 +130557,7 @@ void send_hybrid_packets(uint32_t destination)
 	generate_linklifetime_matrix();
 	generate_delay_matrix();
 	calculate_contention();
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	{
 		cout<<"calculating dijkstra stable solution"<<endl;
 		Simulator::Schedule(Seconds(0.010),calculate_dijkstra_stable_solution,i);
@@ -130593,21 +130596,21 @@ void send_hybrid_packets(uint32_t destination)
   		cout<<"x is "<<x<<endl;
   		for (uint32_t i=0; i<x;i++)
   		{
-  			uint32_t dest = (destination + source + i)%total_size;  
-  			//dest = total_size - 2;
+  			uint32_t dest = (destination + source + i)%ns3::total_size;  
+  			//dest = ns3::total_size - 2;
   			//tg = 0.0001; 
 			Simulator::Schedule (Seconds (0.020 + tg*source), hybrid_data_unicast, wifidevices.Get (source), dsrc_Nodes.Get(source), source, dest);
 		}
 	} 
 	
 	double stepsize = 0.000020;
-	for (uint32_t timestep=1; timestep<200*(total_size);timestep++)
+	for (uint32_t timestep=1; timestep<200*(ns3::total_size);timestep++)
 	{
 		Simulator::Schedule (Seconds (0.020 + (stepsize*timestep)), compute_RandQ, timestep);
 	}
 	
-	Simulator::Schedule (Seconds (0.020 + stepsize*200*total_size), print_RandQ);
-	Simulator::Schedule (Seconds (0.020 + stepsize*200*total_size), compute_1hop_delay);
+	Simulator::Schedule (Seconds (0.020 + stepsize*200*ns3::total_size), print_RandQ);
+	Simulator::Schedule (Seconds (0.020 + stepsize*200*ns3::total_size), compute_1hop_delay);
 		
 }
 
@@ -130617,7 +130620,7 @@ void send_centralized_packets(uint32_t destination)
 	//calculate_network_contention();
 	initialize_all_routing_tables();
 	generate_adjacency_matrix();
-	for (uint32_t i=0;i<total_size;i++)
+	for (uint32_t i=0;i<ns3::total_size;i++)
 	{
 		cout<<"calculating dijkstra solution"<<endl;		
 		calculate_dijkstra_solution(i);
@@ -130655,8 +130658,8 @@ void send_centralized_packets(uint32_t destination)
   		cout<<"x is "<<x<<endl;
   		for (uint32_t i=0; i<x;i++)
   		{
-  			uint32_t dest = (destination + source + i)%total_size;   
-    			//dest = total_size - 2;
+  			uint32_t dest = (destination + source + i)%ns3::total_size;   
+    			//dest = ns3::total_size - 2;
   			//tg = 0.0001;
 			Simulator::Schedule (Seconds (0.020 + tg*source), centralized_dsrc_data_unicast, wifidevices.Get (source), dsrc_Nodes.Get(source), source, dest);
 		}
@@ -130677,7 +130680,7 @@ void initialize_flow_counters()
 		//(delta_at_nodes_inst+i)->flow_id = flow_ids[i];
 		uint32_t f_size = (demanding_flow_struct_nodes_inst+fid)->f_size;
 		//Initialize transmission opportunity
-		for(uint32_t i=0;i<total_size;i++)
+		for(uint32_t i=0;i<ns3::total_size;i++)
 		{
 			for(uint32_t j=0;j<f_size+1;j++)
 			{
@@ -130694,7 +130697,7 @@ void initialize_flow_counters()
 		
 		
 		
-		for(uint32_t j =0;j<total_size;j++)
+		for(uint32_t j =0;j<ns3::total_size;j++)
 		{
 			for(uint32_t c= 170;c<185;c++)
 			{
@@ -130712,7 +130715,7 @@ void initialize_flow_counters()
 			packet_delay_routing[fid][i] = 0;
 		}
 		
-		for(uint32_t i =0;i<total_size;i++)
+		for(uint32_t i =0;i<ns3::total_size;i++)
 		{
 			for(uint32_t j=1;j<Flow_size+1;j++)
 			{
@@ -130722,11 +130725,11 @@ void initialize_flow_counters()
 		}
 		
 		vector<vector<tuple<double,uint32_t,uint32_t>>> middle_sorted_delta_next_hop_flow_size_local;
-		for(uint32_t i=0;i<total_size;i++)
+		for(uint32_t i=0;i<ns3::total_size;i++)
 		{
 			uint32_t main_flow_packets = ceil(f_size*((load_at_nodes+fid)->load_f[i]));
 			vector<tuple<double,uint32_t,uint32_t>> innermost_sorted_delta_next_hop_flow_size;
-			for(uint32_t j=0;j<total_size;j++)
+			for(uint32_t j=0;j<ns3::total_size;j++)
 			{
 				uint32_t sub_flow_packets = ((delta_at_nodes_inst+fid)->delta_fi_inst[i].delta_values[j])*main_flow_packets;
 				innermost_sorted_delta_next_hop_flow_size.emplace_back((delta_at_nodes_inst+fid)->delta_fi_inst[i].delta_values[j], j, sub_flow_packets);
@@ -130735,7 +130738,7 @@ void initialize_flow_counters()
 			
 			sort(innermost_sorted_delta_next_hop_flow_size.begin(), innermost_sorted_delta_next_hop_flow_size.end());
 			uint32_t total_count =0;
-			for(uint32_t j =0;j<total_size;j++)
+			for(uint32_t j =0;j<ns3::total_size;j++)
 			{
 				auto index_innermost = innermost_sorted_delta_next_hop_flow_size.begin();
 				//cout<<subflow_start_time<<total_packet_counter<<total_packets<<endl;
@@ -130744,7 +130747,7 @@ void initialize_flow_counters()
 				uint32_t nid;
 				uint32_t sub_flow_packets;
 				tie(sub_flow_load, nid, sub_flow_packets) = *index_innermost;
-				if(j < (total_size-1))
+				if(j < (ns3::total_size-1))
 				{
 					uint32_t checker = j%2;
 					//cout<<"checker is "<<checker<<endl;
@@ -130761,7 +130764,7 @@ void initialize_flow_counters()
 					
 				
 				}
-				else if (j == (total_size-1))
+				else if (j == (ns3::total_size-1))
 				{
 					uint32_t original_value = ceil(get<2>(*index_innermost));
 					total_count = total_count + original_value;
@@ -130829,12 +130832,12 @@ void check_and_transmit(uint32_t fid, uint32_t source, uint32_t total_packets, u
 			else
 			{
 				bool neighborhood_busy = false;
-				for(uint32_t i=0;i<total_size;i++)
+				for(uint32_t i=0;i<ns3::total_size;i++)
 				{
 					if((linklifetimeMatrix_dsrc[source][i]) > 0.0)
 					{
 						neighborhood_busy = neighborhood_busy | txop_inst[fid].busy[arguments.channel][i];
-						for(uint32_t j=0;j<total_size;j++)
+						for(uint32_t j=0;j<ns3::total_size;j++)
 						{
 							if((linklifetimeMatrix_dsrc[i][j]) > 0.0)
 							{
@@ -130949,7 +130952,7 @@ void initiate_all_flows()
 		advance(index_middle,source);	
 		
 		uint32_t total_subflows =0;
-		for(uint32_t j =0;j<total_size;j++)
+		for(uint32_t j =0;j<ns3::total_size;j++)
 		{
 			auto index_innermost = index_middle->begin();
 			//cout<<subflow_start_time<<total_packet_counter<<total_packets<<endl;
@@ -130974,7 +130977,7 @@ void initiate_all_flows()
 		struct custom_struct size_channel;
 		size_channel.p_size = p_size;
 		size_channel.channel = 178;
-		for(uint32_t j =0;j<total_size;j++)
+		for(uint32_t j =0;j<ns3::total_size;j++)
 		{
 			auto index_innermost = index_middle->begin();
 			//cout<<subflow_start_time<<total_packet_counter<<total_packets<<endl;
@@ -131287,8 +131290,8 @@ void send_distributed_packets(uint32_t destination)
 	  	}
   		for (uint32_t i=0; i<x;i++)
   		{		
-  			uint32_t dest = (destination + source + i)%total_size;
-  			//dest = total_size - 2;
+  			uint32_t dest = (destination + source + i)%ns3::total_size;
+  			//dest = ns3::total_size - 2;
   			//tg = 0.0001;
 			if (dest < N_Vehicles)
 			{
@@ -131390,7 +131393,7 @@ void dsrc_metadata_broadcast_subsequent(Ptr <NetDevice> nd, Ptr <Node> node, uin
 }
 
 
-Vector previous_velocity_LTE[total_size];
+Vector previous_velocity_LTE[MAX_NODES];
 
 void send_LTE_routing_data_alone(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> node_source, Ptr <Node> destination_node, uint32_t node_index)
 {
@@ -148094,7 +148097,7 @@ void RSU_dataunicast_agent(Ptr <SimpleUdpApplication> udp_app, Ptr <Node> source
 void begin_sending_RSU_data_agent()
 {
 	list<uint32_t> agent_ids;
- 	for (uint32_t i=(N_Vehicles+2);i<(total_size+2);i++)
+ 	for (uint32_t i=(N_Vehicles+2);i<(ns3::total_size+2);i++)
  	{
  		if(X_nodes[i] == 1)
  		{
@@ -148144,7 +148147,7 @@ Ptr<Node> getControllerNode(int idx) {
 void declare_attackers() {
     // For nodes
     if (present_wormhole_attack_nodes) {
-        for (int i = 0; i < total_size; ++i) {
+        for (int i = 0; i < ns3::total_size; ++i) {
             bool attacking_state = GetBooleanWithProbability(attack_percentage);
             wormhole_malicious_nodes[i] = attacking_state;
             // Optionally print
@@ -148152,7 +148155,7 @@ void declare_attackers() {
         }
     }
     if (present_blackhole_attack_nodes) {
-        for (int i = 0; i < total_size; ++i) {
+        for (int i = 0; i < ns3::total_size; ++i) {
             bool attacking_state = GetBooleanWithProbability(attack_percentage);
             blackhole_malicious_nodes[i] = attacking_state;
             // Optionally print
@@ -148161,7 +148164,7 @@ void declare_attackers() {
     }
 
     if (present_reply_attack_nodes) {
-        for (int i = 0; i < total_size; ++i) {
+        for (int i = 0; i < ns3::total_size; ++i) {
             bool attacking_state = GetBooleanWithProbability(attack_percentage);
             reply_malicious_nodes[i] = attacking_state;
             // Optionally print
@@ -148203,7 +148206,7 @@ void declare_attackers() {
 void setup_wormhole_tunnels(AnimationInterface& anim) {
     // Collect malicious node indices
     std::vector<int> wormhole_nodes;
-    for (int i = 0; i < total_size; ++i) {
+    for (int i = 0; i < ns3::total_size; ++i) {
         if (wormhole_malicious_nodes[i]) wormhole_nodes.push_back(i);
     }
     // Add controller indices (e.g., 0 to controllers-1) if malicious
@@ -148214,7 +148217,7 @@ void setup_wormhole_tunnels(AnimationInterface& anim) {
 
     // Optionally combine node and controller indices
     std::vector<int> wormhole_participants = wormhole_nodes;
-    for (int ctrl : wormhole_ctrls) wormhole_participants.push_back(total_size + ctrl); // assume controller nodes follow normal nodes
+    for (int ctrl : wormhole_ctrls) wormhole_participants.push_back(ns3::total_size + ctrl); // assume controller nodes follow normal nodes
 
     // Pair them for wormholes
     for (size_t idx = 0; idx + 1 < wormhole_participants.size(); idx += 2) {
@@ -148223,15 +148226,15 @@ void setup_wormhole_tunnels(AnimationInterface& anim) {
 
         Ptr<Node> nodeA = nullptr;
         Ptr<Node> nodeB = nullptr;
-        if (nodeA_idx < total_size)
+        if (nodeA_idx < ns3::total_size)
             nodeA = ns3::NodeList::GetNode(nodeA_idx);
         else
-            nodeA = controller_Node.Get(nodeA_idx - total_size); // adjust index for controllers
+            nodeA = controller_Node.Get(nodeA_idx - ns3::total_size); // adjust index for controllers
 
-        if (nodeB_idx < total_size)
+        if (nodeB_idx < ns3::total_size)
             nodeB = ns3::NodeList::GetNode(nodeB_idx);
         else
-            nodeB = controller_Node.Get(nodeB_idx - total_size);
+            nodeB = controller_Node.Get(nodeB_idx - ns3::total_size);
 
         // Create fast wormhole link
         PointToPointHelper wormholeLink;
@@ -148292,7 +148295,7 @@ private:
 // ---- Blackhole Attack Setup Function ----
 void setup_blackhole_attack(
     const std::vector<bool>& blackhole_malicious_nodes, 
-    int total_size, 
+    int ns3::total_size, 
     double simTime, 
     AnimationInterface& anim,
     const std::vector<bool>& blackhole_malicious_controllers = {},
@@ -148300,7 +148303,7 @@ void setup_blackhole_attack(
     Ptr<Node> (*getControllerNode)(int) = nullptr
 ) {
     // Mark malicious nodes
-    for (int i = 0; i < total_size; ++i) {
+    for (int i = 0; i < ns3::total_size; ++i) {
         if (blackhole_malicious_nodes[i]) {
             Ptr<Node> node = ns3::NodeList::GetNode(i);
             Ptr<BlackholeApp> app = CreateObject<BlackholeApp>();
@@ -148365,7 +148368,7 @@ protected:
 // ---- Replay Attack Setup Function ----
 void setup_replay_attack(
     const std::vector<bool>& replay_malicious_nodes, 
-    int total_size, 
+    int ns3::total_size, 
     double simTime, 
     AnimationInterface& anim,
     const std::vector<bool>& replay_malicious_controllers = {},
@@ -148374,7 +148377,7 @@ void setup_replay_attack(
     double replayDelay = 1.0
 ) {
     // Mark malicious nodes
-    for (int i = 0; i < total_size; ++i) {
+    for (int i = 0; i < ns3::total_size; ++i) {
         if (replay_malicious_nodes[i]) {
             Ptr<Node> node = ns3::NodeList::GetNode(i);
             Ptr<ReplayApp> app = CreateObject<ReplayApp>();
@@ -148424,7 +148427,7 @@ protected:
 // ---- Sybil Attack Setup Function ----
 void setup_sybil_attack(
     const std::vector<bool>& sybil_malicious_nodes, 
-    int total_size, 
+    int ns3::total_size, 
     double simTime, 
     AnimationInterface& anim,
     const std::vector<bool>& sybil_malicious_controllers = {},
@@ -148433,7 +148436,7 @@ void setup_sybil_attack(
     int sybilIdentities = 2
 ) {
     // Mark sybil malicious nodes
-    for (int i = 0; i < total_size; ++i) {
+    for (int i = 0; i < ns3::total_size; ++i) {
         if (sybil_malicious_nodes[i]) {
             Ptr<Node> node = ns3::NodeList::GetNode(i);
             Ptr<SybilApp> app = CreateObject<SybilApp>();
@@ -148490,7 +148493,7 @@ protected:
 // ---- Routing Table Poisoning Attack Setup Function ----
 void setup_routing_table_poisoning_attack(
     const std::vector<bool>& poisoning_malicious_nodes,
-    int total_size,
+    int ns3::total_size,
     double simTime,
     AnimationInterface& anim,
     const std::vector<bool>& poisoning_malicious_controllers = {},
@@ -148501,7 +148504,7 @@ void setup_routing_table_poisoning_attack(
     uint32_t bogusInterface = 1
 ) {
     // Mark malicious nodes
-    for (int i = 0; i < total_size; ++i) {
+    for (int i = 0; i < ns3::total_size; ++i) {
         if (poisoning_malicious_nodes[i]) {
             Ptr<Node> node = ns3::NodeList::GetNode(i);
             Ptr<RoutingTablePoisoningApp> app = CreateObject<RoutingTablePoisoningApp>();
@@ -148703,7 +148706,7 @@ int main(int argc, char *argv[])
     std::cout << "Network configuration: N_Vehicles=" << N_Vehicles 
               << ", N_RSUs=" << N_RSUs 
               << ", actual_total_nodes=" << actual_total_nodes 
-              << ", total_size=" << total_size << " (compile-time max)" << std::endl;
+              << ", ns3::total_size=" << ns3::total_size << " (compile-time max)" << std::endl;
     
     routing_frequency = data_transmission_frequency;
     N_eNodeBs = 1 + N_Vehicles/320;
@@ -148723,7 +148726,7 @@ int main(int argc, char *argv[])
     
     clear_RQY();
     
-    for (int i = 0; i<total_size+2; i++)
+    for (int i = 0; i<ns3::total_size+2; i++)
     {
     	clear_neighbordata(neighbordata_inst+i);
     	clear_controllerdata(con_data_inst+i);
@@ -150049,9 +150052,9 @@ int main(int argc, char *argv[])
     					{
     					
 						srand(t*i);
-				  		destination = rand()%total_size;
+				  		destination = rand()%ns3::total_size;
 				  		srand(1.15*t*i);
-				  		source = rand()%total_size;
+				  		source = rand()%ns3::total_size;
 				  		bool found_both = false;
 				  		bool found_source = false;
 				  		bool found_destination = false;
@@ -150091,8 +150094,8 @@ int main(int argc, char *argv[])
 				  				uint32_t list_size = 0;
 				  				uint32_t list_source_size = 0;
 				  				uint32_t list_dest_size = 0;
-					  			destination = (2*attempt+destination)%total_size;
-					  			source = (3*attempt+source)%total_size;
+					  			destination = (2*attempt+destination)%ns3::total_size;
+					  			source = (3*attempt+source)%ns3::total_size;
 					  			//cout<<"updated destination is "<<destination<<"source is "<<source<<endl;
 					  			for (uint32_t j=0; j<(2*flows); j++)
 								{
@@ -150331,7 +150334,7 @@ int main(int argc, char *argv[])
 			//for (uint32_t u=0; u<Vehicle_Nodes.GetN(); u++)
 			//{
 		  	srand(data_transmission_frequency*t);
-	  		uint32_t destination = rand()%total_size;
+	  		uint32_t destination = rand()%ns3::total_size;
 	  		//uint32_t destination = 7;
 	  		cout<<"destination id: "<<destination+2<<endl;
 	  		Simulator::Schedule (Seconds (t+0.10), send_distributed_packets, destination);
@@ -150500,7 +150503,7 @@ int main(int argc, char *argv[])
 	  	for (double t=1.100; t<simTime-1; t=t+data_transmission_period)
 		{
 		  	srand(data_transmission_frequency*t);
-	  		uint32_t destination = rand()%total_size;
+	  		uint32_t destination = rand()%ns3::total_size;
 	  		//uint32_t destination = 5;
 	  		cout<<"destination id: "<<destination+2<<endl;
 	  		Simulator::Schedule (Seconds (t), send_hybrid_packets, destination);
@@ -150632,7 +150635,7 @@ int main(int argc, char *argv[])
         // Create wormhole manager
         g_wormholeManager = new ns3::WormholeAttackManager();
         
-        // Initialize with malicious nodes (use actual_node_count instead of total_size)
+        // Initialize with malicious nodes (use actual_node_count instead of ns3::total_size)
         g_wormholeManager->Initialize(wormhole_malicious_nodes, attack_percentage, actual_node_count);
         
         // Set wormhole behavior
@@ -151205,6 +151208,9 @@ int main(int argc, char *argv[])
   //apb.SetFinish();
   return 0;  
 }
+
+
+
 
 
 
