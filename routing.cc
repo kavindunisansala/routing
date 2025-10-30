@@ -1361,6 +1361,12 @@ struct SybilMitigationMetrics {
     uint32_t totalSybilNodesMitigated;
     uint32_t totalFakeIdentitiesBlocked;
     
+    // Detection Accuracy & Blacklisting
+    uint32_t nodesBlacklisted;
+    uint32_t truePositives;
+    uint32_t falsePositives;
+    double detectionAccuracy;
+    
     SybilMitigationMetrics()
         : certificatesIssued(0), certificatesRevoked(0),
           authenticationSuccesses(0), authenticationFailures(0),
@@ -1374,7 +1380,8 @@ struct SybilMitigationMetrics {
           runtimeAuthenticationChecks(0), behavioralAnomaliesDetected(0),
           identityChangesDetected(0), abnormalPacketActivityDetected(0),
           abnormalRouteAdvertisementDetected(0), highFakePacketRatioDetected(0),
-          totalSybilNodesMitigated(0), totalFakeIdentitiesBlocked(0) {}
+          totalSybilNodesMitigated(0), totalFakeIdentitiesBlocked(0),
+          nodesBlacklisted(0), truePositives(0), falsePositives(0), detectionAccuracy(0.0) {}
 };
 
 /**
@@ -96442,7 +96449,7 @@ void clear_routing_data_at_nodes(struct routing_data_at_nodes * nd1)
 
 void clear_data_at_nodes(struct data_at_nodes * nd1)
 {
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		nd1->timestamp[i] = Simulator::Now();
 		nd1->acceleration[i] = Vector(0,0,0);
@@ -96543,7 +96550,7 @@ void add_demanding_flow_struct_nodes(struct demanding_flow_struct_nodes * nd1, u
 
 void refresh_data_at_nodes(struct data_at_nodes * nd1)//If data is old, remove them
 {
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		double elapsed_time = Simulator::Now().GetSeconds() - nd1->timestamp[i].GetSeconds();
 		if(elapsed_time > (2.0*data_transmission_period))
@@ -97019,7 +97026,6 @@ void WormholeEndpointApp::SendFakeMetadataToController() {
     
     // Strategy: Modify neighbordata_inst to include fake peer
     extern neighbor_data* neighbordata_inst;
-    extern uint32_t total_size;
     
     if (!neighbordata_inst) {
         std::cerr << "[SDVN-WORMHOLE ERROR] neighbordata_inst is NULL!" << std::endl;
@@ -97030,10 +97036,11 @@ void WormholeEndpointApp::SendFakeMetadataToController() {
     
     // Get our neighbor data structure
     neighbor_data* myNeighborData = neighbordata_inst + myId;
+    uint32_t neighborSize = getNeighborsize(myNeighborData);
     
     // Check if peer is already in neighbor list (real neighbor - don't add fake)
     bool peerIsRealNeighbor = false;
-    for (uint32_t i = 0; i < myNeighborData->size; i++) {
+    for (uint32_t i = 0; i < neighborSize; i++) {
         if (myNeighborData->neighborid[i] == peerId) {
             peerIsRealNeighbor = true;
             break;
@@ -97048,14 +97055,14 @@ void WormholeEndpointApp::SendFakeMetadataToController() {
     }
     
     // Add fake peer to neighbor list
-    if (myNeighborData->size < 100) {  // Safety check for array bounds
-        uint32_t originalSize = myNeighborData->size;
-        myNeighborData->neighborid[myNeighborData->size] = peerId;
-        myNeighborData->size++;
+    if (neighborSize < 100) {  // Safety check for array bounds
+        uint32_t originalSize = neighborSize;
+        myNeighborData->neighborid[neighborSize] = peerId;
+        // Note: We're manually adding to the array, the actual size tracking is done via the array content
         
         std::cout << "[SDVN-WORMHOLE] ✓ FAKE LINK INJECTED!" << std::endl;
         std::cout << "[SDVN-WORMHOLE] Neighbor list size: " << originalSize << " → " 
-                  << myNeighborData->size << std::endl;
+                  << (neighborSize + 1) << std::endl;
         std::cout << "[SDVN-WORMHOLE] Controller will compute linklifetimeMatrix_dsrc[" 
                   << myId << "][" << peerId << "] > 0" << std::endl;
         std::cout << "[SDVN-WORMHOLE] Controller will route packets through FAKE link!" << std::endl;
@@ -97068,7 +97075,7 @@ void WormholeEndpointApp::SendFakeMetadataToController() {
         Simulator::Schedule(Seconds(1.0), &WormholeEndpointApp::RefreshFakeNeighbor, this);
         
     } else {
-        std::cerr << "[SDVN-WORMHOLE ERROR] Neighbor list full (" << myNeighborData->size << ")" << std::endl;
+        std::cerr << "[SDVN-WORMHOLE ERROR] Neighbor list full (" << neighborSize << ")" << std::endl;
     }
 }
 
@@ -97085,10 +97092,11 @@ WormholeEndpointApp::RefreshFakeNeighbor() {
     }
     
     neighbor_data* myNeighborData = neighbordata_inst + myId;
+    uint32_t neighborSize = getNeighborsize(myNeighborData);
     
     // Check if fake peer is still in list
     bool found = false;
-    for (uint32_t i = 0; i < myNeighborData->size; i++) {
+    for (uint32_t i = 0; i < neighborSize; i++) {
         if (myNeighborData->neighborid[i] == peerId) {
             found = true;
             break;
@@ -97096,9 +97104,8 @@ WormholeEndpointApp::RefreshFakeNeighbor() {
     }
     
     // Re-add if removed
-    if (!found && myNeighborData->size < 100) {
-        myNeighborData->neighborid[myNeighborData->size] = peerId;
-        myNeighborData->size++;
+    if (!found && neighborSize < 100) {
+        myNeighborData->neighborid[neighborSize] = peerId;
         std::cout << "[SDVN-WORMHOLE] Re-injected fake neighbor " << peerId << std::endl;
     }
     
@@ -98641,7 +98648,7 @@ void SDVNBlackholeAttackApp::SendFakeMetadataToController() {
     // Modify neighbordata_inst to include fake neighbors
     extern neighbor_data* neighbordata_inst;
     neighbor_data* myNeighborData = neighbordata_inst + m_nodeId;
-    myNeighborData->size = reportedNeighbors.size();
+    // Note: neighbor_data doesn't have size field, just populate the array
     
     for (size_t i = 0; i < reportedNeighbors.size() && i < 25; i++) {
         myNeighborData->neighborid[i] = reportedNeighbors[i];
@@ -98896,10 +98903,14 @@ void SDVNBlackholeMitigationManager::BlacklistNode(uint32_t nodeId) {
 
 void SDVNBlackholeMitigationManager::ExcludeFromRouting(uint32_t nodeId) {
     // Set all links involving this node to 0 in linklifetimeMatrix_dsrc
-    extern double linklifetimeMatrix_dsrc[40][40];
+    extern std::vector<std::vector<double>> linklifetimeMatrix_dsrc;
     for (uint32_t i = 0; i < m_totalNodes; i++) {
-        linklifetimeMatrix_dsrc[nodeId][i] = 0.0;
-        linklifetimeMatrix_dsrc[i][nodeId] = 0.0;
+        if (nodeId < linklifetimeMatrix_dsrc.size() && i < linklifetimeMatrix_dsrc[nodeId].size()) {
+            linklifetimeMatrix_dsrc[nodeId][i] = 0.0;
+        }
+        if (i < linklifetimeMatrix_dsrc.size() && nodeId < linklifetimeMatrix_dsrc[i].size()) {
+            linklifetimeMatrix_dsrc[i][nodeId] = 0.0;
+        }
     }
     
     std::cout << "[SDVN-BLACKHOLE-MITIGATION] Excluded Node " << nodeId << " from routing\n";
@@ -103383,7 +103394,7 @@ uint32_t empty_neighborset[MAX_NODES];
 
 void initialize_empty()
 {
-	for (uint32_t i =0; i < max; i++)
+	for (uint32_t i =0; i < MAX_NODES; i++)
 	{
 		empty_neighborset[i] = large;
 	}
@@ -103393,7 +103404,7 @@ void initialize_empty()
 uint32_t get_size_of_data_at_nodes(struct data_at_nodes * nd1)
 {
 	uint32_t size = 0;
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		if((nd1->nodeid[i] != large) and (nd1->nodeid[i] < (total_size+2)) and (nd1->nodeid[i]>1))
 		{
@@ -103407,7 +103418,7 @@ void add_received_data_at_nodes(struct data_at_nodes * nd1,Vector pos, Vector ve
 {
 	bool found = false;
 	bool set = false;
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		//if node id is found, update it
 		if ((found == false) and (nd1->nodeid[i]==nid))
@@ -103436,7 +103447,7 @@ void add_received_data_at_nodes(struct data_at_nodes * nd1,Vector pos, Vector ve
 		}
 	}
 	
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		//if node id is not found, add at the first empty location
 		if ((found==false) and (set == false) and (nd1->nodeid[i]==large))
@@ -103478,7 +103489,7 @@ void clear_controllerdata(struct controller_data * nd1)
 	nd1->neighborsize = large;
 	//nd1->frequency = large;
 	//nd1->datasize = large;
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		nd1->neighborid[i] = large;
 		//nd1->combined_cost[i] = large;
@@ -103557,7 +103568,7 @@ double calculate_network_entropy()
 
 void clear_neighbordata(struct neighbor_data * nd1)
 {
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		nd1->neighborid[i] = large;
 		//nd1->combined_cost[i] = large;
@@ -103569,7 +103580,7 @@ void add_neighbor_info(struct neighbor_data * nd1, uint32_t node_id)
 {
 	bool setter = false;
 	bool found = false;
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		if((nd1->neighborid[i] == node_id) and (found==false))//If node is already a neighbor, update timestamp and cost
 		{
@@ -103598,7 +103609,7 @@ void add_neighbor_info(struct neighbor_data * nd1, uint32_t node_id)
 void refresh_neighbors(struct neighbor_data * nd1)
 {
 	uint32_t now = Simulator::Now().GetMilliSeconds();
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		uint32_t last_timestamp = nd1->timestamp[i].GetMilliSeconds();
 		uint32_t difference = now - last_timestamp;
@@ -103617,7 +103628,7 @@ void refresh_neighbors(struct neighbor_data * nd1)
 uint32_t getNeighborsize(struct neighbor_data * nd1)
 {
 	uint32_t  neighborsize = 0;
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		if((nd1->neighborid[i] != large) and (nd1->neighborid[i] > 1) and (nd1->neighborid[i] < (total_size+2)))
 		{
@@ -103630,7 +103641,7 @@ uint32_t getNeighborsize(struct neighbor_data * nd1)
 uint32_t getcontrollerNeighborsize(struct controller_data * nd1)
 {
 	uint32_t  neighborsize = 0;
-	for(uint32_t i=0; i<max;i++)
+	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
 		if(nd1->neighborid[i] != large)
 		{
@@ -103646,7 +103657,7 @@ void refresh_controller_data(struct controller_data * nd1)//To clear neighbors w
 	if((time_difference) > (1.5*data_transmission_period))
 	{
 		nd1->neighborsize = 0;
-		for(uint32_t i=0; i<max;i++)
+		for(uint32_t i=0; i<MAX_NODES;i++)
 		{
 			nd1->neighborid[i] = large;
 		}
@@ -105206,7 +105217,7 @@ bool X_nodes[total_size+2];
 		  //(con_data_inst+source_node_id)->datasize = tag3.Getdatasize();
 		  (con_data_inst+source_node_id)->lastupdated = Simulator::Now().GetSeconds();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	(con_data_inst+source_node_id)->neighborid[i] = *(tag3.Getneighborid()+i);
 		  	//(con_data_inst+source_node_id)->combined_cost[i] = *(tag3.Getcombinedcost()+i);
@@ -105226,7 +105237,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN011.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105248,7 +105259,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN012.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105271,7 +105282,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN013.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105294,7 +105305,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN014.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105317,7 +105328,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN015.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105340,7 +105351,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN016.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105363,7 +105374,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN017.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105386,7 +105397,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN018.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105409,7 +105420,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN019.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105432,7 +105443,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0110.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105455,7 +105466,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0111.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105478,7 +105489,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0112.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105501,7 +105512,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0113.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105524,7 +105535,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0114.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105547,7 +105558,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0115.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105570,7 +105581,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0116.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105593,7 +105604,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0117.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105616,7 +105627,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0118.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105639,7 +105650,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0119.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105660,7 +105671,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0120.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105681,7 +105692,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0121.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105703,7 +105714,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0122.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105724,7 +105735,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0123.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105745,7 +105756,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0124.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105766,7 +105777,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0125.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105788,7 +105799,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN01max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN01max.Getneighborid()+i) != large) and (*(tagN01max.Getneighborid()+i) > 1) and (*(tagN01max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -105812,7 +105823,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN021.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105834,7 +105845,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN022.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105857,7 +105868,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN023.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105880,7 +105891,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN024.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105903,7 +105914,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN025.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105926,7 +105937,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN026.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105949,7 +105960,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN027.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105972,7 +105983,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN028.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -105995,7 +106006,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN029.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106018,7 +106029,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0210.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106041,7 +106052,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0211.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106064,7 +106075,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0212.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106087,7 +106098,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0213.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106110,7 +106121,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0214.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106133,7 +106144,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0215.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106156,7 +106167,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0216.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106179,7 +106190,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0217.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106202,7 +106213,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0218.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106225,7 +106236,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0219.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106248,7 +106259,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0220.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106269,7 +106280,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0221.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106291,7 +106302,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0222.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106312,7 +106323,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0223.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106333,7 +106344,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0224.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106354,7 +106365,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN0225.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106376,7 +106387,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN2max.Getneighborid()+i) != large) and (*(tagN2max.Getneighborid()+i) > 1) and (*(tagN2max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -106400,7 +106411,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN31.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106422,7 +106433,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN32.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106445,7 +106456,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN33.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106468,7 +106479,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN34.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106491,7 +106502,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN35.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106514,7 +106525,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN36.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106537,7 +106548,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN37.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106560,7 +106571,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN38.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106583,7 +106594,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN39.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106606,7 +106617,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN310.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106629,7 +106640,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN311.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106652,7 +106663,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN312.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106675,7 +106686,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN313.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106698,7 +106709,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN314.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106721,7 +106732,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN315.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106744,7 +106755,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN316.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106767,7 +106778,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN317.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106790,7 +106801,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN318.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106813,7 +106824,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN319.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106836,7 +106847,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN320.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106858,7 +106869,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN321.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106880,7 +106891,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN322.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106901,7 +106912,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN323.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106922,7 +106933,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN324.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106943,7 +106954,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN325.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -106965,7 +106976,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN3max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN3max.Getneighborid()+i) != large) and (*(tagN3max.Getneighborid()+i) > 1) and (*(tagN3max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -106989,7 +107000,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN41.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107011,7 +107022,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN42.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107034,7 +107045,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN43.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107057,7 +107068,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN44.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107080,7 +107091,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN45.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107103,7 +107114,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN46.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107126,7 +107137,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN47.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107149,7 +107160,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN48.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107172,7 +107183,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN49.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107195,7 +107206,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN410.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107218,7 +107229,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN411.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107241,7 +107252,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN412.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107264,7 +107275,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN413.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107287,7 +107298,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN414.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107310,7 +107321,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN415.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107333,7 +107344,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN416.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107356,7 +107367,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN417.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107379,7 +107390,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN418.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107402,7 +107413,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN419.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107425,7 +107436,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN420.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107446,7 +107457,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN421.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107468,7 +107479,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN422.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107489,7 +107500,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN423.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107510,7 +107521,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN424.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107531,7 +107542,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN425.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107553,7 +107564,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN4max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN4max.Getneighborid()+i) != large) and (*(tagN4max.Getneighborid()+i) > 1) and (*(tagN4max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -107578,7 +107589,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN51.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107600,7 +107611,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN52.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107623,7 +107634,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN53.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107646,7 +107657,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN54.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107669,7 +107680,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN55.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107692,7 +107703,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN56.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107715,7 +107726,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN57.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107738,7 +107749,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN58.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107761,7 +107772,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN59.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107784,7 +107795,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN510.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107807,7 +107818,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN511.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107830,7 +107841,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN512.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107853,7 +107864,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN513.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107876,7 +107887,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN514.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107899,7 +107910,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN515.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107922,7 +107933,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN516.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107945,7 +107956,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN517.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107968,7 +107979,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN518.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -107991,7 +108002,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN519.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108014,7 +108025,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN520.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108035,7 +108046,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN521.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108057,7 +108068,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN522.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108078,7 +108089,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN523.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108099,7 +108110,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN524.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108120,7 +108131,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN525.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108142,7 +108153,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN5max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN5max.Getneighborid()+i) != large) and (*(tagN5max.Getneighborid()+i) > 1) and (*(tagN5max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -108167,7 +108178,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN61.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108189,7 +108200,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN62.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108212,7 +108223,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN63.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108235,7 +108246,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN64.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108258,7 +108269,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN65.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108281,7 +108292,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN66.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108304,7 +108315,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN67.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108327,7 +108338,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN68.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108350,7 +108361,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN69.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108373,7 +108384,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN610.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108396,7 +108407,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN611.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108419,7 +108430,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN612.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108442,7 +108453,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN613.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108465,7 +108476,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN614.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108488,7 +108499,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN615.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108511,7 +108522,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN616.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108534,7 +108545,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN617.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108557,7 +108568,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN618.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108580,7 +108591,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN619.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108603,7 +108614,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN620.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108624,7 +108635,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN621.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108646,7 +108657,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN622.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108667,7 +108678,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN623.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108688,7 +108699,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN624.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108709,7 +108720,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN625.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108731,7 +108742,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN6max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN6max.Getneighborid()+i) != large) and (*(tagN6max.Getneighborid()+i) > 1) and (*(tagN6max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -108755,7 +108766,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN71.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108777,7 +108788,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN72.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108800,7 +108811,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN73.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108823,7 +108834,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN74.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108846,7 +108857,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN75.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108869,7 +108880,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN76.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108892,7 +108903,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN77.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108915,7 +108926,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN78.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108938,7 +108949,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN79.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108961,7 +108972,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN710.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -108984,7 +108995,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN711.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109007,7 +109018,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN712.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109030,7 +109041,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN713.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109053,7 +109064,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN714.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109076,7 +109087,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN715.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109099,7 +109110,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN716.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109122,7 +109133,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN717.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109145,7 +109156,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN718.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109168,7 +109179,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN719.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109191,7 +109202,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN720.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109212,7 +109223,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN721.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109234,7 +109245,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN722.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109255,7 +109266,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN723.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109276,7 +109287,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN724.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109297,7 +109308,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN725.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109319,7 +109330,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN7max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN7max.Getneighborid()+i) != large) and (*(tagN7max.Getneighborid()+i) > 1) and (*(tagN7max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -109343,7 +109354,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN81.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109365,7 +109376,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN82.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109388,7 +109399,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN83.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109411,7 +109422,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN84.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109434,7 +109445,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN85.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109457,7 +109468,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN86.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109480,7 +109491,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN87.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109503,7 +109514,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN88.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109526,7 +109537,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN89.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109549,7 +109560,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN810.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109572,7 +109583,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN811.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109595,7 +109606,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN812.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109618,7 +109629,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN813.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109641,7 +109652,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN814.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109664,7 +109675,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN815.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109687,7 +109698,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN816.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109710,7 +109721,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN817.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109733,7 +109744,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN818.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109756,7 +109767,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN819.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109779,7 +109790,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN820.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109800,7 +109811,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN821.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109822,7 +109833,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN822.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109843,7 +109854,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN823.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109864,7 +109875,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN824.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109885,7 +109896,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN825.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109907,7 +109918,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN8max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN8max.Getneighborid()+i) != large) and (*(tagN8max.Getneighborid()+i) > 1) and (*(tagN8max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -109931,7 +109942,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN91.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109953,7 +109964,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN92.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109976,7 +109987,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN93.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -109999,7 +110010,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN94.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110022,7 +110033,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN95.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110045,7 +110056,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN96.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110068,7 +110079,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN97.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110091,7 +110102,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN98.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110114,7 +110125,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN99.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110137,7 +110148,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN910.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110160,7 +110171,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN911.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110183,7 +110194,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN912.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110206,7 +110217,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN913.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110229,7 +110240,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN914.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110252,7 +110263,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN915.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110275,7 +110286,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN916.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110298,7 +110309,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN917.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110321,7 +110332,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN918.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110344,7 +110355,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN919.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110367,7 +110378,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN920.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110388,7 +110399,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN921.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110410,7 +110421,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN922.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110431,7 +110442,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN923.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110452,7 +110463,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN924.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110473,7 +110484,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN925.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110495,7 +110506,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN9max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN9max.Getneighborid()+i) != large) and (*(tagN9max.Getneighborid()+i) > 1) and (*(tagN9max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -110519,7 +110530,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN101.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110541,7 +110552,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN102.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110564,7 +110575,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN103.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110587,7 +110598,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN104.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110610,7 +110621,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN105.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110633,7 +110644,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN106.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110656,7 +110667,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN107.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110679,7 +110690,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN108.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110702,7 +110713,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN109.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110725,7 +110736,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1010.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110748,7 +110759,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1011.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110771,7 +110782,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1012.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110794,7 +110805,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1013.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110817,7 +110828,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1014.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110840,7 +110851,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1015.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110863,7 +110874,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1016.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110886,7 +110897,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1017.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110909,7 +110920,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1018.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110932,7 +110943,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1019.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110955,7 +110966,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1020.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110976,7 +110987,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1021.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -110998,7 +111009,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1022.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111019,7 +111030,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1023.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111040,7 +111051,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1024.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111061,7 +111072,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1025.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111083,7 +111094,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN10max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	(con_data_inst+source_node_id)->neighborid[i] = *(tagN10max.Getneighborid()+i);
 		  	if ((*(tagN10max.Getneighborid()+i) != large) and (*(tagN10max.Getneighborid()+i) > 1) and (*(tagN10max.Getneighborid()+i) < (total_size+2)))
@@ -111108,7 +111119,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN111.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111130,7 +111141,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN112.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111153,7 +111164,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN113.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111176,7 +111187,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN114.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111199,7 +111210,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN115.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111222,7 +111233,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN116.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111245,7 +111256,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN117.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111268,7 +111279,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN118.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111291,7 +111302,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN119.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111314,7 +111325,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1110.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111337,7 +111348,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1111.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111360,7 +111371,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1112.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111383,7 +111394,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1113.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111406,7 +111417,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1114.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111429,7 +111440,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1115.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111452,7 +111463,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1116.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111475,7 +111486,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1117.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111498,7 +111509,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1118.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111521,7 +111532,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1119.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111544,7 +111555,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1120.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111565,7 +111576,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1121.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111587,7 +111598,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1122.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111608,7 +111619,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1123.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111629,7 +111640,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1124.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111650,7 +111661,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1125.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111672,7 +111683,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN11max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN11max.Getneighborid()+i) != large) and (*(tagN11max.Getneighborid()+i) > 1) and (*(tagN11max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -111696,7 +111707,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN121.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111718,7 +111729,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN122.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111741,7 +111752,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN123.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111764,7 +111775,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN124.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111787,7 +111798,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN125.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111810,7 +111821,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN126.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111833,7 +111844,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN127.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111856,7 +111867,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN128.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111879,7 +111890,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN129.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111902,7 +111913,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1210.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111925,7 +111936,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1211.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111948,7 +111959,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1212.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111971,7 +111982,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1213.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -111994,7 +112005,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1214.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112017,7 +112028,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1215.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112040,7 +112051,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1216.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112063,7 +112074,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1217.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112086,7 +112097,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1218.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112109,7 +112120,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1219.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112132,7 +112143,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1220.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112153,7 +112164,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1221.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112175,7 +112186,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1222.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112196,7 +112207,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1223.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112217,7 +112228,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1224.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112238,7 +112249,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1225.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112260,7 +112271,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN12max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN12max.Getneighborid()+i) != large) and (*(tagN12max.Getneighborid()+i) > 1) and (*(tagN12max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -112284,7 +112295,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN131.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112306,7 +112317,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN132.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112329,7 +112340,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN133.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112352,7 +112363,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN134.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112375,7 +112386,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN135.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112398,7 +112409,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN136.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112421,7 +112432,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN137.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112444,7 +112455,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN138.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112467,7 +112478,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN139.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112490,7 +112501,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1310.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112513,7 +112524,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1311.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112536,7 +112547,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1312.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112559,7 +112570,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1313.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112582,7 +112593,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1314.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112605,7 +112616,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1315.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112628,7 +112639,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1316.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112651,7 +112662,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1317.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112674,7 +112685,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1318.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112697,7 +112708,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1319.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112720,7 +112731,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1320.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112741,7 +112752,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1321.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112763,7 +112774,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1322.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112784,7 +112795,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1323.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112805,7 +112816,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1324.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112826,7 +112837,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1325.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112848,7 +112859,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN13max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN13max.Getneighborid()+i) != large) and (*(tagN13max.Getneighborid()+i) > 1) and (*(tagN13max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -112872,7 +112883,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN141.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112894,7 +112905,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN142.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112917,7 +112928,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN143.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112940,7 +112951,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN144.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112963,7 +112974,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN145.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -112986,7 +112997,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN146.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113009,7 +113020,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN147.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113032,7 +113043,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN148.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113055,7 +113066,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN149.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113078,7 +113089,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1410.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113101,7 +113112,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1411.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113124,7 +113135,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1412.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113147,7 +113158,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1413.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113170,7 +113181,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1414.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113193,7 +113204,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1415.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113216,7 +113227,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1416.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113239,7 +113250,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1417.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113262,7 +113273,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1418.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113285,7 +113296,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1419.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113308,7 +113319,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1420.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113329,7 +113340,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1421.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113351,7 +113362,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1422.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113372,7 +113383,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1423.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113393,7 +113404,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1424.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113414,7 +113425,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1425.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113436,7 +113447,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN14max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN14max.Getneighborid()+i) != large) and (*(tagN14max.Getneighborid()+i) > 1) and (*(tagN14max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -113460,7 +113471,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN151.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113482,7 +113493,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN152.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113505,7 +113516,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN153.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113528,7 +113539,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN154.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113551,7 +113562,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN155.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113574,7 +113585,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN156.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113597,7 +113608,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN157.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113620,7 +113631,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN158.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113643,7 +113654,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN159.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113666,7 +113677,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1510.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113689,7 +113700,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1511.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113712,7 +113723,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1512.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113735,7 +113746,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1513.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113758,7 +113769,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1514.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113781,7 +113792,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1515.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113804,7 +113815,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1516.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113827,7 +113838,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1517.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113850,7 +113861,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1518.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113873,7 +113884,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1519.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113896,7 +113907,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1520.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113917,7 +113928,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1521.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113939,7 +113950,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1522.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113960,7 +113971,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1523.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -113981,7 +113992,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1524.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114002,7 +114013,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1525.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114024,7 +114035,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN15max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN15max.Getneighborid()+i) != large) and (*(tagN15max.Getneighborid()+i) > 1) and (*(tagN15max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -114047,7 +114058,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN161.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114069,7 +114080,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN162.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114092,7 +114103,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN163.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114115,7 +114126,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN164.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114138,7 +114149,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN165.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114161,7 +114172,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN166.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114184,7 +114195,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN167.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114207,7 +114218,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN168.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114230,7 +114241,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN169.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114253,7 +114264,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1610.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114276,7 +114287,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1611.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114299,7 +114310,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1612.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114322,7 +114333,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1613.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114345,7 +114356,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1614.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114368,7 +114379,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1615.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114391,7 +114402,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1616.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114414,7 +114425,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1617.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114437,7 +114448,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1618.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114460,7 +114471,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1619.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114483,7 +114494,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1620.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114504,7 +114515,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1621.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114526,7 +114537,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1622.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114547,7 +114558,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1623.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114568,7 +114579,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1624.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114589,7 +114600,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1625.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114611,7 +114622,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN16max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN16max.Getneighborid()+i) != large) and (*(tagN16max.Getneighborid()+i) > 1) and (*(tagN16max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -114635,7 +114646,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN171.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114657,7 +114668,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN172.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114680,7 +114691,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN173.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114703,7 +114714,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN174.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114726,7 +114737,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN175.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114749,7 +114760,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN176.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114772,7 +114783,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN177.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114795,7 +114806,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN178.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114818,7 +114829,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN179.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114841,7 +114852,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1710.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114864,7 +114875,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1711.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114887,7 +114898,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1712.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114910,7 +114921,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1713.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114933,7 +114944,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1714.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114956,7 +114967,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1715.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -114979,7 +114990,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1716.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115002,7 +115013,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1717.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115025,7 +115036,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1718.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115048,7 +115059,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1719.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115071,7 +115082,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1720.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115092,7 +115103,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1721.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115114,7 +115125,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1722.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115135,7 +115146,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1723.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115156,7 +115167,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1724.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115177,7 +115188,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1725.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115198,7 +115209,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN181.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115220,7 +115231,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN182.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115243,7 +115254,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN183.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115266,7 +115277,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN184.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115289,7 +115300,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN185.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115312,7 +115323,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN186.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115335,7 +115346,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN187.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115358,7 +115369,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN188.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115381,7 +115392,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN189.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115404,7 +115415,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1810.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115427,7 +115438,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1811.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115450,7 +115461,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1812.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115473,7 +115484,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1813.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115496,7 +115507,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1814.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115519,7 +115530,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1815.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115542,7 +115553,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1816.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115565,7 +115576,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1817.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115588,7 +115599,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1818.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115611,7 +115622,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1819.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115634,7 +115645,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1820.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115655,7 +115666,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1821.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115677,7 +115688,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1822.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115698,7 +115709,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1823.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115719,7 +115730,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1824.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115740,7 +115751,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1825.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115762,7 +115773,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN17max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN17max.Getneighborid()+i) != large) and (*(tagN17max.Getneighborid()+i) > 1) and (*(tagN17max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -115785,7 +115796,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN18max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN18max.Getneighborid()+i) != large) and (*(tagN18max.Getneighborid()+i) > 1) and (*(tagN18max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -115808,7 +115819,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN191.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115830,7 +115841,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN192.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115853,7 +115864,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN193.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115876,7 +115887,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN194.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115899,7 +115910,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN195.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115922,7 +115933,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN196.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115945,7 +115956,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN197.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115968,7 +115979,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN198.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -115991,7 +116002,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN199.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116014,7 +116025,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1910.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116037,7 +116048,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1911.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116060,7 +116071,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1912.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116083,7 +116094,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1913.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116106,7 +116117,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1914.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116129,7 +116140,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1915.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116152,7 +116163,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1916.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116175,7 +116186,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1917.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116198,7 +116209,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1918.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116221,7 +116232,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1919.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116244,7 +116255,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1920.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116265,7 +116276,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1921.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116287,7 +116298,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1922.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116308,7 +116319,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1923.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116329,7 +116340,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1924.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116350,7 +116361,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN1925.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116372,7 +116383,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN19max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN19max.Getneighborid()+i) != large) and (*(tagN19max.Getneighborid()+i) > 1) and (*(tagN19max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -116396,7 +116407,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2001.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116418,7 +116429,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2002.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116441,7 +116452,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2003.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116464,7 +116475,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2004.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116487,7 +116498,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2005.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116510,7 +116521,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2006.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116533,7 +116544,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2007.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116556,7 +116567,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2008.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116579,7 +116590,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2009.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116602,7 +116613,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2010.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116625,7 +116636,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2011.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116648,7 +116659,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2012.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116671,7 +116682,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2013.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116694,7 +116705,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2014.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116717,7 +116728,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2015.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116740,7 +116751,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2016.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116763,7 +116774,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2017.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116786,7 +116797,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2018.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116809,7 +116820,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2019.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116832,7 +116843,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2020.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116853,7 +116864,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2021.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116875,7 +116886,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2022.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116896,7 +116907,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2023.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116917,7 +116928,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2024.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116938,7 +116949,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2025.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -116960,7 +116971,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN20max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN20max.Getneighborid()+i) != large) and (*(tagN20max.Getneighborid()+i) > 1) and (*(tagN20max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -116984,7 +116995,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2101.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117006,7 +117017,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2102.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117029,7 +117040,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2103.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117052,7 +117063,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2104.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117075,7 +117086,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2105.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117098,7 +117109,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2106.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117121,7 +117132,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2107.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117144,7 +117155,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2108.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117167,7 +117178,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2109.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117190,7 +117201,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2110.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117213,7 +117224,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2111.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117236,7 +117247,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2112.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117259,7 +117270,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2113.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117282,7 +117293,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2114.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117305,7 +117316,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2115.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117328,7 +117339,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2116.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117351,7 +117362,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2117.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117374,7 +117385,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2118.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117397,7 +117408,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2119.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117420,7 +117431,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2120.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117441,7 +117452,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2121.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117463,7 +117474,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2122.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117484,7 +117495,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2123.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117505,7 +117516,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2124.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117526,7 +117537,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2125.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117548,7 +117559,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN21max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN21max.Getneighborid()+i) != large) and (*(tagN21max.Getneighborid()+i) > 1) and (*(tagN21max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -117572,7 +117583,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2201.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117594,7 +117605,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2202.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117617,7 +117628,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2203.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117640,7 +117651,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2204.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117663,7 +117674,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2205.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117686,7 +117697,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2206.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117709,7 +117720,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2207.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117732,7 +117743,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2208.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117755,7 +117766,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2209.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117778,7 +117789,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2210.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117801,7 +117812,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2211.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117824,7 +117835,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2212.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117847,7 +117858,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2213.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117870,7 +117881,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2214.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117893,7 +117904,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2215.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117916,7 +117927,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2216.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117939,7 +117950,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2217.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117962,7 +117973,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2218.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -117985,7 +117996,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2219.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118008,7 +118019,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2220.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118029,7 +118040,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2221.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118051,7 +118062,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2222.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118072,7 +118083,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2223.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118093,7 +118104,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2224.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118114,7 +118125,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2225.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118136,7 +118147,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN22max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN22max.Getneighborid()+i) != large) and (*(tagN22max.Getneighborid()+i) > 1) and (*(tagN22max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -118160,7 +118171,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2301.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118182,7 +118193,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2302.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118205,7 +118216,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2303.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118228,7 +118239,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2304.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118251,7 +118262,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2305.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118274,7 +118285,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2306.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118297,7 +118308,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2307.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118320,7 +118331,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2308.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118343,7 +118354,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2309.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118366,7 +118377,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2310.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118389,7 +118400,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2311.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118412,7 +118423,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2312.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118435,7 +118446,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2313.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118458,7 +118469,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2314.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118481,7 +118492,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2315.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118504,7 +118515,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2316.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118527,7 +118538,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2317.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118550,7 +118561,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2318.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118573,7 +118584,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2319.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118596,7 +118607,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2320.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118617,7 +118628,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2321.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118639,7 +118650,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2322.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118660,7 +118671,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2323.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118681,7 +118692,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2324.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118702,7 +118713,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2325.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118724,7 +118735,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN23max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN23max.Getneighborid()+i) != large) and (*(tagN23max.Getneighborid()+i) > 1) and (*(tagN23max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -118748,7 +118759,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2401.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118770,7 +118781,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2402.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118793,7 +118804,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2403.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118816,7 +118827,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2404.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118839,7 +118850,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2405.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118862,7 +118873,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2406.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118885,7 +118896,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2407.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118908,7 +118919,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2408.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118931,7 +118942,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2409.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118954,7 +118965,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2410.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -118977,7 +118988,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2411.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119000,7 +119011,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2412.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119023,7 +119034,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2413.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119046,7 +119057,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2414.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119069,7 +119080,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2415.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119092,7 +119103,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2416.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119115,7 +119126,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2417.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119138,7 +119149,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2418.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119161,7 +119172,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2419.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119184,7 +119195,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2420.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119205,7 +119216,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2421.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119227,7 +119238,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2422.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119248,7 +119259,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2423.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119269,7 +119280,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2424.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119290,7 +119301,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2425.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119312,7 +119323,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN24max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN24max.Getneighborid()+i) != large) and (*(tagN24max.Getneighborid()+i) > 1) and (*(tagN24max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -119336,7 +119347,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2501.Getnodeid();
 		  uint32_t neighborsize = 1;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119358,7 +119369,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2502.Getnodeid();
 		  uint32_t neighborsize = 2;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119381,7 +119392,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2503.Getnodeid();
 		  uint32_t neighborsize = 3;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119404,7 +119415,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2504.Getnodeid();
 		  uint32_t neighborsize = 4;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119427,7 +119438,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2505.Getnodeid();
 		  uint32_t neighborsize = 5;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119450,7 +119461,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2506.Getnodeid();
 		  uint32_t neighborsize = 6;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119473,7 +119484,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2507.Getnodeid();
 		  uint32_t neighborsize = 7;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119496,7 +119507,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2508.Getnodeid();
 		  uint32_t neighborsize = 8;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119519,7 +119530,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2509.Getnodeid();
 		  uint32_t neighborsize = 9;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119542,7 +119553,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2510.Getnodeid();
 		  uint32_t neighborsize = 10;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119565,7 +119576,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2511.Getnodeid();
 		  uint32_t neighborsize = 11;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119588,7 +119599,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2512.Getnodeid();
 		  uint32_t neighborsize = 12;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119611,7 +119622,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2513.Getnodeid();
 		  uint32_t neighborsize = 13;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119634,7 +119645,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2514.Getnodeid();
 		  uint32_t neighborsize = 14;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119657,7 +119668,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2515.Getnodeid();
 		  uint32_t neighborsize = 15;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119680,7 +119691,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2516.Getnodeid();
 		  uint32_t neighborsize = 16;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119703,7 +119714,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2517.Getnodeid();
 		  uint32_t neighborsize = 17;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119726,7 +119737,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2518.Getnodeid();
 		  uint32_t neighborsize = 18;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119749,7 +119760,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2519.Getnodeid();
 		  uint32_t neighborsize = 19;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119772,7 +119783,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2520.Getnodeid();
 		  uint32_t neighborsize = 20;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119793,7 +119804,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2521.Getnodeid();
 		  uint32_t neighborsize = 21;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119815,7 +119826,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2522.Getnodeid();
 		  uint32_t neighborsize = 22;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119836,7 +119847,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2523.Getnodeid();
 		  uint32_t neighborsize = 23;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119857,7 +119868,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2524.Getnodeid();
 		  uint32_t neighborsize = 24;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119878,7 +119889,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN2525.Getnodeid();
 		  uint32_t neighborsize = 25;
-		  for(uint32_t i=0; i<max; i++)
+		  for(uint32_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(i<neighborsize)
 		  	{
@@ -119900,7 +119911,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN25max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN25max.Getneighborid()+i) != large) and (*(tagN25max.Getneighborid()+i) > 1) and (*(tagN25max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -119923,7 +119934,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN26max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN26max.Getneighborid()+i) != large) and (*(tagN26max.Getneighborid()+i) > 1) and (*(tagN26max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -119946,7 +119957,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN27max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN27max.Getneighborid()+i) != large) and (*(tagN27max.Getneighborid()+i) > 1) and (*(tagN27max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -119969,7 +119980,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN28max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN28max.Getneighborid()+i) != large) and (*(tagN28max.Getneighborid()+i) > 1) and (*(tagN28max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -119992,7 +120003,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN29max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN29max.Getneighborid()+i) != large) and (*(tagN29max.Getneighborid()+i) > 1) and (*(tagN29max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -120015,7 +120026,7 @@ bool X_nodes[total_size+2];
 	{		  
 	          uint32_t source_node_id = tagN30max.Getnodeid();
 		  uint32_t neighborsize = 0;
-		  for(int i=0; i<max; i++)
+		  for(int i=0; i<MAX_NODES; i++)
 		  {
 		  	if ((*(tagN30max.Getneighborid()+i) != large) and (*(tagN30max.Getneighborid()+i) > 1) and (*(tagN30max.Getneighborid()+i) < (total_size+2)))
 		  	{
@@ -120972,7 +120983,7 @@ bool X_nodes[total_size+2];
 		  {
 		  	ethernet_final_timestamp = Simulator::Now().GetSeconds();
 		  }
-		  for(uint8_t i=0; i<max; i++)
+		  for(uint8_t i=0; i<MAX_NODES; i++)
 		  {
 		  	if(source_node_id[i] != 50000)
 		  	{
@@ -151174,5 +151185,6 @@ int main(int argc, char *argv[])
   //apb.SetFinish();
   return 0;  
 }
+
 
 
