@@ -1321,6 +1321,63 @@ private:
 };
 
 /**
+ * @brief Mitigation Statistics (Moved here for SDVNSybilMitigationManager)
+ */
+struct SybilMitigationMetrics {
+    // Trusted Certification
+    uint32_t certificatesIssued;
+    uint32_t certificatesRevoked;
+    uint32_t authenticationSuccesses;
+    uint32_t authenticationFailures;
+    double authenticationSuccessRate;
+    
+    // RSSI-Based Detection
+    uint32_t rssiMeasurementsTaken;
+    uint32_t rssiAnomaliesDetected;
+    double rssiDetectionAccuracy;
+    uint32_t rssiFalsePositives;
+    
+    // Resource Testing
+    uint32_t resourceTestsConducted;
+    uint32_t resourceTestPassed;
+    uint32_t resourceTestFailed;
+    double resourceTestOverhead;
+    
+    // Incentive-Based
+    uint32_t incentivesOffered;
+    uint32_t sybilIdentitiesRevealed;
+    double revelationRate;
+    double economicOverhead;
+    
+    // Runtime Detection & Behavioral Monitoring (NEW)
+    uint32_t runtimeAuthenticationChecks;
+    uint32_t behavioralAnomaliesDetected;
+    uint32_t identityChangesDetected;
+    uint32_t abnormalPacketActivityDetected;
+    uint32_t abnormalRouteAdvertisementDetected;
+    uint32_t highFakePacketRatioDetected;
+    
+    // Overall
+    uint32_t totalSybilNodesMitigated;
+    uint32_t totalFakeIdentitiesBlocked;
+    
+    SybilMitigationMetrics()
+        : certificatesIssued(0), certificatesRevoked(0),
+          authenticationSuccesses(0), authenticationFailures(0),
+          authenticationSuccessRate(0.0), rssiMeasurementsTaken(0),
+          rssiAnomaliesDetected(0), rssiDetectionAccuracy(0.0),
+          rssiFalsePositives(0), resourceTestsConducted(0),
+          resourceTestPassed(0), resourceTestFailed(0),
+          resourceTestOverhead(0.0), incentivesOffered(0),
+          sybilIdentitiesRevealed(0), revelationRate(0.0),
+          economicOverhead(0.0), 
+          runtimeAuthenticationChecks(0), behavioralAnomaliesDetected(0),
+          identityChangesDetected(0), abnormalPacketActivityDetected(0),
+          abnormalRouteAdvertisementDetected(0), highFakePacketRatioDetected(0),
+          totalSybilNodesMitigated(0), totalFakeIdentitiesBlocked(0) {}
+};
+
+/**
  * @brief SDVN Sybil Mitigation Manager - Detects and blocks fake identities
  */
 class SDVNSybilMitigationManager : public Object {
@@ -1749,63 +1806,6 @@ struct ResourceTestResult {
         : nodeId(0), cpuUsage(0.0), memoryAvailable(0), 
           storageAvailable(0), networkBandwidth(0.0),
           simultaneousConnections(0), passedTest(false) {}
-};
-
-/**
- * @brief Mitigation Statistics
- */
-struct SybilMitigationMetrics {
-    // Trusted Certification
-    uint32_t certificatesIssued;
-    uint32_t certificatesRevoked;
-    uint32_t authenticationSuccesses;
-    uint32_t authenticationFailures;
-    double authenticationSuccessRate;
-    
-    // RSSI-Based Detection
-    uint32_t rssiMeasurementsTaken;
-    uint32_t rssiAnomaliesDetected;
-    double rssiDetectionAccuracy;
-    uint32_t rssiFalsePositives;
-    
-    // Resource Testing
-    uint32_t resourceTestsConducted;
-    uint32_t resourceTestPassed;
-    uint32_t resourceTestFailed;
-    double resourceTestOverhead;
-    
-    // Incentive-Based
-    uint32_t incentivesOffered;
-    uint32_t sybilIdentitiesRevealed;
-    double revelationRate;
-    double economicOverhead;
-    
-    // Runtime Detection & Behavioral Monitoring (NEW)
-    uint32_t runtimeAuthenticationChecks;
-    uint32_t behavioralAnomaliesDetected;
-    uint32_t identityChangesDetected;
-    uint32_t abnormalPacketActivityDetected;
-    uint32_t abnormalRouteAdvertisementDetected;
-    uint32_t highFakePacketRatioDetected;
-    
-    // Overall
-    uint32_t totalSybilNodesMitigated;
-    uint32_t totalFakeIdentitiesBlocked;
-    
-    SybilMitigationMetrics()
-        : certificatesIssued(0), certificatesRevoked(0),
-          authenticationSuccesses(0), authenticationFailures(0),
-          authenticationSuccessRate(0.0), rssiMeasurementsTaken(0),
-          rssiAnomaliesDetected(0), rssiDetectionAccuracy(0.0),
-          rssiFalsePositives(0), resourceTestsConducted(0),
-          resourceTestPassed(0), resourceTestFailed(0),
-          resourceTestOverhead(0.0), incentivesOffered(0),
-          sybilIdentitiesRevealed(0), revelationRate(0.0),
-          economicOverhead(0.0), 
-          runtimeAuthenticationChecks(0), behavioralAnomaliesDetected(0),
-          identityChangesDetected(0), abnormalPacketActivityDetected(0),
-          abnormalRouteAdvertisementDetected(0), highFakePacketRatioDetected(0),
-          totalSybilNodesMitigated(0), totalFakeIdentitiesBlocked(0) {}
 };
 
 /**
@@ -8733,7 +8733,7 @@ Time * CustomDataUnicastTag::GetTimestamp() {
 
 void CustomDataUnicastTag::SetTimestamp(Time * ti) {
 	
-	for(uint32_t i=0;i<max;i++)
+	for(uint32_t i=0;i<MAX_NODES;i++)
 	{
 		m_timestamp[i] = *(ti+i);
 	}
@@ -10841,11 +10841,11 @@ public:
 	virtual ~CustomDataUnicastTag6();
 private:
 	uint32_t m_senderId;
-	uint32_t m_nodeId[max+1];
-	Vector m_acceleration[max+1];
-	Vector m_velocity[max+1];
-	Vector m_position[max+1];
-	Time m_timestamp[max+1];
+	uint32_t m_nodeId[MAX_NODES+1];
+	Vector m_acceleration[MAX_NODES+1];
+	Vector m_velocity[MAX_NODES+1];
+	Vector m_position[MAX_NODES+1];
+	Time m_timestamp[MAX_NODES+1];
 };
 
 
@@ -15688,7 +15688,7 @@ public:
 private:
 
 	uint32_t m_nodeId;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 	Time m_timestamp;
 };
 
@@ -15739,7 +15739,7 @@ void CustomMetaDataUnicastTag::Serialize (TagBuffer i) const
 {
 	//we store timestamp first
 	i.WriteDouble(m_timestamp.GetDouble());
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -15751,7 +15751,7 @@ void CustomMetaDataUnicastTag::Serialize (TagBuffer i) const
 void CustomMetaDataUnicastTag::Deserialize (TagBuffer i)
 {
 	m_timestamp =  Time::FromDouble (i.ReadDouble(), Time::NS);;
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -15792,7 +15792,7 @@ uint32_t * CustomMetaDataUnicastTag::Getneighborid()
 
 void CustomMetaDataUnicastTag::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -19376,7 +19376,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -19421,7 +19421,7 @@ uint32_t CustomMetaDataUnicastTagN01max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN01max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -19432,7 +19432,7 @@ void CustomMetaDataUnicastTagN01max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN01max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -19457,7 +19457,7 @@ uint32_t * CustomMetaDataUnicastTagN01max::Getneighborid()
 
 void CustomMetaDataUnicastTagN01max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -22406,7 +22406,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -22451,7 +22451,7 @@ uint32_t CustomMetaDataUnicastTagN2max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN2max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -22462,7 +22462,7 @@ void CustomMetaDataUnicastTagN2max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN2max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -22487,7 +22487,7 @@ uint32_t * CustomMetaDataUnicastTagN2max::Getneighborid()
 
 void CustomMetaDataUnicastTagN2max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -25434,7 +25434,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -25479,7 +25479,7 @@ uint32_t CustomMetaDataUnicastTagN3max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN3max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -25490,7 +25490,7 @@ void CustomMetaDataUnicastTagN3max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN3max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -25515,7 +25515,7 @@ uint32_t * CustomMetaDataUnicastTagN3max::Getneighborid()
 
 void CustomMetaDataUnicastTagN3max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
@@ -28466,7 +28466,7 @@ public:
 private:
 
 	uint32_t m_nodeid;
-	uint32_t m_neighborid[max+1];
+	uint32_t m_neighborid[MAX_NODES+1];
 
 };
 
@@ -28511,7 +28511,7 @@ uint32_t CustomMetaDataUnicastTagN4max::GetSerializedSize (void) const
 
 void CustomMetaDataUnicastTagN4max::Serialize (TagBuffer i) const
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		i.WriteU32(m_neighborid[j]);
 	}
@@ -28522,7 +28522,7 @@ void CustomMetaDataUnicastTagN4max::Serialize (TagBuffer i) const
 
 void CustomMetaDataUnicastTagN4max::Deserialize (TagBuffer i)
 {
-	for(uint32_t j=0;j<max;j++)
+	for(uint32_t j=0;j<MAX_NODES;j++)
 	{
 		m_neighborid[j] = i.ReadU32();
 	}
@@ -28547,7 +28547,7 @@ uint32_t * CustomMetaDataUnicastTagN4max::Getneighborid()
 
 void CustomMetaDataUnicastTagN4max::Setneighborid (uint32_t * neighborid)
 {
-	for (uint32_t i=0; i< max;i++)
+	for (uint32_t i=0; i< MAX_NODES;i++)
 	{
 		m_neighborid[i] = *(neighborid+i);
 	}
