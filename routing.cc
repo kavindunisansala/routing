@@ -96705,7 +96705,7 @@ void WormholeEndpointApp::StartApplication(void) {
         if (!g_linkDiscoveryModule) {
             std::cout << "Creating global LinkDiscoveryModule..." << std::endl;
             g_linkDiscoveryModule = new ns3::LinkDiscoveryModule();
-            extern uint32_t total_size;  // Variable is in ns3 namespace, no ns3:: prefix needed in extern
+            // total_size is already accessible via ns3::total_size
             g_linkDiscoveryModule->Initialize(ns3::total_size);
             g_linkDiscoveryModule->StartDiscovery();
         }
@@ -103499,6 +103499,20 @@ void clear_data_at_manager(struct data_at_manager * nd1)
 	nd1->nodeid = large;
 }
 
+// Global array storage - must be at global scope, not inside a function
+struct ns3::neighbor_data neighbordata_inst_array[MAX_NODES+2];  // Actual array storage
+struct controller_data con_data_inst[MAX_NODES+2];  // Global controller data array
+
+// Initialize the ns3-scoped pointer to point to the array
+namespace {
+    struct NeighborDataInitializer {
+        NeighborDataInitializer() {
+            ns3::neighbordata_inst = neighbordata_inst_array;
+            ns3::total_size = MAX_NODES;  // Sync runtime value with compile-time constant
+        }
+    } g_neighbordata_initializer;
+}
+
 void clear_controllerdata(struct controller_data * nd1)
 {
 	nd1->B = large;
@@ -103510,20 +103524,6 @@ void clear_controllerdata(struct controller_data * nd1)
 		nd1->neighborid[i] = large;
 		//nd1->combined_cost[i] = large;
 	}
-struct ns3::neighbor_data neighbordata_inst_array[MAX_NODES+2];  // Actual array storage (was ns3::total_size+2)
-struct controller_data con_data_inst[MAX_NODES+2];  // Use MAX_NODES since ns3::total_size is runtime
-
-// Initialize the ns3-scoped pointer to point to the array
-namespace {
-    struct NeighborDataInitializer {
-        NeighborDataInitializer() {
-            ns3::neighbordata_inst = neighbordata_inst_array;
-            ns3::total_size = MAX_NODES;  // Sync runtime value with compile-time constant
-        }
-    } g_neighbordata_initializer;
-}           ns3::ns3::total_size = MAX_NODES;  // Sync runtime value with compile-time constant
-        }
-    } g_neighbordata_initializer;
 }
 
 double sum_of_nodeids = 0;
