@@ -148604,6 +148604,11 @@ int main(int argc, char *argv[])
     cmd.AddValue ("routing_algorithm", "routing_algorithm", routing_algorithm);
     cmd.AddValue ("qf", "qf", qf);
     
+    // SDVN Data Plane Attack Flags (nodes, not controllers)
+    cmd.AddValue ("present_wormhole_attack_nodes", "Enable wormhole attacks by data plane nodes", present_wormhole_attack_nodes);
+    cmd.AddValue ("present_blackhole_attack_nodes", "Enable blackhole attacks by data plane nodes", present_blackhole_attack_nodes);
+    cmd.AddValue ("present_sybil_attack_nodes", "Enable sybil attacks by data plane nodes", present_sybil_attack_nodes);
+    
     // Enhanced Wormhole Attack Parameters
     cmd.AddValue ("use_enhanced_wormhole", "Use enhanced wormhole implementation", use_enhanced_wormhole);
     cmd.AddValue ("attack_percentage", "Percentage of attacking nodes", attack_percentage);

@@ -66,8 +66,10 @@ collect_csv_files() {
 }
 
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║  NOTE: SDVN Controller attacks test the SDN controller     ║"
-echo "║  These attacks target the centralized control plane        ║"
+echo "║  NOTE: SDVN Data Plane Attacks                            ║"
+echo "║  These attacks are performed by compromised data plane    ║"
+echo "║  nodes (vehicles/RSUs) within the SDVN architecture       ║"
+echo "║  Controllers remain trusted - nodes are malicious         ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -96,20 +98,20 @@ fi
 echo ""
 
 # ============================================
-# TEST 2: SDVN WORMHOLE ATTACK (10% Controllers)
+# TEST 2: SDVN WORMHOLE ATTACK (10% Nodes)
 # ============================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "TEST 2: SDVN Wormhole Attack (10% malicious controllers)"
+echo "TEST 2: SDVN Wormhole Attack (10% malicious data plane nodes)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Note: Since present_wormhole_attack_controllers is not exposed as cmdline arg,
-# we need to test the VANET wormhole with SDVN mode enabled
+# Data plane nodes perform wormhole attacks in SDVN architecture
 ./waf --run "routing \
     --simTime=${SIM_TIME} \
     --N_Vehicles=${N_VEHICLES} \
     --N_RSUs=${N_RSUS} \
     --architecture=${ARCHITECTURE} \
     --enable_packet_tracking=true \
+    --present_wormhole_attack_nodes=true \
     --use_enhanced_wormhole=true \
     --attack_percentage=0.1 \
     --enable_wormhole_detection=true \
@@ -124,10 +126,10 @@ fi
 echo ""
 
 # ============================================
-# TEST 3: SDVN WORMHOLE ATTACK (20% Controllers)
+# TEST 3: SDVN WORMHOLE ATTACK (20% Nodes)
 # ============================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "TEST 3: SDVN Wormhole Attack (20% malicious controllers)"
+echo "TEST 3: SDVN Wormhole Attack (20% malicious data plane nodes)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 ./waf --run "routing \
     --simTime=${SIM_TIME} \
@@ -135,6 +137,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
     --N_RSUs=${N_RSUS} \
     --architecture=${ARCHITECTURE} \
     --enable_packet_tracking=true \
+    --present_wormhole_attack_nodes=true \
     --use_enhanced_wormhole=true \
     --attack_percentage=0.2 \
     --enable_wormhole_detection=true \
@@ -149,10 +152,10 @@ fi
 echo ""
 
 # ============================================
-# TEST 4: SDVN BLACKHOLE ATTACK (10% Controllers)
+# TEST 4: SDVN BLACKHOLE ATTACK (10% Nodes)
 # ============================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "TEST 4: SDVN Blackhole Attack (10% malicious controllers)"
+echo "TEST 4: SDVN Blackhole Attack (10% malicious data plane nodes)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 ./waf --run "routing \
     --simTime=${SIM_TIME} \
@@ -160,6 +163,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
     --N_RSUs=${N_RSUS} \
     --architecture=${ARCHITECTURE} \
     --enable_packet_tracking=true \
+    --present_blackhole_attack_nodes=true \
+    --attack_percentage=0.1 \
     --enable_blackhole_attack=true \
     --blackhole_attack_percentage=0.1 \
     --blackhole_advertise_fake_routes=true \
@@ -174,10 +179,10 @@ fi
 echo ""
 
 # ============================================
-# TEST 5: SDVN BLACKHOLE ATTACK (20% Controllers)
+# TEST 5: SDVN BLACKHOLE ATTACK (20% Nodes)
 # ============================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "TEST 5: SDVN Blackhole Attack (20% malicious controllers)"
+echo "TEST 5: SDVN Blackhole Attack (20% malicious data plane nodes)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 ./waf --run "routing \
     --simTime=${SIM_TIME} \
@@ -185,6 +190,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
     --N_RSUs=${N_RSUS} \
     --architecture=${ARCHITECTURE} \
     --enable_packet_tracking=true \
+    --present_blackhole_attack_nodes=true \
+    --attack_percentage=0.2 \
     --enable_blackhole_attack=true \
     --blackhole_attack_percentage=0.2 \
     --blackhole_advertise_fake_routes=true \
@@ -199,10 +206,10 @@ fi
 echo ""
 
 # ============================================
-# TEST 6: SDVN SYBIL ATTACK (10% Controllers)
+# TEST 6: SDVN SYBIL ATTACK (10% Nodes)
 # ============================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "TEST 6: SDVN Sybil Attack (10% malicious controllers)"
+echo "TEST 6: SDVN Sybil Attack (10% malicious data plane nodes)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 ./waf --run "routing \
     --simTime=${SIM_TIME} \
@@ -210,6 +217,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
     --N_RSUs=${N_RSUS} \
     --architecture=${ARCHITECTURE} \
     --enable_packet_tracking=true \
+    --present_sybil_attack_nodes=true \
+    --attack_percentage=0.1 \
     --enable_sybil_attack=true \
     --sybil_attack_percentage=0.1 \
     --sybil_advertise_fake_routes=true \
@@ -232,7 +241,7 @@ echo ""
 # TEST 7: SDVN COMBINED ATTACKS (All at 10%)
 # ============================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "TEST 7: SDVN Combined Attacks (10% each - Wormhole + Blackhole + Sybil)"
+echo "TEST 7: SDVN Combined Attacks (10% nodes - Wormhole + Blackhole + Sybil)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 ./waf --run "routing \
     --simTime=${SIM_TIME} \
@@ -240,6 +249,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
     --N_RSUs=${N_RSUS} \
     --architecture=${ARCHITECTURE} \
     --enable_packet_tracking=true \
+    --present_wormhole_attack_nodes=true \
+    --present_blackhole_attack_nodes=true \
+    --present_sybil_attack_nodes=true \
     --use_enhanced_wormhole=true \
     --attack_percentage=0.1 \
     --enable_wormhole_detection=true \
@@ -271,14 +283,15 @@ REPORT_FILE="${RESULTS_DIR}/sdvn_test_summary.txt"
 
 cat > ${REPORT_FILE} << EOF
 ═══════════════════════════════════════════════════════════════
-  SDVN CONTROLLER SECURITY ATTACK TEST SUMMARY
+  SDVN DATA PLANE SECURITY ATTACK TEST SUMMARY
 ═══════════════════════════════════════════════════════════════
 
 Test Date: $(date)
 Results Directory: ${RESULTS_DIR}
 
 Test Configuration:
-  - Architecture: SDVN (Centralized SDN Controller)
+  - Architecture: SDVN (Centralized SDN with trusted controllers)
+  - Attack Location: Data Plane (compromised nodes, not controllers)
   - Simulation Time: ${SIM_TIME} seconds
   - Number of Vehicles: ${N_VEHICLES}
   - Number of RSUs: ${N_RSUS}
@@ -288,32 +301,42 @@ Test Configuration:
 Test Scenarios Completed:
 ─────────────────────────────────────────────────────────────
   Test 1: SDVN Baseline (No Attacks)
-  Test 2: SDVN Wormhole Attack (10% malicious controllers)
-  Test 3: SDVN Wormhole Attack (20% malicious controllers)
-  Test 4: SDVN Blackhole Attack (10% malicious controllers)
-  Test 5: SDVN Blackhole Attack (20% malicious controllers)
-  Test 6: SDVN Sybil Attack (10% malicious controllers)
+  Test 2: SDVN Wormhole Attack (10% malicious data plane nodes)
+  Test 3: SDVN Wormhole Attack (20% malicious data plane nodes)
+  Test 4: SDVN Blackhole Attack (10% malicious data plane nodes)
+  Test 5: SDVN Blackhole Attack (20% malicious data plane nodes)
+  Test 6: SDVN Sybil Attack (10% malicious data plane nodes)
   Test 7: SDVN Combined Attacks (Wormhole + Blackhole + Sybil @ 10% each)
 
-SDVN Attack Types Tested:
+SDVN Data Plane Attack Types Tested:
 ─────────────────────────────────────────────────────────────
-1. Wormhole Attack:
-   - Controller creates fake tunnels in topology
-   - Manipulates flow tables to redirect traffic
-   - Detection: RTT-based latency monitoring
-   - Mitigation: Automatic route recalculation
+1. Wormhole Attack (Data Plane):
+   - Compromised nodes create fake tunnels between each other
+   - Packets are encapsulated and tunneled, bypassing normal routing
+   - Controller sees false topology (shorter paths that don't exist)
+   - Detection: RTT-based latency monitoring by controller
+   - Mitigation: Controller recalculates routes avoiding suspicious paths
 
-2. Blackhole Attack:
-   - Controller drops packets silently
-   - Advertises fake routes to attract traffic
-   - Detection: PDR monitoring per controller
-   - Mitigation: Controller blacklisting
+2. Blackhole Attack (Data Plane):
+   - Compromised nodes drop packets silently
+   - Nodes advertise themselves as having good routes
+   - Controller flow tables are not manipulated, nodes just don't forward
+   - Detection: Controller monitors PDR per node
+   - Mitigation: Controller blacklists suspicious nodes
 
-3. Sybil Attack:
-   - Controller creates fake node identities
-   - Pollutes network topology database
-   - Detection: Identity verification, RSSI analysis
+3. Sybil Attack (Data Plane):
+   - Compromised nodes claim multiple fake identities
+   - Reports false neighbor information to controller
+   - Pollutes controller's network topology database
+   - Detection: Identity verification (PKI), RSSI analysis by controller
    - Mitigation: Trusted certification, resource testing
+
+Key Difference from Controller Attacks:
+─────────────────────────────────────────────────────────────
+- Controllers: TRUSTED (not malicious)
+- Data Plane Nodes: COMPROMISED (malicious)
+- Attacks happen at edge layer, not control plane
+- Controller detects and mitigates attacks from data plane nodes
 
 Result Files Generated:
 ─────────────────────────────────────────────────────────────
