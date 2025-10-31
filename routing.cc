@@ -148306,7 +148306,7 @@ void setup_blackhole_attack(
     Ptr<Node> (*getControllerNode)(int) = nullptr
 ) {
     // Mark malicious nodes
-    for (int i = 0; i < ns3::total_size; ++i) {
+    for (uint32_t i = 0; i < ns3::total_size; ++i) {
         if (blackhole_malicious_nodes[i]) {
             Ptr<Node> node = ns3::NodeList::GetNode(i);
             Ptr<BlackholeApp> app = CreateObject<BlackholeApp>();
@@ -148380,7 +148380,7 @@ void setup_replay_attack(
     double replayDelay = 1.0
 ) {
     // Mark malicious nodes
-    for (int i = 0; i < ns3::total_size; ++i) {
+    for (uint32_t i = 0; i < ns3::total_size; ++i) {
         if (replay_malicious_nodes[i]) {
             Ptr<Node> node = ns3::NodeList::GetNode(i);
             Ptr<ReplayApp> app = CreateObject<ReplayApp>();
@@ -148439,7 +148439,7 @@ void setup_sybil_attack(
     int sybilIdentities = 2
 ) {
     // Mark sybil malicious nodes
-    for (int i = 0; i < ns3::total_size; ++i) {
+    for (uint32_t i = 0; i < ns3::total_size; ++i) {
         if (sybil_malicious_nodes[i]) {
             Ptr<Node> node = ns3::NodeList::GetNode(i);
             Ptr<SybilApp> app = CreateObject<SybilApp>();
@@ -148507,7 +148507,7 @@ void setup_routing_table_poisoning_attack(
     uint32_t bogusInterface = 1
 ) {
     // Mark malicious nodes
-    for (int i = 0; i < ns3::total_size; ++i) {
+    for (uint32_t i = 0; i < ns3::total_size; ++i) {
         if (poisoning_malicious_nodes[i]) {
             Ptr<Node> node = ns3::NodeList::GetNode(i);
             Ptr<RoutingTablePoisoningApp> app = CreateObject<RoutingTablePoisoningApp>();
