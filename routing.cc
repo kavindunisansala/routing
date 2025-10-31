@@ -128583,7 +128583,7 @@ void MacRx (std::string context, Ptr <const Packet> pkt)
 			//cout<<"testing "<<destination_node_id;
 		}
 		
-		if ((destination_node_id > (ns3::total_size+1)) or (destination_node_id < 2))
+		if ((destination_node_id > static_cast<int>(ns3::total_size+1)) or (destination_node_id < 2))
 		{
 			cout<<"invalid conversion. setting default value to 2"<<endl;
 			destination_node_id = 2;
@@ -130514,7 +130514,7 @@ void centralized_dsrc_data_unicast(Ptr <NetDevice> source_nd, Ptr <Node> source_
 
 void clear_RQY()
 {
-    for (int i=0; i<ns3::total_size;i++)
+    for (uint32_t i=0; i<ns3::total_size;i++)
     {
     	Y[i] = 0;
 	R[i] = 0;
@@ -148150,7 +148150,7 @@ Ptr<Node> getControllerNode(int idx) {
 void declare_attackers() {
     // For nodes
     if (present_wormhole_attack_nodes) {
-        for (int i = 0; i < ns3::total_size; ++i) {
+        for (uint32_t i = 0; i < ns3::total_size; ++i) {
             bool attacking_state = GetBooleanWithProbability(attack_percentage);
             wormhole_malicious_nodes[i] = attacking_state;
             // Optionally print
@@ -148158,7 +148158,7 @@ void declare_attackers() {
         }
     }
     if (present_blackhole_attack_nodes) {
-        for (int i = 0; i < ns3::total_size; ++i) {
+        for (uint32_t i = 0; i < ns3::total_size; ++i) {
             bool attacking_state = GetBooleanWithProbability(attack_percentage);
             blackhole_malicious_nodes[i] = attacking_state;
             // Optionally print
@@ -148167,7 +148167,7 @@ void declare_attackers() {
     }
 
     if (present_reply_attack_nodes) {
-        for (int i = 0; i < ns3::total_size; ++i) {
+        for (uint32_t i = 0; i < ns3::total_size; ++i) {
             bool attacking_state = GetBooleanWithProbability(attack_percentage);
             reply_malicious_nodes[i] = attacking_state;
             // Optionally print
@@ -148209,7 +148209,7 @@ void declare_attackers() {
 void setup_wormhole_tunnels(AnimationInterface& anim) {
     // Collect malicious node indices
     std::vector<int> wormhole_nodes;
-    for (int i = 0; i < ns3::total_size; ++i) {
+    for (uint32_t i = 0; i < ns3::total_size; ++i) {
         if (wormhole_malicious_nodes[i]) wormhole_nodes.push_back(i);
     }
     // Add controller indices (e.g., 0 to controllers-1) if malicious
@@ -148229,12 +148229,12 @@ void setup_wormhole_tunnels(AnimationInterface& anim) {
 
         Ptr<Node> nodeA = nullptr;
         Ptr<Node> nodeB = nullptr;
-        if (nodeA_idx < ns3::total_size)
+        if (nodeA_idx < static_cast<int>(ns3::total_size))
             nodeA = ns3::NodeList::GetNode(nodeA_idx);
         else
             nodeA = controller_Node.Get(nodeA_idx - ns3::total_size); // adjust index for controllers
 
-        if (nodeB_idx < ns3::total_size)
+        if (nodeB_idx < static_cast<int>(ns3::total_size))
             nodeB = ns3::NodeList::GetNode(nodeB_idx);
         else
             nodeB = controller_Node.Get(nodeB_idx - ns3::total_size);
@@ -148298,7 +148298,7 @@ private:
 // ---- Blackhole Attack Setup Function ----
 void setup_blackhole_attack(
     const std::vector<bool>& blackhole_malicious_nodes, 
-    int ns3::total_size, 
+    int total_size_param, 
     double simTime, 
     AnimationInterface& anim,
     const std::vector<bool>& blackhole_malicious_controllers = {},
@@ -148371,7 +148371,7 @@ protected:
 // ---- Replay Attack Setup Function ----
 void setup_replay_attack(
     const std::vector<bool>& replay_malicious_nodes, 
-    int ns3::total_size, 
+    int total_size_param, 
     double simTime, 
     AnimationInterface& anim,
     const std::vector<bool>& replay_malicious_controllers = {},
@@ -148430,7 +148430,7 @@ protected:
 // ---- Sybil Attack Setup Function ----
 void setup_sybil_attack(
     const std::vector<bool>& sybil_malicious_nodes, 
-    int ns3::total_size, 
+    int total_size_param, 
     double simTime, 
     AnimationInterface& anim,
     const std::vector<bool>& sybil_malicious_controllers = {},
@@ -148496,7 +148496,7 @@ protected:
 // ---- Routing Table Poisoning Attack Setup Function ----
 void setup_routing_table_poisoning_attack(
     const std::vector<bool>& poisoning_malicious_nodes,
-    int ns3::total_size,
+    int total_size_param,
     double simTime,
     AnimationInterface& anim,
     const std::vector<bool>& poisoning_malicious_controllers = {},
@@ -148729,7 +148729,7 @@ int main(int argc, char *argv[])
     
     clear_RQY();
     
-    for (int i = 0; i<ns3::total_size+2; i++)
+    for (uint32_t i = 0; i<ns3::total_size+2; i++)
     {
     	clear_neighbordata(neighbordata_inst+i);
     	clear_controllerdata(con_data_inst+i);
@@ -151211,6 +151211,7 @@ int main(int argc, char *argv[])
   //apb.SetFinish();
   return 0;  
 }
+
 
 
 
