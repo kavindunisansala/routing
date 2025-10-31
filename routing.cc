@@ -2317,7 +2317,7 @@ bool use_sdvn_wormhole = true;  // Will be set from global config
 LinkDiscoveryModule* g_linkDiscoveryModule = nullptr;  // Will be initialized in main
 neighbor_data* neighbordata_inst = nullptr;  // Will point to array defined later
 std::vector<std::vector<double>> linklifetimeMatrix_dsrc;  // Defined here
-uint32_t ns3::total_size = 40;  // Default value, will be set from config
+uint32_t total_size = 40;  // Default value, will be set from config
 
 } // namespace ns3
 
@@ -96033,8 +96033,8 @@ double (*CustomDeltavaluesDownlinkUnicastTag::Getdeltas())[MAX_NODES]  {
 }
 
 void CustomDeltavaluesDownlinkUnicastTag::Setdeltas(double (*deltas)[MAX_NODES]) {
-    for (int i = 0; i < 2*flows; ++i) {
-        for (int j = 0; j < ns3::total_size; ++j) {
+    for (uint32_t i = 0; i < 2*flows; ++i) {
+        for (uint32_t j = 0; j < ns3::total_size; ++j) {
             m_deltas[i][j] = deltas[i][j];
         }
     }
@@ -96398,16 +96398,19 @@ struct routing_data_at_controller
 	uint32_t nodeid;
 };
 
-
+// neighbor_data struct moved to ns3 namespace (see line 2313)
+// Keeping forward declaration here for compatibility
+namespace ns3 {
 struct neighbor_data
 {
 	uint32_t neighborid[MAX_NODES];
 	//uint32_t combined_cost[MAX_NODES];
 	Time timestamp[MAX_NODES];
 };
+}
 
 // Forward declaration: helper to compute neighbor list size for a neighbor_data instance
-uint32_t getNeighborsize(struct neighbor_data* nd1);
+uint32_t getNeighborsize(struct ns3::neighbor_data* nd1);
 
 struct set_of_neighbors
 {
@@ -96702,7 +96705,7 @@ void WormholeEndpointApp::StartApplication(void) {
         if (!g_linkDiscoveryModule) {
             std::cout << "Creating global LinkDiscoveryModule..." << std::endl;
             g_linkDiscoveryModule = new ns3::LinkDiscoveryModule();
-            extern uint32_t ns3::total_size;
+            extern uint32_t total_size;  // Variable is in ns3 namespace, no ns3:: prefix needed in extern
             g_linkDiscoveryModule->Initialize(ns3::total_size);
             g_linkDiscoveryModule->StartDiscovery();
         }
@@ -103507,10 +103510,7 @@ void clear_controllerdata(struct controller_data * nd1)
 		nd1->neighborid[i] = large;
 		//nd1->combined_cost[i] = large;
 	}
-	nd1->lastupdated = Simulator::Now().GetSeconds();
-}
-
-struct neighbor_data neighbordata_inst_array[MAX_NODES+2];  // Actual array storage (was ns3::total_size+2)
+struct ns3::neighbor_data neighbordata_inst_array[MAX_NODES+2];  // Actual array storage (was ns3::total_size+2)
 struct controller_data con_data_inst[MAX_NODES+2];  // Use MAX_NODES since ns3::total_size is runtime
 
 // Initialize the ns3-scoped pointer to point to the array
@@ -103518,7 +103518,10 @@ namespace {
     struct NeighborDataInitializer {
         NeighborDataInitializer() {
             ns3::neighbordata_inst = neighbordata_inst_array;
-            ns3::ns3::total_size = MAX_NODES;  // Sync runtime value with compile-time constant
+            ns3::total_size = MAX_NODES;  // Sync runtime value with compile-time constant
+        }
+    } g_neighbordata_initializer;
+}           ns3::ns3::total_size = MAX_NODES;  // Sync runtime value with compile-time constant
         }
     } g_neighbordata_initializer;
 }
@@ -103589,7 +103592,7 @@ double calculate_network_entropy()
 		
 }
 
-void clear_neighbordata(struct neighbor_data * nd1)
+void clear_neighbordata(struct ns3::neighbor_data * nd1)
 {
 	for(uint32_t i=0; i<MAX_NODES;i++)
 	{
@@ -103599,7 +103602,7 @@ void clear_neighbordata(struct neighbor_data * nd1)
 	}
 }
 
-void add_neighbor_info(struct neighbor_data * nd1, uint32_t node_id)
+void add_neighbor_info(struct ns3::neighbor_data * nd1, uint32_t node_id)
 {
 	bool setter = false;
 	bool found = false;
@@ -103629,7 +103632,7 @@ void add_neighbor_info(struct neighbor_data * nd1, uint32_t node_id)
 
 }
 
-void refresh_neighbors(struct neighbor_data * nd1)
+void refresh_neighbors(struct ns3::neighbor_data * nd1)
 {
 	uint32_t now = Simulator::Now().GetMilliSeconds();
 	for(uint32_t i=0; i<MAX_NODES;i++)
@@ -103648,7 +103651,7 @@ void refresh_neighbors(struct neighbor_data * nd1)
 	}
 }
 
-uint32_t getNeighborsize(struct neighbor_data * nd1)
+uint32_t getNeighborsize(struct ns3::neighbor_data * nd1)
 {
 	uint32_t  neighborsize = 0;
 	for(uint32_t i=0; i<MAX_NODES;i++)
@@ -121244,7 +121247,7 @@ double average_latency_dsrc = 0.0;
 
 void clear_solution()
 {
-	for (int i=0;i<(ns3::total_size+2);i++)
+	for (uint32_t i=0;i<(ns3::total_size+2);i++)
 	{
 		Z_gurobi[i] = 1;
 		X_gurobi[i] = 1;
@@ -126144,8 +126147,8 @@ vector<double> link_lifetime_dsrc[MAX_NODES];
 vector<double> link_lifetime_ethernet[MAX_NODES];
 vector<double> delay_dsrc[MAX_NODES];
 vector<double> delay_ethernet[MAX_NODES];
-double link_lifetime_vector[ns3::total_size*ns3::total_size];
-double delay_vector[2*ns3::total_size];
+double link_lifetime_vector[MAX_NODES*MAX_NODES];
+double delay_vector[2*MAX_NODES];
 
 void convert_link_lifetimes_dsrc()
 {
@@ -126396,7 +126399,7 @@ void run_ECMP()
 					else
 					{
 						double summation = 0;
-						for(int i=0;i<ns3::total_size;i++)
+						for(uint32_t i=0;i<ns3::total_size;i++)
 						{
 							summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 						}
@@ -126587,7 +126590,7 @@ void run_DCMR()
 					else
 					{
 						double summation = 0;
-						for(int i=0;i<ns3::total_size;i++)
+						for(uint32_t i=0;i<ns3::total_size;i++)
 						{
 							summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 						}
@@ -126710,7 +126713,7 @@ void run_QRSDN()
 						else
 						{
 							double summation = 0.0;
-							for(int i=0;i<ns3::total_size;i++)
+							for(uint32_t i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -126747,7 +126750,7 @@ void run_QRSDN()
 					 	(Omega_at_controller_inst+fid)->Omega_fi_inst[cid].Omega_values[nid]	= distance_algo2_output_inst[fid].conn[nid];
 					 	
 					 	double y_summation = 0.0;
-					 	for(int j=0;j<ns3::total_size;j++)
+					 	for(uint32_t j=0;j<ns3::total_size;j++)
 					 	{
 					 		y_summation = y_summation + (((delta_at_controller_inst+fid)->delta_fi_inst[nid].delta_values[j])*((Y_at_controller_inst+fid)->Y_fi_inst[nid].Y_values[j]));
 					 	}
@@ -126757,7 +126760,7 @@ void run_QRSDN()
 						//Compute delta_values
 						double q_summation = 0.0;
 						double q_max = 0.0;
-						for(int j=0;j<ns3::total_size;j++)
+						for(uint32_t j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -126789,7 +126792,7 @@ void run_QRSDN()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<ns3::total_size;i++)
+							for(uint32_t i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -126808,7 +126811,7 @@ void run_QRSDN()
 						//Compute delta_values
 						double q_summation_again = 0.0;
 						double q_max_again = 0.0;
-						for(int j=0;j<ns3::total_size;j++)
+						for(uint32_t j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -126840,7 +126843,7 @@ void run_QRSDN()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<ns3::total_size;i++)
+							for(uint32_t i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -126975,7 +126978,7 @@ void run_RLMR()
 						else
 						{
 							double summation = 0.0;
-							for(int i=0;i<ns3::total_size;i++)
+							for(uint32_t i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127021,7 +127024,7 @@ void run_RLMR()
 					 	}
 					 	
 					 	double y_summation = 0.0;
-					 	for(int j=0;j<ns3::total_size;j++)
+					 	for(uint32_t j=0;j<ns3::total_size;j++)
 					 	{
 					 		y_summation = y_summation + (((delta_at_controller_inst+fid)->delta_fi_inst[nid].delta_values[j])*((Y_at_controller_inst+fid)->Y_fi_inst[nid].Y_values[j]));
 					 	}
@@ -127031,7 +127034,7 @@ void run_RLMR()
 						//Compute delta_values
 						double q_summation = 0.0;
 						double q_max = 0.0;
-						for(int j=0;j<ns3::total_size;j++)
+						for(uint32_t j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -127064,7 +127067,7 @@ void run_RLMR()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<ns3::total_size;i++)
+							for(uint32_t i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127083,7 +127086,7 @@ void run_RLMR()
 						//Compute delta_values
 						double q_summation_again = 0.0;
 						double q_max_again = 0.0;
-						for(int j=0;j<ns3::total_size;j++)
+						for(uint32_t j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -127114,7 +127117,7 @@ void run_RLMR()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<ns3::total_size;i++)
+							for(uint32_t i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127427,7 +127430,7 @@ void run_proposed_RL()
 						else
 						{
 							double summation = 0.0;
-							for(int i=0;i<ns3::total_size;i++)
+							for(uint32_t i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127538,7 +127541,7 @@ void run_proposed_RL()
 					 	//cout<<"flow id "<<fid<<"current hop "<<cid<<" next hop "<<nid<<" Omega value "<<(Omega_at_controller_inst+fid)->Omega_fi_inst[cid].Omega_values[nid]<<" Theta value is "<<(Theta_at_controller_inst+fid)->Theta_fi_inst[cid].Theta_values[nid]<<endl;
 					 	
 					 	double y_summation = 0.0;
-					 	for(int j=0;j<ns3::total_size;j++)
+					 	for(uint32_t j=0;j<ns3::total_size;j++)
 					 	{
 					 		y_summation = y_summation + (((delta_at_controller_inst+fid)->delta_fi_inst[nid].delta_values[j])*((Y_at_controller_inst+fid)->Y_fi_inst[nid].Y_values[j]));
 					 	}
@@ -127547,7 +127550,7 @@ void run_proposed_RL()
 						if(nid != f_destination)
 						{
 						double u_summation = 0.0;
-						 	for(int j=0;j<ns3::total_size;j++)
+						 	for(uint32_t j=0;j<ns3::total_size;j++)
 						 	{
 						 		u_summation = u_summation + (((delta_at_controller_inst+fid)->delta_fi_inst[nid].delta_values[j])*((U_at_controller_inst+fid)->U_fi_inst[nid].U_values[j]));
 						 	}
@@ -127558,7 +127561,7 @@ void run_proposed_RL()
 						//Compute delta_values
 						double q_summation = 0.0;
 						double q_max = 0.0;
-						for(int j=0;j<ns3::total_size;j++)
+						for(uint32_t j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -127590,7 +127593,7 @@ void run_proposed_RL()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<ns3::total_size;i++)
+							for(uint32_t i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -127698,7 +127701,7 @@ void run_proposed_RL()
 						//Compute delta_values
 						double q_summation_again = 0.0;
 						double q_max_again = 0.0;
-						for(int j=0;j<ns3::total_size;j++)
+						for(uint32_t j=0;j<ns3::total_size;j++)
 					 	{
 					 		if(((Q_at_controller_inst+fid)->Q_fi_inst[cid].Q_values[j])> 0.0)
 					 		{
@@ -127729,7 +127732,7 @@ void run_proposed_RL()
 						else
 						{
 							double summation = 0;
-							for(int i=0;i<ns3::total_size;i++)
+							for(uint32_t i=0;i<ns3::total_size;i++)
 							{
 								summation = summation + (L_at_controller_inst+fid)->L_fi_inst[i].L_values[cid];
 							}
@@ -151208,6 +151211,8 @@ int main(int argc, char *argv[])
   //apb.SetFinish();
   return 0;  
 }
+
+
 
 
 
