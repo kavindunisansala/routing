@@ -37,11 +37,20 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
     --present_sybil_attack_nodes=false" \
     > ${RESULTS_DIR}/test1_baseline_output.txt 2>&1
 
-if [ -f "performance_metrics.csv" ]; then
-    mv performance_metrics.csv ${RESULTS_DIR}/test1_baseline_metrics.csv
-    echo "✓ Baseline test completed"
+TEST_EXIT_CODE=$?
+if [ $TEST_EXIT_CODE -eq 0 ]; then
+    if [ -f "performance_metrics.csv" ]; then
+        mv performance_metrics.csv ${RESULTS_DIR}/test1_baseline_metrics.csv
+        echo "✓ Baseline test completed successfully"
+    else
+        echo "⚠ Simulation ran but no CSV generated. Check output file:"
+        echo "  cat ${RESULTS_DIR}/test1_baseline_output.txt"
+    fi
 else
-    echo "✗ Baseline test failed"
+    echo "✗ Baseline test failed with exit code $TEST_EXIT_CODE"
+    echo "  Error details saved to: ${RESULTS_DIR}/test1_baseline_output.txt"
+    echo "  To view error: cat ${RESULTS_DIR}/test1_baseline_output.txt | tail -50"
+    exit 1
 fi
 echo ""
 
