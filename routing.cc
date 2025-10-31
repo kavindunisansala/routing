@@ -128583,7 +128583,7 @@ void MacRx (std::string context, Ptr <const Packet> pkt)
 			//cout<<"testing "<<destination_node_id;
 		}
 		
-		if ((destination_node_id > static_cast<int>(ns3::total_size+1)) or (destination_node_id < 2))
+		if ((destination_node_id > (ns3::total_size+1)) or (destination_node_id < 2))
 		{
 			cout<<"invalid conversion. setting default value to 2"<<endl;
 			destination_node_id = 2;
@@ -128998,7 +128998,7 @@ void Rx (std::string context, Ptr <const Packet> pkt, uint16_t channelFreqMhz,  
 				//cout<<"testing "<<destination_node_id;
 			}
 			
-			if ((destination_node_id > (ns3::total_size+1)) or (destination_node_id < 2))
+			if ((destination_node_id > static_cast<int>(ns3::total_size+1)) or (destination_node_id < 2))
 			{
 				cout<<"invalid conversion. setting default value to 2"<<endl;
 				destination_node_id = 2;
