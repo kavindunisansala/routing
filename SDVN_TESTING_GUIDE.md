@@ -1,31 +1,126 @@
-# SDVN vs VANET Attack Testing Guide
+# SDVN Attack Testing Guide - Data Plane Security
 
 ## Overview
 
-Your `routing.cc` implementation supports **TWO types of attacks**:
+Your `routing.cc` implements **SDVN (Software-Defined Vehicular Network) security attacks** where:
 
-1. **VANET Attacks** - Target vehicle nodes in the network
-2. **SDVN Attacks** - Target SDN controllers in the network
+- **SDN Controllers**: TRUSTED (not compromised)
+- **Data Plane Nodes**: Can be COMPROMISED (vehicles/RSUs)
+- **Attack Model**: Malicious nodes attack the network while trusted controllers detect and mitigate
 
-## Key Differences
+## SDVN Architecture
 
-### VANET Attacks (Node-Level)
-- **Target**: Vehicle nodes and RSU nodes
-- **Flags**: `present_*_attack_nodes` (e.g., `present_wormhole_attack_nodes`)
-- **Attack Location**: At the network edge (vehicles/RSUs)
-- **Impact**: Affects local communication between nodes
+```
+┌─────────────────────────────────────────┐
+│   SDN Controller (TRUSTED)              │
+│   - Global network view                 │
+│   - Detects attacks                     │
+│   - Reconfigures network                │
+└──────────────┬──────────────────────────┘
+               │ Control Plane
+               │ (OpenFlow)
+═══════════════╪═══════════════════════════
+               │ Data Plane
+      ┌────────┴────────┐
+      │                 │
+   Vehicles           RSUs
+   (Can be         (Can be
+   malicious)      malicious)
+```
 
-### SDVN Attacks (Controller-Level)
-- **Target**: SDN Controllers (centralized control plane)
-- **Flags**: `present_*_attack_controllers` (e.g., `present_wormhole_attack_controllers`)
-- **Attack Location**: At the control plane (controllers)
-- **Impact**: Affects entire network topology and routing decisions
+## Attack Types in SDVN
 
-## Test Scripts Available
+### 1. Wormhole Attack (Data Plane)
+**Attackers**: Compromised data plane nodes (vehicles/RSUs)  
+**How it works:**
+- Two malicious nodes collude to create a fake "tunnel"
+- Packets are encapsulated and forwarded through the tunnel
+- Makes distant nodes appear as neighbors
+- Controller sees a false network topology
 
-### 1. `test_sdvn_attacks.sh` ← **USE THIS FOR SDVN TESTING**
+**Impact on SDVN:**
+- Controller calculates routes based on false topology
+- Traffic is redirected through malicious tunnel
+- Normal routing protocols are bypassed
 
-Tests **controller-level attacks** in SDVN architecture:
+**Detection by Controller:**
+- RTT (Round Trip Time) monitoring
+- Hop count verification
+- Latency anomaly detection
+
+**Mitigation by Controller:**
+- Identifies suspicious routes with abnormal latency
+- Recalculates routes avoiding tunnel endpoints
+- Blacklists malicious node pairs
+
+### 2. Blackhole Attack (Data Plane)
+**Attackers**: Compromised data plane nodes  
+**How it works:**
+- Malicious nodes advertise good routes to attract traffic
+- Once traffic is received, packets are silently dropped
+- Node does not forward packets as expected
+
+**Impact on SDVN:**
+- Controller flow tables direct traffic to malicious nodes
+- Packets disappear without trace
+- Network PDR (Packet Delivery Ratio) degrades
+
+**Detection by Controller:**
+- Monitors PDR per node using global view
+- Tracks which nodes have abnormally high packet loss
+- Identifies nodes that receive but don't forward
+
+**Mitigation by Controller:**
+- Blacklists nodes with low forwarding ratio
+- Reconfigures flow tables to avoid malicious nodes
+- Redirects traffic through alternative paths
+
+### 3. Sybil Attack (Data Plane)
+**Attackers**: Compromised data plane nodes  
+**How it works:**
+- Malicious node claims multiple fake identities
+- Reports false neighbor relationships to controller
+- Pollutes controller's topology database
+
+**Impact on SDVN:**
+- Controller believes fake nodes exist
+- Calculates routes through non-existent nodes
+- Network topology map becomes corrupted
+
+**Detection by Controller:**
+- PKI-based identity verification
+- RSSI (signal strength) analysis for co-location detection
+- Resource testing (fake identities can't pass tests)
+- Social network analysis (fake identities have suspicious patterns)
+
+**Mitigation by Controller:**
+- Requires trusted certificate authority
+- Performs identity binding verification
+- Uses challenge-response authentication
+- Revokes certificates of detected Sybil nodes
+
+## Key Differences: SDVN vs VANET
+
+## Key Differences: SDVN vs Traditional VANET
+
+| Aspect | Traditional VANET | SDVN |
+|--------|-------------------|------|
+| **Control** | Distributed (each node) | Centralized (SDN controller) |
+| **Attack Detection** | Local (by neighbors) | Global (by controller) |
+| **Mitigation** | Individual node response | Network-wide reconfiguration |
+| **Attacker** | Malicious nodes | Malicious nodes (same) |
+| **Defender** | Peer nodes | Central controller |
+| **View** | Local neighborhood | Global network topology |
+| **Response Time** | Fast (local) | Moderate (controller communication) |
+| **Effectiveness** | Limited scope | Network-wide |
+
+**Important**: In both cases, attacks come from **compromised data plane nodes**, but SDVN has a **trusted central controller** that can detect and mitigate attacks using its global network view.
+
+## Test Script: test_sdvn_attacks.sh
+
+**Purpose**: Test data plane attacks in SDVN architecture with trusted controller
+
+### Usage
 
 ```bash
 chmod +x test_sdvn_attacks.sh
@@ -34,80 +129,55 @@ chmod +x test_sdvn_attacks.sh
 
 **Test Scenarios:**
 - Baseline (no attacks)
-- Wormhole attacks on controllers (10%, 20%)
-- Blackhole attacks on controllers (10%, 20%)
-- Sybil attacks on controllers (10%)
+- Wormhole attacks by nodes (10%, 20%)
+- Blackhole attacks by nodes (10%, 20%)
+- Sybil attacks by nodes (10%)
 - Combined attacks (all at 10%)
 
-**Command-Line Arguments Used:**
+**Critical Command-Line Arguments:**
 ```bash
---architecture=0                    # Centralized SDVN
---use_enhanced_wormhole=true        # Wormhole attack
---enable_blackhole_attack=true      # Blackhole attack
---enable_sybil_attack=true          # Sybil attack
---enable_packet_tracking=true       # CSV output
---enable_*_detection=true           # Detection enabled
---enable_*_mitigation=true          # Mitigation enabled
+--architecture=0                           # SDVN mode (centralized controller)
+--present_wormhole_attack_nodes=true       # Enable wormhole by NODES
+--present_blackhole_attack_nodes=true      # Enable blackhole by NODES
+--present_sybil_attack_nodes=true          # Enable sybil by NODES
+--attack_percentage=0.1                    # 10% of nodes are malicious
+--enable_packet_tracking=true              # Generate CSV output
+--enable_*_detection=true                  # Controller detection enabled
+--enable_*_mitigation=true                 # Controller mitigation enabled
 ```
 
-### 2. `test_attacks_fixed.sh`
+## SDVN Attack Command-Line Flags
 
-Tests **node-level attacks** in VANET architecture:
-- Includes Replay attack (VANET-only)
-- Targets vehicles and RSUs
-- 8 test scenarios including replay attack
+### Newly Added Flags:
 
-## SDVN Attack Details
+These flags enable data plane attacks in SDVN (added to routing.cc):
 
-### Wormhole Attack (Controller-Level)
-**How it works:**
-- Malicious controller creates fake tunnels in the network topology
-- Manipulates OpenFlow flow tables to redirect traffic
-- Creates artificial "shortcuts" that don't physically exist
+```bash
+--present_wormhole_attack_nodes=<true/false>   # Wormhole attacks by nodes
+--present_blackhole_attack_nodes=<true/false>  # Blackhole attacks by nodes
+--present_sybil_attack_nodes=<true/false>      # Sybil attacks by nodes
+```
 
-**Detection:**
-- RTT-based latency monitoring
-- Hop count verification
-- Path validation
+**Complete Example:**
+```bash
+./waf --run "routing \
+    --simTime=100 \
+    --N_Vehicles=18 \
+    --N_RSUs=10 \
+    --architecture=0 \
+    --present_wormhole_attack_nodes=true \
+    --use_enhanced_wormhole=true \
+    --attack_percentage=0.1 \
+    --enable_wormhole_detection=true \
+    --enable_wormhole_mitigation=true \
+    --enable_packet_tracking=true"
+```
 
-**Mitigation:**
-- Automatic route recalculation
-- Flow table verification
-- Controller reputation system
-
-### Blackhole Attack (Controller-Level)
-**How it works:**
-- Malicious controller drops packets silently
-- Advertises fake routes to attract traffic
-- Manipulates flow entries to discard data
-
-**Detection:**
-- PDR (Packet Delivery Ratio) monitoring per controller
-- Traffic flow analysis
-- Controller behavior profiling
-
-**Mitigation:**
-- Controller blacklisting
-- Route redistribution
-- Backup controller activation
-
-### Sybil Attack (Controller-Level)
-**How it works:**
-- Malicious controller creates fake node identities
-- Pollutes the network topology database
-- Injects false neighborhood information
-
-**Detection:**
-- Identity verification (PKI-based)
-- RSSI-based co-location detection
-- Resource testing
-- Social network analysis
-
-**Mitigation:**
-- Trusted certification authority
-- Identity binding verification
-- Resource challenge-response
-- Incentive-based revelation
+This command:
+1. Sets up SDVN with centralized controller
+2. Enables wormhole attacks by 10% of data plane nodes
+3. Enables controller-based detection and mitigation
+4. Generates CSV files for analysis
 
 ## Expected CSV Output Files
 
