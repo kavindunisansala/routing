@@ -17,31 +17,77 @@ class AttackAnalyzer:
     def __init__(self, results_dir):
         self.results_dir = results_dir
         self.metrics = {}
+        # SDVN test scenarios matching test_sdvn_attacks.sh output
         self.scenarios = [
-            ('baseline', 'Baseline (No Attack)'),
-            ('wormhole_10', 'Wormhole 10%'),
-            ('wormhole_20', 'Wormhole 20%'),
-            ('blackhole_10', 'Blackhole 10%'),
-            ('blackhole_20', 'Blackhole 20%'),
-            ('sybil_10', 'Sybil 10%'),
-            ('combined_10', 'Combined 10%'),
-            ('combined_30', 'Combined 30%')
+            ('test1_sdvn_baseline', 'Baseline (No Attack)'),
+            ('test2_sdvn_wormhole_10', 'Wormhole 10%'),
+            ('test3_sdvn_wormhole_20', 'Wormhole 20%'),
+            ('test4_sdvn_blackhole_10', 'Blackhole 10%'),
+            ('test5_sdvn_blackhole_20', 'Blackhole 20%'),
+            ('test6_sdvn_sybil_10', 'Sybil 10%'),
+            ('test7_sdvn_combined_10', 'Combined 10%')
         ]
         
     def load_metrics(self):
-        """Load all CSV metric files"""
-        print("Loading metric files...")
-        for i, (scenario_id, scenario_name) in enumerate(self.scenarios, 1):
-            csv_file = os.path.join(self.results_dir, f'test{i}_{scenario_id}_metrics.csv')
+        """Load all CSV metric files from test_sdvn_attacks.sh output"""
+        print("Loading metric files from SDVN attack test results...")
+        
+        for scenario_id, scenario_name in self.scenarios:
+            # Primary CSV file to look for (packet delivery analysis)
+            csv_file = os.path.join(self.results_dir, f'{scenario_id}_packet-delivery-analysis.csv')
+            
             if os.path.exists(csv_file):
                 try:
                     df = pd.read_csv(csv_file)
                     self.metrics[scenario_name] = df
-                    print(f"  ✓ Loaded: {scenario_name}")
+                    print(f"  ✓ Loaded: {scenario_name} ({len(df)} rows)")
                 except Exception as e:
                     print(f"  ✗ Error loading {scenario_name}: {e}")
             else:
-                print(f"  ⚠ File not found: {csv_file}")
+                # Try alternate CSV names that might exist
+                alternate_files = [
+                    f'{scenario_id}_blackhole-attack-results.csv',
+                    f'{scenario_id}_sybil-attack-results.csv',
+                    f'{scenario_id}_wormhole-detection-results.csv'
+                ]
+                
+                loaded = False
+                for alt_file in alternate_files:
+                    alt_path = os.path.join(self.results_dir, alt_file)
+                    if os.path.exists(alt_path):
+                        try:
+                            df = pd.read_csv(alt_path)
+                            self.metrics[scenario_name] = df
+                            print(f"  ✓ Loaded: {scenario_name} from {alt_file} ({len(df)} rows)")
+                            loaded = True
+                            break
+                        except Exception as e:
+                            continue
+                
+                if not loaded:
+                    print(f"  ⚠ No CSV files found for: {scenario_name}")
+        
+        if not self.metrics:
+            print("\n⚠ No metric files loaded. Checking directory contents...")
+            self._list_available_files()
+        if not self.metrics:
+            print("\n⚠ No metric files loaded. Checking directory contents...")
+            self._list_available_files()
+    
+    def _list_available_files(self):
+        """List all CSV files in the results directory for debugging"""
+        try:
+            csv_files = [f for f in os.listdir(self.results_dir) if f.endswith('.csv')]
+            if csv_files:
+                print(f"\nFound {len(csv_files)} CSV file(s) in {self.results_dir}:")
+                for f in sorted(csv_files)[:20]:  # Show first 20 files
+                    print(f"  - {f}")
+                if len(csv_files) > 20:
+                    print(f"  ... and {len(csv_files) - 20} more")
+            else:
+                print(f"\nNo CSV files found in {self.results_dir}")
+        except Exception as e:
+            print(f"Error listing directory: {e}")
     
     def calculate_summary_statistics(self):
         """Calculate summary statistics for all scenarios"""
@@ -52,19 +98,35 @@ class AttackAnalyzer:
         for scenario_name, df in self.metrics.items():
             if df.empty:
                 continue
-                
+            
+            # Flexible column name matching (case-insensitive)
+            def get_column_value(df, possible_names, default=0):
+                """Get value from dataframe with flexible column name matching"""
+                df_columns_lower = [col.lower() for col in df.columns]
+                for name in possible_names:
+                    if name.lower() in df_columns_lower:
+                        idx = df_columns_lower.index(name.lower())
+                        col_name = df.columns[idx]
+                        return df[col_name].mean()
+                return default
+            
             summary = {
                 'Scenario': scenario_name,
-                'Avg_PDR': df['PDR'].mean() if 'PDR' in df.columns else 0,
-                'Avg_Delay_ms': df['Delay'].mean() * 1000 if 'Delay' in df.columns else 0,
-                'Avg_Throughput_Mbps': df['Throughput'].mean() if 'Throughput' in df.columns else 0,
-                'Packet_Loss_Rate': df['PacketLoss'].mean() if 'PacketLoss' in df.columns else 0,
-                'Routing_Overhead': df['RoutingOverhead'].mean() if 'RoutingOverhead' in df.columns else 0,
-                'Detection_Rate': df['DetectionRate'].mean() if 'DetectionRate' in df.columns else 0,
-                'False_Positive_Rate': df['FalsePositiveRate'].mean() if 'FalsePositiveRate' in df.columns else 0,
-                'Energy_Consumption_J': df['EnergyConsumption'].mean() if 'EnergyConsumption' in df.columns else 0
+                'Avg_PDR': get_column_value(df, ['PDR', 'PacketDeliveryRatio', 'Delivery_Ratio']),
+                'Avg_Delay_ms': get_column_value(df, ['Delay', 'AvgDelay', 'End2EndDelay', 'E2EDelay']) * 1000,
+                'Avg_Throughput_Mbps': get_column_value(df, ['Throughput', 'AvgThroughput', 'DataRate']),
+                'Packet_Loss_Rate': get_column_value(df, ['PacketLoss', 'LossRate', 'DroppedPackets']),
+                'Routing_Overhead': get_column_value(df, ['RoutingOverhead', 'Overhead', 'ControlOverhead']),
+                'Detection_Rate': get_column_value(df, ['DetectionRate', 'AttackDetectionRate', 'Detection']),
+                'False_Positive_Rate': get_column_value(df, ['FalsePositiveRate', 'FalsePositive', 'FPR']),
+                'Energy_Consumption_J': get_column_value(df, ['EnergyConsumption', 'Energy', 'PowerConsumption'])
             }
+            
             summary_data.append(summary)
+            
+            # Debug: Show what columns were found
+            print(f"  {scenario_name}:")
+            print(f"    Columns: {', '.join(df.columns[:10])}{' ...' if len(df.columns) > 10 else ''}")
         
         summary_df = pd.DataFrame(summary_data)
         
@@ -325,13 +387,44 @@ class AttackAnalyzer:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 analyze_attack_results.py <results_directory>")
+        print("="*70)
+        print("SDVN Attack Results Analyzer")
+        print("="*70)
+        print("\nUsage:")
+        print("  python3 analyze_attack_results.py <results_directory>")
+        print("\nExample:")
+        print("  python3 analyze_attack_results.py sdvn_attack_results_20251031_143022")
+        print("\nThis tool analyzes CSV files generated by test_sdvn_attacks.sh")
+        print("Expected files:")
+        print("  - test1_sdvn_baseline_packet-delivery-analysis.csv")
+        print("  - test2_sdvn_wormhole_10_packet-delivery-analysis.csv")
+        print("  - test3_sdvn_wormhole_20_packet-delivery-analysis.csv")
+        print("  - test4_sdvn_blackhole_10_packet-delivery-analysis.csv")
+        print("  - test5_sdvn_blackhole_20_packet-delivery-analysis.csv")
+        print("  - test6_sdvn_sybil_10_packet-delivery-analysis.csv")
+        print("  - test7_sdvn_combined_10_packet-delivery-analysis.csv")
+        print("\nAlso processes other CSV files like:")
+        print("  - blackhole-attack-results.csv")
+        print("  - sybil-attack-results.csv")
+        print("  - wormhole-detection-results.csv")
+        print("="*70)
         sys.exit(1)
     
     results_dir = sys.argv[1]
     
     if not os.path.exists(results_dir):
         print(f"Error: Directory '{results_dir}' not found")
+        print(f"Current directory: {os.getcwd()}")
+        print("\nAvailable result directories:")
+        try:
+            dirs = [d for d in os.listdir('.') if d.startswith('sdvn_attack_results_')]
+            if dirs:
+                for d in sorted(dirs)[-5:]:  # Show last 5
+                    print(f"  - {d}")
+            else:
+                print("  No sdvn_attack_results_* directories found")
+        except:
+            pass
         sys.exit(1)
     
     analyzer = AttackAnalyzer(results_dir)
