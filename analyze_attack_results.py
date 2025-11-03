@@ -90,8 +90,8 @@ class AttackAnalyzer:
             print(f"Error listing directory: {e}")
     
     def calculate_summary_statistics(self):
-        """Calculate summary statistics for all scenarios"""
-        print("\nCalculating summary statistics...")
+        """Calculate summary statistics from packet-level data"""
+        print("\nCalculating summary statistics from packet-level data...")
         
         summary_data = []
         
@@ -99,34 +99,86 @@ class AttackAnalyzer:
             if df.empty:
                 continue
             
-            # Flexible column name matching (case-insensitive)
-            def get_column_value(df, possible_names, default=0):
-                """Get value from dataframe with flexible column name matching"""
-                df_columns_lower = [col.lower() for col in df.columns]
-                for name in possible_names:
-                    if name.lower() in df_columns_lower:
-                        idx = df_columns_lower.index(name.lower())
-                        col_name = df.columns[idx]
-                        return df[col_name].mean()
-                return default
+            print(f"\n  Processing {scenario_name}:")
+            print(f"    CSV columns: {', '.join(df.columns)}")
+            print(f"    Total rows: {len(df)}")
             
-            summary = {
-                'Scenario': scenario_name,
-                'Avg_PDR': get_column_value(df, ['PDR', 'PacketDeliveryRatio', 'Delivery_Ratio']),
-                'Avg_Delay_ms': get_column_value(df, ['Delay', 'AvgDelay', 'End2EndDelay', 'E2EDelay']) * 1000,
-                'Avg_Throughput_Mbps': get_column_value(df, ['Throughput', 'AvgThroughput', 'DataRate']),
-                'Packet_Loss_Rate': get_column_value(df, ['PacketLoss', 'LossRate', 'DroppedPackets']),
-                'Routing_Overhead': get_column_value(df, ['RoutingOverhead', 'Overhead', 'ControlOverhead']),
-                'Detection_Rate': get_column_value(df, ['DetectionRate', 'AttackDetectionRate', 'Detection']),
-                'False_Positive_Rate': get_column_value(df, ['FalsePositiveRate', 'FalsePositive', 'FPR']),
-                'Energy_Consumption_J': get_column_value(df, ['EnergyConsumption', 'Energy', 'PowerConsumption'])
-            }
+            # Calculate metrics from packet-delivery-analysis.csv format
+            # Columns: PacketID,SourceNode,DestNode,SendTime,ReceiveTime,DelayMs,Delivered,WormholeOnPath,BlackholeOnPath
+            
+            summary = {'Scenario': scenario_name}
+            
+            # Calculate PDR (Packet Delivery Ratio)
+            if 'Delivered' in df.columns:
+                total_packets = len(df)
+                delivered_packets = df['Delivered'].sum()
+                pdr = (delivered_packets / total_packets) if total_packets > 0 else 0
+                summary['Avg_PDR'] = pdr
+                print(f"    PDR: {pdr:.4f} ({delivered_packets}/{total_packets})")
+            else:
+                summary['Avg_PDR'] = 0
+            
+            # Calculate Average Delay (only for delivered packets)
+            if 'DelayMs' in df.columns and 'Delivered' in df.columns:
+                delivered_df = df[df['Delivered'] == 1]
+                if len(delivered_df) > 0:
+                    avg_delay = delivered_df['DelayMs'].mean()
+                    summary['Avg_Delay_ms'] = avg_delay
+                    print(f"    Avg Delay: {avg_delay:.2f} ms")
+                else:
+                    summary['Avg_Delay_ms'] = 0
+            else:
+                summary['Avg_Delay_ms'] = 0
+            
+            # Calculate Throughput (approximate based on delivered packets and simulation time)
+            if 'Delivered' in df.columns and 'ReceiveTime' in df.columns:
+                delivered_df = df[df['Delivered'] == 1]
+                if len(delivered_df) > 0:
+                    sim_duration = df['ReceiveTime'].max() - df['SendTime'].min() if 'SendTime' in df.columns else 100
+                    if sim_duration > 0:
+                        # Assume average packet size of 512 bytes
+                        packet_size_bytes = 512
+                        total_bytes = delivered_df.shape[0] * packet_size_bytes
+                        throughput_mbps = (total_bytes * 8) / (sim_duration * 1_000_000)
+                        summary['Avg_Throughput_Mbps'] = throughput_mbps
+                        print(f"    Throughput: {throughput_mbps:.4f} Mbps")
+                    else:
+                        summary['Avg_Throughput_Mbps'] = 0
+                else:
+                    summary['Avg_Throughput_Mbps'] = 0
+            else:
+                summary['Avg_Throughput_Mbps'] = 0
+            
+            # Calculate Packet Loss Rate
+            if 'Delivered' in df.columns:
+                total_packets = len(df)
+                dropped_packets = total_packets - df['Delivered'].sum()
+                loss_rate = (dropped_packets / total_packets) if total_packets > 0 else 0
+                summary['Packet_Loss_Rate'] = loss_rate
+                print(f"    Packet Loss Rate: {loss_rate:.4f}")
+            else:
+                summary['Packet_Loss_Rate'] = 0
+            
+            # Check for attack indicators
+            if 'WormholeOnPath' in df.columns:
+                wormhole_affected = df['WormholeOnPath'].sum()
+                summary['Wormhole_Affected_Packets'] = wormhole_affected
+                print(f"    Wormhole affected: {wormhole_affected} packets")
+            
+            if 'BlackholeOnPath' in df.columns:
+                blackhole_affected = df['BlackholeOnPath'].sum()
+                summary['Blackhole_Affected_Packets'] = blackhole_affected
+                print(f"    Blackhole affected: {blackhole_affected} packets")
+            
+            # Routing overhead (not in packet-delivery file, set to 0)
+            summary['Routing_Overhead'] = 0
+            
+            # Detection metrics (would need separate detection CSV files)
+            summary['Detection_Rate'] = 0
+            summary['False_Positive_Rate'] = 0
+            summary['Energy_Consumption_J'] = 0
             
             summary_data.append(summary)
-            
-            # Debug: Show what columns were found
-            print(f"  {scenario_name}:")
-            print(f"    Columns: {', '.join(df.columns[:10])}{' ...' if len(df.columns) > 10 else ''}")
         
         summary_df = pd.DataFrame(summary_data)
         
