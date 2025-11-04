@@ -149948,10 +149948,8 @@ int main(int argc, char *argv[])
 	cmd.AddValue ("hybrid_shield_verification_interval", "Topology verification interval (s)", hybrid_shield_verification_interval);
 	cmd.AddValue ("hybrid_shield_monitor_legacy_traffic", "Monitor legacy network traffic", hybrid_shield_monitor_legacy_traffic);
 	
-	cmd.AddValue ("experiment_number", "experiment_number", experiment_number);
-    cmd.AddValue ("routing_test", "routing_test", routing_test);
-    cmd.AddValue ("routing_algorithm", "routing_algorithm", routing_algorithm);
-    cmd.AddValue ("qf", "qf", qf);
+	// Note: experiment_number, routing_test, routing_algorithm, qf already declared earlier (lines 149837-149840)
+	// Duplicate declarations removed to prevent CommandLine parser issues
     cmd.Parse (argc, argv);	
     
     if (routing_test == true)
