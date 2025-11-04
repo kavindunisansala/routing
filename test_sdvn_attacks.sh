@@ -170,21 +170,57 @@ test_baseline() {
     
     # Run simulation with no attacks
     print_info "Executing simulation..."
+    
+    # First, test if routing binary exists and runs
+    if ! ./waf --run "scratch/$ROUTING_SCRIPT --PrintHelp" > /dev/null 2>&1; then
+        print_error "Cannot execute routing binary. Building first..."
+        ./waf clean
+        ./waf configure
+        ./waf build
+    fi
+    
     ./waf --run "scratch/$ROUTING_SCRIPT \
         --simTime=$SIM_TIME \
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
-        
         --enable_wormhole_attack=false \
         --enable_blackhole_attack=false \
         --enable_sybil_attack=false \
         --enable_replay_attack=false \
         --enable_rtp_attack=false" \
-        > "$output_dir/logs/baseline.log" 2>&1 || {
-        print_error "Simulation failed! Check log: $output_dir/logs/baseline.log"
-        tail -20 "$output_dir/logs/baseline.log"
+        > "$output_dir/logs/baseline.log" 2>&1
+    
+    local exit_code=$?
+    
+    if [ $exit_code -ne 0 ]; then
+        print_error "Simulation failed with exit code $exit_code! Check log: $output_dir/logs/baseline.log"
+        echo ""
+        print_info "Last 30 lines of log:"
+        tail -30 "$output_dir/logs/baseline.log"
+        echo ""
+        print_info "Checking for common errors..."
+        
+        if grep -q "Segmentation fault" "$output_dir/logs/baseline.log"; then
+            print_error "SEGMENTATION FAULT detected!"
+        fi
+        
+        if grep -q "Assertion" "$output_dir/logs/baseline.log"; then
+            print_error "ASSERTION FAILURE detected!"
+            grep "Assertion" "$output_dir/logs/baseline.log"
+        fi
+        
+        if grep -q "abort" "$output_dir/logs/baseline.log"; then
+            print_error "ABORT detected!"
+            grep -i "abort\|terminate" "$output_dir/logs/baseline.log" | head -5
+        fi
+        
+        if grep -q "Command.*exited with code" "$output_dir/logs/baseline.log"; then
+            print_warning "NS-3 reports command exited - this might be due to routing.cc internal errors"
+        fi
+        
         return 1
-    }
+    fi
     
     print_success "Baseline simulation completed"
     
@@ -216,7 +252,8 @@ test_wormhole_attack() {
     
     print_info "Executing simulation..."
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         
@@ -252,7 +289,8 @@ test_wormhole_attack() {
     
     print_info "Executing simulation..."
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         
@@ -298,7 +336,8 @@ test_blackhole_attack() {
     print_info "Running Blackhole attack without mitigation..."
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         
@@ -325,7 +364,8 @@ test_blackhole_attack() {
     print_info "Running Blackhole attack WITH mitigation..."
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         --enable_blackhole_attack=true \
@@ -362,7 +402,8 @@ test_sybil_attack() {
     print_info "Running Sybil attack without mitigation..."
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         
@@ -392,7 +433,8 @@ test_sybil_attack() {
     print_info "Running Sybil attack WITH mitigation..."
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         
@@ -437,7 +479,8 @@ test_replay_attack() {
     print_info "Running Replay attack without mitigation..."
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         
@@ -465,7 +508,8 @@ test_replay_attack() {
     print_info "Running Replay attack WITH Bloom Filter mitigation..."
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         
@@ -510,7 +554,8 @@ test_rtp_attack() {
     print_info "Running RTP attack without mitigation..."
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         
@@ -540,7 +585,8 @@ test_rtp_attack() {
     print_info "Running RTP attack WITH HybridShield mitigation..."
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
-        --simTime=$SIM_TIME \
+        --simTime=$SIM_TIME 
+        --routing_test=false \
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         --enable_rtp_attack=true \
@@ -688,3 +734,5 @@ main() {
 
 # Run main function
 main "$@"
+
+
