@@ -2489,6 +2489,8 @@ struct FakeMHL {
     uint32_t switchPortA;
     uint32_t switchPortB;
     Time creationTime;
+    Time injectionTime;
+    Time lastAnnounceTime;
     uint32_t announceCount;
     bool announced;
     bool detected;
@@ -2547,11 +2549,11 @@ private:
     std::vector<uint32_t> m_maliciousNodeIds;
     std::vector<FakeMHL> m_fakeMHLs;
     uint32_t m_totalNodes;
+    uint32_t m_numFakeMHLs;
+    double m_mhlAnnounceInterval;
     bool m_injectFakeMHL;
     bool m_relayBDDP;
     bool m_dropLLDP;
-    uint32_t m_numFakeMHLs;
-    double m_mhlAnnounceInterval;
     Time m_startTime;
     Time m_stopTime;
     Time m_attackStartTime;
@@ -103996,10 +103998,6 @@ void RoutingTablePoisoningAttackManager::MarkMHLDetected(uint32_t switchA, uint3
             break;
         }
     }
-}
-
-RTPStatistics RoutingTablePoisoningAttackManager::GetStatistics() const {
-    return m_stats;
 }
 
 void RoutingTablePoisoningAttackManager::PrintStatistics() const {
