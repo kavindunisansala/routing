@@ -6,7 +6,7 @@
 # Measures performance metrics: PDR, Latency, Overhead, Detection Accuracy
 ################################################################################
 
-set -e  # Exit on error
+# Note: Don't use 'set -e' as it causes premature exit on expected errors
 
 # Colors for output
 RED='\033[0;31m'
@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-NS3_PATH="${NS3_PATH:-./build}"
+NS3_PATH="${NS3_PATH:-.}"  # Default to current directory (NS-3 root)
 ROUTING_SCRIPT="routing"
 RESULTS_DIR="./results_$(date +%Y%m%d_%H%M%S)"
 SIM_TIME=60  # Simulation time in seconds
@@ -152,13 +152,24 @@ test_baseline() {
     local output_dir="$RESULTS_DIR/baseline"
     print_info "Running baseline simulation..."
     
+    # Check if we're in NS-3 directory
+    if [ ! -f "waf" ]; then
+        print_error "Error: waf not found. Please run this script from NS-3 root directory."
+        print_info "Current directory: $(pwd)"
+        return 1
+    fi
+    
     # Compile NS-3 if needed
-    if [ ! -f "$NS3_PATH/scratch/$ROUTING_SCRIPT" ]; then
+    if [ ! -f "build/scratch/ns3.35-routing-default" ] && [ ! -f "build/scratch/routing" ]; then
         print_info "Compiling NS-3 project..."
-        cd "$NS3_PATH" && ./waf build
+        ./waf build || {
+            print_error "Build failed! Please check compilation errors."
+            return 1
+        }
     fi
     
     # Run simulation with no attacks
+    print_info "Executing simulation..."
     ./waf --run "scratch/$ROUTING_SCRIPT \
         --simTime=$SIM_TIME \
         --N_Vehicles=$VEHICLES \
@@ -169,7 +180,13 @@ test_baseline() {
         --enable_sybil_attack=false \
         --enable_replay_attack=false \
         --enable_rtp_attack=false" \
-        > "$output_dir/logs/baseline.log" 2>&1
+        > "$output_dir/logs/baseline.log" 2>&1 || {
+        print_error "Simulation failed! Check log: $output_dir/logs/baseline.log"
+        tail -20 "$output_dir/logs/baseline.log"
+        return 1
+    }
+    
+    print_success "Baseline simulation completed"
     
     # Extract metrics
     local pdr=$(extract_metrics "$output_dir/csv/baseline_stats.csv" "PDR")
@@ -197,6 +214,7 @@ test_wormhole_attack() {
     # 2a: Wormhole Attack (No Mitigation)
     print_info "Running Wormhole attack without mitigation..."
     
+    print_info "Executing simulation..."
     ./waf --run "scratch/$ROUTING_SCRIPT \
         --simTime=$SIM_TIME \
         --N_Vehicles=$VEHICLES \
@@ -211,7 +229,12 @@ test_wormhole_attack() {
         --attack_percentage=0.20 \
         --enable_wormhole_detection=false \
         --enable_wormhole_mitigation=false" \
-        > "$output_dir/logs/wormhole_attack.log" 2>&1
+        > "$output_dir/logs/wormhole_attack.log" 2>&1 || {
+        print_error "Wormhole attack simulation failed! Check log: $output_dir/logs/wormhole_attack.log"
+        return 1
+    }
+    
+    print_success "Wormhole attack simulation completed"
     
     local attack_pdr=$(extract_metrics "$output_dir/csv/wormhole_attack_stats.csv" "PDR")
     local attack_latency=$(extract_metrics "$output_dir/csv/wormhole_attack_stats.csv" "AvgLatency")
@@ -227,6 +250,7 @@ test_wormhole_attack() {
     # 2b: Wormhole Attack with Mitigation
     print_info "Running Wormhole attack WITH mitigation..."
     
+    print_info "Executing simulation..."
     ./waf --run "scratch/$ROUTING_SCRIPT \
         --simTime=$SIM_TIME \
         --N_Vehicles=$VEHICLES \
@@ -243,7 +267,12 @@ test_wormhole_attack() {
         --enable_wormhole_mitigation=true \
         --detection_latency_threshold=2.0 \
         --detection_check_interval=1.0" \
-        > "$output_dir/logs/wormhole_mitigation.log" 2>&1
+        > "$output_dir/logs/wormhole_mitigation.log" 2>&1 || {
+        print_error "Wormhole mitigation simulation failed!"
+        return 1
+    }
+    
+    print_success "Wormhole mitigation simulation completed"
     
     local mitig_pdr=$(extract_metrics "$output_dir/csv/wormhole_mitigation_stats.csv" "PDR")
     local mitig_latency=$(extract_metrics "$output_dir/csv/wormhole_mitigation_stats.csv" "AvgLatency")
@@ -623,16 +652,32 @@ main() {
     print_info "Testing all 5 SDVN attack types and mitigation solutions"
     print_info "Results will be saved to: $RESULTS_DIR"
     
+    # Verify we're in NS-3 directory
+    if [ ! -f "waf" ]; then
+        print_error "Error: This script must be run from NS-3 root directory!"
+        print_error "Current directory: $(pwd)"
+        print_info "Please cd to your NS-3 directory (e.g., ~/ns-allinone-3.35/ns-3.35)"
+        exit 1
+    fi
+    
+    # Verify routing.cc exists
+    if [ ! -f "scratch/routing.cc" ]; then
+        print_error "Error: routing.cc not found in scratch/ directory!"
+        print_info "Please ensure routing.cc is in the scratch/ folder"
+        exit 1
+    fi
+    
     # Setup
     setup_results_dir
     
-    # Run all tests
-    test_baseline
-    test_wormhole_attack
-    test_blackhole_attack
-    test_sybil_attack
-    test_replay_attack
-    test_rtp_attack
+    # Run all tests (continue on failure to collect all results)
+    print_info "Starting test execution..."
+    test_baseline || print_warning "Baseline test had issues"
+    test_wormhole_attack || print_warning "Wormhole test had issues"
+    test_blackhole_attack || print_warning "Blackhole test had issues"
+    test_sybil_attack || print_warning "Sybil test had issues"
+    test_replay_attack || print_warning "Replay test had issues"
+    test_rtp_attack || print_warning "RTP test had issues"
     
     # Generate summary
     generate_summary_report
