@@ -151931,100 +151931,6 @@ int main(int argc, char *argv[])
                   << "s to " << stopTime << "s" << std::endl;
         std::cout << "============================================\n" << std::endl;
         
-        // ===== Blackhole Attack Configuration =====
-        if (enable_blackhole_attack) {
-            std::cout << "\n============================================" << std::endl;
-            std::cout << "=== Enhanced Blackhole Attack Configuration ===" << std::endl;
-            
-            // Count malicious nodes
-            uint32_t malicious_count = 0;
-            for (bool isMalicious : blackhole_malicious_nodes) {
-                if (isMalicious) malicious_count++;
-            }
-            
-            // Ensure we have at least some blackhole nodes
-            if (malicious_count == 0) {
-                std::cout << "Warning: No malicious nodes selected. Selecting based on percentage..." << std::endl;
-            }
-            
-            std::cout << "Total Nodes (actual): " << actual_node_count << std::endl;
-            std::cout << "Malicious Nodes Selected: " << malicious_count << std::endl;
-            std::cout << "Attack Percentage: " << (blackhole_attack_percentage * 100) << "%" << std::endl;
-            std::cout << "Drop Data Packets: " << (blackhole_drop_data ? "Yes" : "No") << std::endl;
-            std::cout << "Drop Routing Packets: " << (blackhole_drop_routing ? "Yes" : "No") << std::endl;
-            std::cout << "Advertise Fake Routes: " << (blackhole_advertise_fake_routes ? "Yes" : "No") << std::endl;
-            std::cout << "Fake Sequence Number: " << blackhole_fake_sequence_number << std::endl;
-            std::cout << "Fake Hop Count: " << (uint32_t)blackhole_fake_hop_count << std::endl;
-            
-            // Create blackhole manager
-            g_blackholeManager = new ns3::BlackholeAttackManager();
-            
-            // Initialize with malicious nodes
-            g_blackholeManager->Initialize(blackhole_malicious_nodes, blackhole_attack_percentage, actual_node_count);
-            
-            // Set blackhole behavior
-            g_blackholeManager->SetBlackholeBehavior(blackhole_drop_data, 
-                                                     blackhole_drop_routing, 
-                                                     blackhole_advertise_fake_routes);
-            
-            // Set fake route parameters
-            g_blackholeManager->SetFakeRouteParameters(blackhole_fake_sequence_number, 
-                                                       blackhole_fake_hop_count);
-            
-            // Determine stop time
-            double blackholeStopTime = (blackhole_stop_time > 0) ? blackhole_stop_time : simTime;
-            
-            // Activate attack
-            g_blackholeManager->ActivateAttack(ns3::Seconds(blackhole_start_time), 
-                                               ns3::Seconds(blackholeStopTime));
-            
-            // Install BlackholeApp on all malicious nodes
-            for (uint32_t i = 0; i < blackhole_malicious_nodes.size(); ++i) {
-                if (blackhole_malicious_nodes[i]) {
-                    Ptr<Node> node = ns3::NodeList::GetNode(i);
-                    Ptr<BlackholeApp> app = CreateObject<BlackholeApp>();
-                    app->SetNodeId(i);
-                    node->AddApplication(app);
-                    app->SetStartTime(Seconds(blackhole_start_time));
-                    app->SetStopTime(Seconds(blackholeStopTime));
-                }
-            }
-            
-            // Configure visualization (Black color)
-            g_blackholeManager->ConfigureVisualization(anim, 0, 0, 0);
-            
-            std::cout << "Configured " << g_blackholeManager->GetBlackholeNodeCount() 
-                      << " blackhole nodes" << std::endl;
-            std::cout << "Attack active from " << blackhole_start_time 
-                      << "s to " << blackholeStopTime << "s" << std::endl;
-            std::cout << "============================================\n" << std::endl;
-        }
-        
-        // ===== Blackhole Mitigation System Initialization =====
-        if (enable_blackhole_mitigation) {
-            std::cout << "\n=== Blackhole Mitigation System Configuration ===" << std::endl;
-            std::cout << "Mitigation: " << (enable_blackhole_mitigation ? "ENABLED" : "DISABLED") << std::endl;
-            std::cout << "PDR Threshold: " << (blackhole_pdr_threshold * 100) << "%" << std::endl;
-            std::cout << "Minimum Packets for Blacklisting: " << blackhole_min_packets << std::endl;
-            
-            // Create global mitigation manager
-            g_blackholeMitigation = new ns3::BlackholeMitigationManager();
-            g_blackholeMitigation->Initialize(actual_node_count, blackhole_pdr_threshold);
-            g_blackholeMitigation->EnableMitigation(true);
-            
-            std::cout << "Blackhole mitigation system initialized for " << actual_node_count << " nodes" << std::endl;
-            std::cout << "============================================\n" << std::endl;
-        }
-        
-        // ===== Packet Tracking System Initialization =====
-        if (enable_packet_tracking) {
-            std::cout << "\n=== Packet Tracking System Configuration ===" << std::endl;
-            g_packetTracker = new ns3::PacketTracker();
-            std::cout << "Packet tracking ENABLED - detailed per-packet metrics will be recorded" << std::endl;
-            std::cout << "CSV output will be generated at simulation end" << std::endl;
-            std::cout << "============================================\n" << std::endl;
-        }
-        
         // ===== Wormhole Detection System Initialization =====
         if (enable_wormhole_detection) {
             std::cout << "\n=== Wormhole Detection System Configuration ===" << std::endl;
@@ -152085,8 +151991,113 @@ int main(int argc, char *argv[])
         setup_wormhole_tunnels(anim);
     }
     
+    // ============================================================================
+    // INDEPENDENT ATTACK CONFIGURATIONS
+    // Each attack can now run independently regardless of other attacks
+    // ============================================================================
+    
+    // ===== Blackhole Attack Configuration (Independent) =====
+    if (enable_blackhole_attack) {
+        // Get actual node count from NS-3
+        uint32_t actual_node_count = ns3::NodeList::GetNNodes();
+        
+        std::cout << "\n============================================" << std::endl;
+        std::cout << "=== Enhanced Blackhole Attack Configuration ===" << std::endl;
+        
+        // Count malicious nodes
+        uint32_t malicious_count = 0;
+        for (bool isMalicious : blackhole_malicious_nodes) {
+            if (isMalicious) malicious_count++;
+        }
+        
+        // Ensure we have at least some blackhole nodes
+        if (malicious_count == 0) {
+            std::cout << "Warning: No malicious nodes selected. Selecting based on percentage..." << std::endl;
+        }
+        
+        std::cout << "Total Nodes (actual): " << actual_node_count << std::endl;
+        std::cout << "Malicious Nodes Selected: " << malicious_count << std::endl;
+        std::cout << "Attack Percentage: " << (blackhole_attack_percentage * 100) << "%" << std::endl;
+        std::cout << "Drop Data Packets: " << (blackhole_drop_data ? "Yes" : "No") << std::endl;
+        std::cout << "Drop Routing Packets: " << (blackhole_drop_routing ? "Yes" : "No") << std::endl;
+        std::cout << "Advertise Fake Routes: " << (blackhole_advertise_fake_routes ? "Yes" : "No") << std::endl;
+        std::cout << "Fake Sequence Number: " << blackhole_fake_sequence_number << std::endl;
+        std::cout << "Fake Hop Count: " << (uint32_t)blackhole_fake_hop_count << std::endl;
+        
+        // Create blackhole manager
+        g_blackholeManager = new ns3::BlackholeAttackManager();
+        
+        // Initialize with malicious nodes
+        g_blackholeManager->Initialize(blackhole_malicious_nodes, blackhole_attack_percentage, actual_node_count);
+        
+        // Set blackhole behavior
+        g_blackholeManager->SetBlackholeBehavior(blackhole_drop_data, 
+                                                 blackhole_drop_routing, 
+                                                 blackhole_advertise_fake_routes);
+        
+        // Set fake route parameters
+        g_blackholeManager->SetFakeRouteParameters(blackhole_fake_sequence_number, 
+                                                   blackhole_fake_hop_count);
+        
+        // Determine stop time
+        double blackholeStopTime = (blackhole_stop_time > 0) ? blackhole_stop_time : simTime;
+        
+        // Activate attack
+        g_blackholeManager->ActivateAttack(ns3::Seconds(blackhole_start_time), 
+                                           ns3::Seconds(blackholeStopTime));
+        
+        // Install BlackholeApp on all malicious nodes
+        for (uint32_t i = 0; i < blackhole_malicious_nodes.size(); ++i) {
+            if (blackhole_malicious_nodes[i]) {
+                Ptr<Node> node = ns3::NodeList::GetNode(i);
+                Ptr<BlackholeApp> app = CreateObject<BlackholeApp>();
+                app->SetNodeId(i);
+                node->AddApplication(app);
+                app->SetStartTime(Seconds(blackhole_start_time));
+                app->SetStopTime(Seconds(blackholeStopTime));
+            }
+        }
+        
+        // Configure visualization (Black color)
+        g_blackholeManager->ConfigureVisualization(anim, 0, 0, 0);
+        
+        std::cout << "Configured " << g_blackholeManager->GetBlackholeNodeCount() 
+                  << " blackhole nodes" << std::endl;
+        std::cout << "Attack active from " << blackhole_start_time 
+                  << "s to " << blackholeStopTime << "s" << std::endl;
+        std::cout << "============================================\n" << std::endl;
+    }
+    
+    // ===== Blackhole Mitigation System Initialization =====
+    if (enable_blackhole_mitigation) {
+        // Get actual node count from NS-3
+        uint32_t actual_node_count = ns3::NodeList::GetNNodes();
+        
+        std::cout << "\n=== Blackhole Mitigation System Configuration ===" << std::endl;
+        std::cout << "Mitigation: " << (enable_blackhole_mitigation ? "ENABLED" : "DISABLED") << std::endl;
+        std::cout << "PDR Threshold: " << (blackhole_pdr_threshold * 100) << "%" << std::endl;
+        std::cout << "Minimum Packets for Blacklisting: " << blackhole_min_packets << std::endl;
+        
+        // Create global mitigation manager
+        g_blackholeMitigation = new ns3::BlackholeMitigationManager();
+        g_blackholeMitigation->Initialize(actual_node_count, blackhole_pdr_threshold);
+        g_blackholeMitigation->EnableMitigation(true);
+        
+        std::cout << "Blackhole mitigation system initialized for " << actual_node_count << " nodes" << std::endl;
+        std::cout << "============================================\n" << std::endl;
+    }
+    
+    // ===== Packet Tracking System Initialization =====
+    if (enable_packet_tracking) {
+        std::cout << "\n=== Packet Tracking System Configuration ===" << std::endl;
+        g_packetTracker = new ns3::PacketTracker();
+        std::cout << "Packet tracking ENABLED - detailed per-packet metrics will be recorded" << std::endl;
+        std::cout << "CSV output will be generated at simulation end" << std::endl;
+        std::cout << "============================================\n" << std::endl;
+    }
+    
     // ===== Sybil Attack Configuration (Independent) =====
-    if (!present_wormhole_attack_nodes || !use_enhanced_wormhole) {
+    if (enable_sybil_attack) {
         // Get actual node count from NS-3
         uint32_t actual_node_count = ns3::NodeList::GetNNodes();
         
@@ -152193,7 +152204,6 @@ int main(int argc, char *argv[])
             
             std::cout << "Advanced Sybil mitigation system initialized successfully" << std::endl;
         }
-    }
     
     // ===== Replay Attack Configuration (Independent) =====
     if (enable_replay_attack || enable_replay_detection) {
