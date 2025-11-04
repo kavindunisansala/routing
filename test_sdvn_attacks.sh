@@ -72,6 +72,9 @@ collect_csv_files() {
         "replay-attack-results.csv"
         "replay-detection-results.csv"
         "replay-mitigation-results.csv"
+        "rtp-attack-results.csv"
+        "rtp-detection-results.csv"
+        "rtp-mitigation-results.csv"
         "trusted-certification-results.csv"
         "rssi-detection-results.csv"
         "resource-testing-results.csv"
@@ -304,14 +307,81 @@ test_sybil_10() {
 }
 
 # ============================================================================
-# Test 7: Combined Attacks (All 3 at 10%)
+# Test 7: Replay Attack by Data Plane Nodes (10%)
+# ============================================================================
+test_replay_10() {
+    local output_dir="$RESULTS_DIR/replay_10pct"
+    mkdir -p "$output_dir/logs"
+    
+    print_header "TEST 7: REPLAY ATTACK - 10% Malicious Data Plane Nodes"
+    print_info "Compromised nodes capture and replay old packets"
+    print_info "Controllers use Bloom Filters to detect duplicate packets"
+    
+    ./waf --run "scratch/$ROUTING_SCRIPT \
+        --simTime=$SIM_TIME \
+        --routing_test=false \
+        --N_Vehicles=$VEHICLES \
+        --N_RSUs=$RSUS \
+        --architecture=$ARCHITECTURE \
+        --enable_packet_tracking=true \
+        --present_replay_attack_nodes=true \
+        --enable_replay_attack=true \
+        --replay_attack_percentage=0.1 \
+        --replay_start_time=10.0 \
+        --enable_replay_detection=true \
+        --enable_replay_mitigation=true" \
+        > "$output_dir/logs/replay_10.log" 2>&1
+    
+    if [ $? -eq 0 ]; then
+        print_success "Replay 10% test completed"
+        collect_csv_files "$output_dir" "replay_10"
+    else
+        print_error "Replay 10% test failed!"
+        return 1
+    fi
+}
+
+# ============================================================================
+# Test 8: Routing Table Poisoning (RTP) Attack by Data Plane Nodes (10%)
+# ============================================================================
+test_rtp_10() {
+    local output_dir="$RESULTS_DIR/rtp_10pct"
+    mkdir -p "$output_dir/logs"
+    
+    print_header "TEST 8: ROUTING TABLE POISONING (RTP) ATTACK - 10% Malicious Nodes"
+    print_info "Compromised nodes inject fake routing information"
+    print_info "Controllers validate routing updates and detect anomalies"
+    
+    ./waf --run "scratch/$ROUTING_SCRIPT \
+        --simTime=$SIM_TIME \
+        --routing_test=false \
+        --N_Vehicles=$VEHICLES \
+        --N_RSUs=$RSUS \
+        --architecture=$ARCHITECTURE \
+        --enable_packet_tracking=true \
+        --enable_rtp_attack=true \
+        --rtp_attack_percentage=0.1 \
+        --rtp_start_time=10.0" \
+        > "$output_dir/logs/rtp_10.log" 2>&1
+    
+    if [ $? -eq 0 ]; then
+        print_success "RTP 10% test completed"
+        collect_csv_files "$output_dir" "rtp_10"
+    else
+        print_error "RTP 10% test failed!"
+        return 1
+    fi
+}
+
+# ============================================================================
+# Test 9: Combined Attacks (All 5 at 10%)
 # ============================================================================
 test_combined() {
     local output_dir="$RESULTS_DIR/combined_10pct"
     mkdir -p "$output_dir/logs"
     
-    print_header "TEST 7: COMBINED ATTACKS - Wormhole + Blackhole + Sybil (10% each)"
-    print_info "Multiple attack types simultaneously"
+    print_header "TEST 9: COMBINED ATTACKS - All 5 Attacks (10% each)"
+    print_info "Wormhole + Blackhole + Sybil + Replay + RTP simultaneously"
     print_info "Tests controller resilience under multiple threats"
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
@@ -324,6 +394,7 @@ test_combined() {
         --present_wormhole_attack_nodes=true \
         --present_blackhole_attack_nodes=true \
         --present_sybil_attack_nodes=true \
+        --present_replay_attack_nodes=true \
         --use_enhanced_wormhole=true \
         --attack_percentage=0.1 \
         --enable_wormhole_detection=true \
@@ -334,7 +405,13 @@ test_combined() {
         --enable_sybil_attack=true \
         --sybil_attack_percentage=0.1 \
         --enable_sybil_detection=true \
-        --enable_sybil_mitigation=true" \
+        --enable_sybil_mitigation=true \
+        --enable_replay_attack=true \
+        --replay_attack_percentage=0.1 \
+        --enable_replay_detection=true \
+        --enable_replay_mitigation=true \
+        --enable_rtp_attack=true \
+        --rtp_attack_percentage=0.1" \
         > "$output_dir/logs/combined.log" 2>&1
     
     if [ $? -eq 0 ]; then
@@ -386,7 +463,9 @@ TEST SCENARIOS:
 4. Blackhole Attack (10% malicious data plane nodes)
 5. Blackhole Attack (20% malicious data plane nodes)
 6. Sybil Attack (10% malicious data plane nodes)
-7. Combined Attacks (Wormhole + Blackhole + Sybil @ 10% each)
+7. Replay Attack (10% malicious data plane nodes)
+8. Routing Table Poisoning (RTP) Attack (10% malicious nodes)
+9. Combined Attacks (All 5 attacks @ 10% each)
 
 ATTACK DESCRIPTIONS:
 ─────────────────────────────────────────────────────────────
@@ -410,6 +489,20 @@ ATTACK DESCRIPTIONS:
    - Pollutes controller's topology database
    - Detection: PKI certification + RSSI analysis
    - Mitigation: Trusted certification, RSSI verification
+
+4. REPLAY ATTACK (Data Plane):
+   - Compromised nodes capture and replay old packets
+   - Creates duplicate traffic and confuses routing
+   - Can replay authentication messages
+   - Detection: Bloom Filters to detect packet duplicates
+   - Mitigation: Automatic packet rejection and node blacklisting
+
+5. ROUTING TABLE POISONING (RTP) ATTACK (Data Plane):
+   - Compromised nodes inject fake routing information
+   - Advertise false network topology to controller
+   - Manipulate Multi-Hop Link (MHL) advertisements
+   - Detection: Controller validates routing consistency
+   - Mitigation: Route verification and anomaly detection
 
 KEY DIFFERENCE FROM CONTROLLER ATTACKS:
 ─────────────────────────────────────────────────────────────
@@ -465,6 +558,8 @@ main() {
     test_blackhole_10 || exit 1
     test_blackhole_20 || exit 1
     test_sybil_10 || exit 1
+    test_replay_10 || exit 1
+    test_rtp_10 || exit 1
     test_combined || exit 1
     
     # Generate summary
