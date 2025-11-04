@@ -424,21 +424,36 @@ class SDVNEvaluationAnalyzer:
         output_dir = os.path.join(self.results_dir, 'analysis_output')
         os.makedirs(output_dir, exist_ok=True)
         
-        # Summary statistics table
-        if hasattr(self, 'summary_df'):
-            latex_file = os.path.join(output_dir, 'summary_table.tex')
-            with open(latex_file, 'w') as f:
-                f.write("% SDVN Security Evaluation - Summary Statistics\n")
-                f.write(self.summary_df.to_latex(index=False, float_format='%.2f'))
-            print(f"  ✓ Summary table saved: summary_table.tex")
-        
-        # Comparison table
-        if hasattr(self, 'comparison_df'):
-            latex_file = os.path.join(output_dir, 'comparison_table.tex')
-            with open(latex_file, 'w') as f:
-                f.write("% SDVN Security Evaluation - Mitigation Comparison\n")
-                f.write(self.comparison_df.to_latex(index=False, float_format='%.2f'))
-            print(f"  ✓ Comparison table saved: comparison_table.tex")
+        try:
+            # Summary statistics table
+            if hasattr(self, 'summary_df'):
+                latex_file = os.path.join(output_dir, 'summary_table.tex')
+                with open(latex_file, 'w') as f:
+                    f.write("% SDVN Security Evaluation - Summary Statistics\n")
+                    # Use to_string() as fallback if jinja2 not available
+                    try:
+                        f.write(self.summary_df.to_latex(index=False, float_format='%.2f'))
+                    except ImportError:
+                        f.write("% Note: Install jinja2 for proper LaTeX formatting\n")
+                        f.write("% pip install jinja2\n\n")
+                        f.write(self.summary_df.to_string())
+                print(f"  ✓ Summary table saved: summary_table.tex")
+            
+            # Comparison table
+            if hasattr(self, 'comparison_df'):
+                latex_file = os.path.join(output_dir, 'comparison_table.tex')
+                with open(latex_file, 'w') as f:
+                    f.write("% SDVN Security Evaluation - Mitigation Comparison\n")
+                    try:
+                        f.write(self.comparison_df.to_latex(index=False, float_format='%.2f'))
+                    except ImportError:
+                        f.write("% Note: Install jinja2 for proper LaTeX formatting\n")
+                        f.write("% pip install jinja2\n\n")
+                        f.write(self.comparison_df.to_string())
+                print(f"  ✓ Comparison table saved: comparison_table.tex")
+        except Exception as e:
+            print(f"  ⚠ Warning: LaTeX table generation had issues: {e}")
+            print(f"  → Install jinja2: pip install jinja2")
     
     def generate_report(self):
         """Generate comprehensive analysis report"""
