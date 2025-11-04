@@ -2367,7 +2367,7 @@ struct MHLInfo {
     Time discoveryTime;             // When MHL was discovered
     bool isLegitimate;              // Verification status
     bool isVerified;                // Whether verification completed
-    std::vector<MacAddress> observedMacs;  // MACs seen on this MHL
+    std::vector<Mac48Address> observedMacs;  // MACs seen on this MHL
     uint32_t trafficCount;          // Traffic count for monitoring
     
     MHLInfo() 
@@ -2379,7 +2379,7 @@ struct MHLInfo {
  * @brief Host traffic mapping for MAC-learning-based verification
  */
 struct HostTrafficInfo {
-    MacAddress hostMac;
+    Mac48Address hostMac;
     uint32_t lastSeenSwitchPort;
     uint32_t lastSeenSwitchId;
     Time lastSeenTime;
@@ -2441,14 +2441,14 @@ public:
     void RegisterMHLDiscovery(uint32_t switchA, uint32_t portA, 
                              uint32_t switchB, uint32_t portB);
     bool VerifyMHL(const MHLInfo& mhl);
-    void SendProbePacket(const MHLInfo& mhl, const MacAddress& targetMac);
-    void ProcessProbeResponse(uint32_t switchPort, const MacAddress& responseMac);
+    void SendProbePacket(const MHLInfo& mhl, const Mac48Address& targetMac);
+    void ProcessProbeResponse(uint32_t switchPort, const Mac48Address& responseMac);
     
     // Traffic Monitoring
     void MonitorSwitchTraffic(uint32_t switchId, uint32_t port, 
-                             const MacAddress& srcMac, const MacAddress& dstMac);
-    void MonitorHostTraffic(uint32_t switchId, uint32_t port, const MacAddress& hostMac);
-    void UpdateHostMapping(const MacAddress& mac, uint32_t switchId, uint32_t port);
+                             const Mac48Address& srcMac, const Mac48Address& dstMac);
+    void MonitorHostTraffic(uint32_t switchId, uint32_t port, const Mac48Address& hostMac);
+    void UpdateHostMapping(const Mac48Address& mac, uint32_t switchId, uint32_t port);
     
     // Attack Detection
     bool IsFabricatedMHL(const MHLInfo& mhl);
@@ -2462,7 +2462,7 @@ public:
     
 private:
     bool IsProbePacketLoop(uint32_t originPort, uint32_t returnPort);
-    MacAddress SelectProbeTarget(const MHLInfo& mhl);
+    Mac48Address SelectProbeTarget(const MHLInfo& mhl);
     Time CalculateVerificationTimeout();
     
     bool m_detectionEnabled;
@@ -2471,13 +2471,93 @@ private:
     uint32_t m_totalSwitches;
     
     std::map<std::pair<uint32_t, uint32_t>, MHLInfo> m_discoveredMHLs;  // (switchA, switchB) -> MHL
-    std::map<MacAddress, HostTrafficInfo> m_hostTrafficMap;  // MAC -> traffic info
+    std::map<Mac48Address, HostTrafficInfo> m_hostTrafficMap;  // MAC -> traffic info
     std::set<std::pair<uint32_t, uint32_t>> m_blacklistedMHLs;  // Fabricated MHLs
-    std::map<uint32_t, std::set<MacAddress>> m_switchPortMacs;  // switchPort -> MACs
+    std::map<uint32_t, std::set<Mac48Address>> m_switchPortMacs;  // switchPort -> MACs
     
     HybridShieldMetrics m_metrics;
     std::map<std::string, Time> m_probeStartTimes;  // Track probe timing
     uint32_t m_probeSequence;
+};
+
+/**
+ * @brief Fake Multi-Hop Link for RTP Attack
+ */
+struct FakeMHL {
+    uint32_t switchIdA;
+    uint32_t switchIdB;
+    uint32_t switchPortA;
+    uint32_t switchPortB;
+    Time creationTime;
+    uint32_t announceCount;
+    bool announced;
+    bool detected;
+    
+    FakeMHL() 
+        : switchIdA(0), switchIdB(0), switchPortA(0), switchPortB(0),
+          announceCount(0), announced(false), detected(false) {}
+};
+
+/**
+ * @brief RTP Attack Statistics
+ */
+struct RTPStatistics {
+    uint32_t totalFakeMHLsInjected;
+    uint32_t totalBDDPRelayed;
+    uint32_t totalLLDPDropped;
+    uint32_t detectedByDefense;
+    double attackDuration;
+    
+    RTPStatistics()
+        : totalFakeMHLsInjected(0), totalBDDPRelayed(0),
+          totalLLDPDropped(0), detectedByDefense(0),
+          attackDuration(0.0) {}
+};
+
+/**
+ * @brief Routing Table Poisoning Attack Manager with MHL Fabrication
+ */
+class RoutingTablePoisoningAttackManager {
+public:
+    RoutingTablePoisoningAttackManager();
+    ~RoutingTablePoisoningAttackManager();
+    
+    void Initialize(std::vector<bool> maliciousNodes, uint32_t totalNodes);
+    void SetParameters(bool injectFakeMHL, bool relayBDDP, bool dropLLDP, 
+                      uint32_t numFakeMHLs, double mhlAnnounceInterval);
+    void ActivateAttack(Time startTime, Time stopTime);
+    void StartAttack();
+    void StopAttack();
+    
+    // Attack operations
+    void GenerateFakeMHLs();
+    void AnnounceFakeMHLs();
+    void InjectFakeMHLToController(FakeMHL& mhl);
+    bool ProcessBDDPPacket(Ptr<const Packet> packet, uint32_t fromSwitch, 
+                          uint32_t toSwitch, uint32_t port);
+    bool ProcessLLDPPacket(Ptr<const Packet> packet, uint32_t switchId);
+    void MarkMHLDetected(uint32_t switchA, uint32_t switchB);
+    
+    std::vector<uint32_t> GetMaliciousNodeIds() const { return m_maliciousNodeIds; }
+    RTPStatistics GetStatistics() const { return m_stats; }
+    void PrintStatistics() const;
+    void ExportStatistics(std::string filename) const;
+    
+private:
+    std::vector<uint32_t> m_maliciousNodeIds;
+    std::vector<FakeMHL> m_fakeMHLs;
+    uint32_t m_totalNodes;
+    bool m_injectFakeMHL;
+    bool m_relayBDDP;
+    bool m_dropLLDP;
+    uint32_t m_numFakeMHLs;
+    double m_mhlAnnounceInterval;
+    Time m_startTime;
+    Time m_stopTime;
+    Time m_attackStartTime;
+    Time m_attackStopTime;
+    bool m_isActive;
+    RTPStatistics m_stats;
 };
 
 /**
@@ -2554,6 +2634,7 @@ private:
 // Global instances for Hybrid-Shield
 HybridShield* g_hybridShield = nullptr;
 HybridShieldMitigationManager* g_hybridShieldMitigation = nullptr;
+RoutingTablePoisoningAttackManager* g_rtpAttackManager = nullptr;
 RoutingTablePoisoningManager* g_rtpManager = nullptr;
 
 // ============================================================================
@@ -104060,7 +104141,7 @@ bool HybridShield::VerifyMHL(const MHLInfo& mhl) {
     Time verificationStart = Simulator::Now();
     
     // Select probe target MAC from previously observed hosts
-    MacAddress probeMac = SelectProbeTarget(mhl);
+    Mac48Address probeMac = SelectProbeTarget(mhl);
     
     if (probeMac == Mac48Address::GetBroadcast()) {
         // No suitable probe target - mark as suspicious but don't block yet
@@ -104080,7 +104161,7 @@ bool HybridShield::VerifyMHL(const MHLInfo& mhl) {
     return true;
 }
 
-void HybridShield::SendProbePacket(const MHLInfo& mhl, const MacAddress& targetMac) {
+void HybridShield::SendProbePacket(const MHLInfo& mhl, const Mac48Address& targetMac) {
     // Create probe packet destined to previously observed host MAC
     // In real SDN, controller would send PacketOut message to switch
     
@@ -104091,7 +104172,7 @@ void HybridShield::SendProbePacket(const MHLInfo& mhl, const MacAddress& targetM
     // In real implementation, this would be OpenFlow PacketOut/PacketIn messages
 }
 
-void HybridShield::ProcessProbeResponse(uint32_t switchPort, const MacAddress& responseMac) {
+void HybridShield::ProcessProbeResponse(uint32_t switchPort, const Mac48Address& responseMac) {
     // Check if probe packet returned to originating switch-port
     // If yes -> fake MHL (loop detected)
     // If no -> legitimate MHL (packet reached actual host)
@@ -104138,7 +104219,7 @@ void HybridShield::ProcessProbeResponse(uint32_t switchPort, const MacAddress& r
 }
 
 void HybridShield::MonitorSwitchTraffic(uint32_t switchId, uint32_t port, 
-                                       const MacAddress& srcMac, const MacAddress& dstMac) {
+                                       const Mac48Address& srcMac, const Mac48Address& dstMac) {
     if (!m_detectionEnabled) return;
     
     // Monitor traffic originating from legacy network
@@ -104151,14 +104232,14 @@ void HybridShield::MonitorSwitchTraffic(uint32_t switchId, uint32_t port,
     UpdateHostMapping(srcMac, switchId, port);
 }
 
-void HybridShield::MonitorHostTraffic(uint32_t switchId, uint32_t port, const MacAddress& hostMac) {
+void HybridShield::MonitorHostTraffic(uint32_t switchId, uint32_t port, const Mac48Address& hostMac) {
     if (!m_detectionEnabled) return;
     
     // Track host MAC addresses for MAC-learning-based verification
     UpdateHostMapping(hostMac, switchId, port);
 }
 
-void HybridShield::UpdateHostMapping(const MacAddress& mac, uint32_t switchId, uint32_t port) {
+void HybridShield::UpdateHostMapping(const Mac48Address& mac, uint32_t switchId, uint32_t port) {
     HostTrafficInfo& info = m_hostTrafficMap[mac];
     info.hostMac = mac;
     info.lastSeenSwitchId = switchId;
@@ -104202,7 +104283,7 @@ bool HybridShield::IsProbePacketLoop(uint32_t originPort, uint32_t returnPort) {
     return (originPort == returnPort);
 }
 
-MacAddress HybridShield::SelectProbeTarget(const MHLInfo& mhl) {
+Mac48Address HybridShield::SelectProbeTarget(const MHLInfo& mhl) {
     // Select a previously observed MAC address from legacy network
     // for MAC-learning-based probe verification
     
