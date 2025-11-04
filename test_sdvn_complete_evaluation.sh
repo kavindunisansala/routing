@@ -128,17 +128,17 @@ print_section "PHASE 2: WORMHOLE ATTACK (3 tests)"
 run_simulation \
     "Wormhole Attack 10% (No Mitigation)" \
     "test02_wormhole_10_no_mitigation" \
-    "--enable_wormhole_attack=true --wormhole_attack_percentage=0.10"
+    "--present_wormhole_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1"
 
 run_simulation \
     "Wormhole Attack 10% (With Detection)" \
     "test03_wormhole_10_with_detection" \
-    "--enable_wormhole_attack=true --wormhole_attack_percentage=0.10 --enable_wormhole_detection=true"
+    "--present_wormhole_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --enable_wormhole_detection=true"
 
 run_simulation \
     "Wormhole Attack 10% (With Full Mitigation)" \
     "test04_wormhole_10_with_mitigation" \
-    "--enable_wormhole_attack=true --wormhole_attack_percentage=0.10 --enable_wormhole_detection=true --enable_wormhole_mitigation=true"
+    "--present_wormhole_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --enable_wormhole_detection=true --enable_wormhole_mitigation=true"
 
 # ============================================================================
 # PHASE 3: BLACKHOLE ATTACK
@@ -148,17 +148,17 @@ print_section "PHASE 3: BLACKHOLE ATTACK (3 tests)"
 run_simulation \
     "Blackhole Attack 10% (No Mitigation)" \
     "test05_blackhole_10_no_mitigation" \
-    "--enable_blackhole_attack=true --blackhole_attack_percentage=0.10"
+    "--present_blackhole_attack_nodes=true --attack_percentage=0.1 --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --blackhole_advertise_fake_routes=true"
 
 run_simulation \
     "Blackhole Attack 10% (With Detection)" \
     "test06_blackhole_10_with_detection" \
-    "--enable_blackhole_attack=true --blackhole_attack_percentage=0.10 --enable_blackhole_detection=true"
+    "--present_blackhole_attack_nodes=true --attack_percentage=0.1 --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --blackhole_advertise_fake_routes=true --enable_blackhole_detection=true"
 
 run_simulation \
     "Blackhole Attack 10% (With Full Mitigation)" \
     "test07_blackhole_10_with_mitigation" \
-    "--enable_blackhole_attack=true --blackhole_attack_percentage=0.10 --enable_blackhole_detection=true --enable_blackhole_mitigation=true"
+    "--present_blackhole_attack_nodes=true --attack_percentage=0.1 --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --blackhole_advertise_fake_routes=true --enable_blackhole_mitigation=true"
 
 # ============================================================================
 # PHASE 4: SYBIL ATTACK
@@ -168,17 +168,17 @@ print_section "PHASE 4: SYBIL ATTACK (3 tests)"
 run_simulation \
     "Sybil Attack 10% (No Mitigation)" \
     "test08_sybil_10_no_mitigation" \
-    "--enable_sybil_attack=true --sybil_attack_percentage=0.10"
+    "--present_sybil_attack_nodes=true --attack_percentage=0.1 --enable_sybil_attack=true --sybil_attack_percentage=0.1 --sybil_advertise_fake_routes=true --sybil_clone_legitimate_nodes=true"
 
 run_simulation \
     "Sybil Attack 10% (With Detection)" \
     "test09_sybil_10_with_detection" \
-    "--enable_sybil_attack=true --sybil_attack_percentage=0.10 --enable_sybil_detection=true"
+    "--present_sybil_attack_nodes=true --attack_percentage=0.1 --enable_sybil_attack=true --sybil_attack_percentage=0.1 --sybil_advertise_fake_routes=true --sybil_clone_legitimate_nodes=true --enable_sybil_detection=true --use_trusted_certification=true --use_rssi_detection=true"
 
 run_simulation \
     "Sybil Attack 10% (With Full Mitigation)" \
     "test10_sybil_10_with_mitigation" \
-    "--enable_sybil_attack=true --sybil_attack_percentage=0.10 --enable_sybil_detection=true --enable_sybil_mitigation=true"
+    "--present_sybil_attack_nodes=true --attack_percentage=0.1 --enable_sybil_attack=true --sybil_attack_percentage=0.1 --sybil_advertise_fake_routes=true --sybil_clone_legitimate_nodes=true --enable_sybil_detection=true --enable_sybil_mitigation=true --enable_sybil_mitigation_advanced=true --use_trusted_certification=true --use_rssi_detection=true"
 
 # ============================================================================
 # PHASE 5: REPLAY ATTACK
@@ -188,17 +188,17 @@ print_section "PHASE 5: REPLAY ATTACK (3 tests)"
 run_simulation \
     "Replay Attack 10% (No Mitigation)" \
     "test11_replay_10_no_mitigation" \
-    "--enable_replay_attack=true --replay_attack_percentage=0.10"
+    "--present_replay_attack_nodes=true --enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0"
 
 run_simulation \
     "Replay Attack 10% (With Detection - Bloom Filters)" \
     "test12_replay_10_with_detection" \
-    "--enable_replay_attack=true --replay_attack_percentage=0.10 --enable_replay_detection=true"
+    "--present_replay_attack_nodes=true --enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0 --enable_replay_detection=true"
 
 run_simulation \
     "Replay Attack 10% (With Full Mitigation)" \
     "test13_replay_10_with_mitigation" \
-    "--enable_replay_attack=true --replay_attack_percentage=0.10 --enable_replay_detection=true --enable_replay_mitigation=true"
+    "--present_replay_attack_nodes=true --enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0 --enable_replay_detection=true --enable_replay_mitigation=true"
 
 # ============================================================================
 # PHASE 6: RTP ATTACK (Routing Table Poisoning)
@@ -208,17 +208,17 @@ print_section "PHASE 6: RTP ATTACK - ROUTING TABLE POISONING (3 tests)"
 run_simulation \
     "RTP Attack 10% (No Mitigation)" \
     "test14_rtp_10_no_mitigation" \
-    "--enable_rtp_attack=true --rtp_attack_percentage=0.10"
+    "--enable_rtp_attack=true --rtp_attack_percentage=0.1 --rtp_start_time=10.0"
 
 run_simulation \
     "RTP Attack 10% (With Hybrid-Shield Detection)" \
     "test15_rtp_10_with_detection" \
-    "--enable_rtp_attack=true --rtp_attack_percentage=0.10 --enable_hybrid_shield_detection=true"
+    "--enable_rtp_attack=true --rtp_attack_percentage=0.1 --rtp_start_time=10.0 --enable_hybrid_shield_detection=true"
 
 run_simulation \
     "RTP Attack 10% (With Hybrid-Shield Full Mitigation)" \
     "test16_rtp_10_with_mitigation" \
-    "--enable_rtp_attack=true --rtp_attack_percentage=0.10 --enable_hybrid_shield_detection=true --enable_hybrid_shield_mitigation=true"
+    "--enable_rtp_attack=true --rtp_attack_percentage=0.1 --rtp_start_time=10.0 --enable_hybrid_shield_detection=true --enable_hybrid_shield_mitigation=true"
 
 # ============================================================================
 # PHASE 7: COMBINED ATTACK
@@ -228,7 +228,7 @@ print_section "PHASE 7: COMBINED ATTACK (1 test)"
 run_simulation \
     "Combined Attack 10% (All Attacks + All Mitigations)" \
     "test17_combined_10_with_all_mitigations" \
-    "--enable_wormhole_attack=true --wormhole_attack_percentage=0.10 --enable_wormhole_detection=true --enable_wormhole_mitigation=true --enable_blackhole_attack=true --blackhole_attack_percentage=0.10 --enable_blackhole_detection=true --enable_blackhole_mitigation=true --enable_sybil_attack=true --sybil_attack_percentage=0.10 --enable_sybil_detection=true --enable_sybil_mitigation=true --enable_replay_attack=true --replay_attack_percentage=0.10 --enable_replay_detection=true --enable_replay_mitigation=true --enable_rtp_attack=true --rtp_attack_percentage=0.10 --enable_hybrid_shield_detection=true --enable_hybrid_shield_mitigation=true"
+    "--present_wormhole_attack_nodes=true --present_blackhole_attack_nodes=true --present_sybil_attack_nodes=true --present_replay_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --enable_wormhole_detection=true --enable_wormhole_mitigation=true --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --enable_blackhole_mitigation=true --enable_sybil_attack=true --sybil_attack_percentage=0.1 --enable_sybil_detection=true --enable_sybil_mitigation=true --enable_replay_attack=true --replay_attack_percentage=0.1 --enable_replay_detection=true --enable_replay_mitigation=true --enable_rtp_attack=true --rtp_attack_percentage=0.1 --enable_hybrid_shield_detection=true --enable_hybrid_shield_mitigation=true"
 
 # ============================================================================
 # GENERATE SUMMARY
