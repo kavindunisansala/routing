@@ -343,14 +343,114 @@ test_rtp_attack_only() {
 }
 
 # ============================================================================
-# Test 6: Combined Replay + RTP Attack
+# Test 6: RTP Attack with Hybrid-Shield Detection
+# ============================================================================
+test_rtp_with_detection() {
+    local output_dir="$RESULTS_DIR/rtp_with_detection"
+    mkdir -p "$output_dir"
+    
+    print_header "TEST 6: RTP ATTACK WITH HYBRID-SHIELD DETECTION"
+    print_info "Testing RTP with Hybrid-Shield MHL fabrication detection..."
+    print_info "Probes verify topology authenticity"
+    
+    ./waf --run "scratch/$ROUTING_SCRIPT \
+        --simTime=$SIM_TIME \
+        --routing_test=false \
+        --N_Vehicles=$VEHICLES \
+        --N_RSUs=$RSUS \
+        --architecture=$ARCHITECTURE \
+        --enable_packet_tracking=true \
+        --enable_rtp_attack=true \
+        --rtp_attack_percentage=0.15 \
+        --rtp_start_time=10.0 \
+        --enable_hybrid_shield_detection=true" \
+        > "$output_dir/rtp_detection.log" 2>&1
+    
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        print_success "RTP detection test completed"
+        
+        # Check for detection indicators
+        if grep -q -i "hybrid.*shield\|detection\|fabrication.*detected" "$output_dir/rtp_detection.log"; then
+            print_success "Hybrid-Shield detection system activated"
+            grep -i "hybrid.*shield\|detection\|fabrication" "$output_dir/rtp_detection.log" | head -10
+        fi
+        
+        # Collect CSV files
+        if ls *.csv 1> /dev/null 2>&1; then
+            mv *.csv "$output_dir/" 2>/dev/null
+            print_success "CSV files collected"
+        fi
+        
+        return 0
+    else
+        print_error "RTP detection test failed"
+        tail -30 "$output_dir/rtp_detection.log"
+        return 1
+    fi
+}
+
+# ============================================================================
+# Test 7: RTP Attack with Full Hybrid-Shield Mitigation
+# ============================================================================
+test_rtp_with_mitigation() {
+    local output_dir="$RESULTS_DIR/rtp_with_mitigation"
+    mkdir -p "$output_dir"
+    
+    print_header "TEST 7: RTP ATTACK WITH HYBRID-SHIELD FULL MITIGATION"
+    print_info "Testing RTP with complete Hybrid-Shield protection..."
+    print_info "Detects and blocks fake MHL advertisements"
+    
+    ./waf --run "scratch/$ROUTING_SCRIPT \
+        --simTime=$SIM_TIME \
+        --routing_test=false \
+        --N_Vehicles=$VEHICLES \
+        --N_RSUs=$RSUS \
+        --architecture=$ARCHITECTURE \
+        --enable_packet_tracking=true \
+        --enable_rtp_attack=true \
+        --rtp_attack_percentage=0.15 \
+        --rtp_start_time=10.0 \
+        --enable_hybrid_shield_detection=true \
+        --enable_hybrid_shield_mitigation=true" \
+        > "$output_dir/rtp_mitigation.log" 2>&1
+    
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        print_success "RTP mitigation test completed"
+        
+        # Check for mitigation actions
+        if grep -q -i "mitigation\|blocked\|rejected\|isolated" "$output_dir/rtp_mitigation.log"; then
+            print_success "Hybrid-Shield mitigation activated"
+            grep -i "mitigation\|blocked\|rejected\|isolated" "$output_dir/rtp_mitigation.log" | head -10
+        fi
+        
+        # Collect CSV files
+        if ls *.csv 1> /dev/null 2>&1; then
+            mv *.csv "$output_dir/" 2>/dev/null
+            print_success "CSV files collected"
+        fi
+        
+        return 0
+    else
+        print_error "RTP mitigation test failed"
+        tail -30 "$output_dir/rtp_mitigation.log"
+        return 1
+    fi
+}
+
+# ============================================================================
+# Test 8: Combined Replay + RTP Attack
 # ============================================================================
 test_replay_and_rtp_combined() {
     local output_dir="$RESULTS_DIR/combined_replay_rtp"
     mkdir -p "$output_dir"
     
-    print_header "TEST 6: COMBINED REPLAY + RTP ATTACK"
-    print_info "Testing both attacks simultaneously..."
+    print_header "TEST 9: COMBINED REPLAY + RTP WITH ALL MITIGATIONS"
+    print_info "Testing both attacks simultaneously with full protection..."
+    print_info "Bloom Filters + Hybrid-Shield activated"
     
     ./waf --run "scratch/$ROUTING_SCRIPT \
         --simTime=$SIM_TIME \
@@ -366,13 +466,24 @@ test_replay_and_rtp_combined() {
         --enable_replay_mitigation=true \
         --enable_rtp_attack=true \
         --rtp_attack_percentage=0.10 \
-        --rtp_start_time=10.0" \
+        --rtp_start_time=10.0 \
+        --enable_hybrid_shield_detection=true \
+        --enable_hybrid_shield_mitigation=true" \
         > "$output_dir/combined.log" 2>&1
     
     local exit_code=$?
     
     if [ $exit_code -eq 0 ]; then
         print_success "Combined attack test completed"
+        
+        # Check for both attack types
+        if grep -q -i "replay" "$output_dir/combined.log"; then
+            print_success "Replay attack activity detected"
+        fi
+        
+        if grep -q -i "RTP\|routing.*poison\|hybrid.*shield" "$output_dir/combined.log"; then
+            print_success "RTP attack activity detected"
+        fi
         
         # Collect CSV files
         if ls *.csv 1> /dev/null 2>&1; then
@@ -417,8 +528,8 @@ Test Results:
 EOF
     
     # Check each test
-    local tests=("baseline" "replay_attack_only" "replay_with_detection" "replay_full_mitigation" "rtp_attack_only" "combined_replay_rtp")
-    local test_names=("Baseline" "Replay Attack Only" "Replay with Detection" "Replay with Mitigation" "RTP Attack Only" "Combined Replay+RTP")
+    local tests=("baseline" "replay_attack_only" "replay_with_detection" "replay_full_mitigation" "rtp_attack_only" "rtp_with_detection" "rtp_with_mitigation" "combined_replay_rtp")
+    local test_names=("Baseline" "Replay Attack Only" "Replay with Detection" "Replay with Mitigation" "RTP Attack Only" "RTP with Detection" "RTP with Mitigation" "Combined Replay+RTP")
     
     for i in "${!tests[@]}"; do
         local test_dir="$RESULTS_DIR/${tests[$i]}"
@@ -443,8 +554,12 @@ EOF
                     echo "  Replay Activity: DETECTED" >> "$report_file"
                 fi
                 
-                if grep -q "RTP\|routing.*poison" "$log_file" 2>/dev/null; then
+                if grep -q "RTP\|routing.*poison\|Hybrid.*Shield" "$log_file" 2>/dev/null; then
                     echo "  RTP Activity: DETECTED" >> "$report_file"
+                fi
+                
+                if grep -q "Hybrid.*Shield" "$log_file" 2>/dev/null; then
+                    echo "  Hybrid-Shield: ACTIVE" >> "$report_file"
                 fi
             else
                 echo "  Status: ⚠ NO LOG FILE" >> "$report_file"
@@ -471,6 +586,19 @@ RTP Attack Parameters Used:
   --enable_rtp_attack=true
   --rtp_attack_percentage=0.15
   --rtp_start_time=10.0
+  --enable_hybrid_shield_detection=true
+  --enable_hybrid_shield_mitigation=true
+
+Mitigation Solutions:
+─────────────────────────────────────────────────────────────
+  • Replay Attack: Bloom Filter-based sequence number tracking
+    - Detects duplicate packets
+    - Rejects replayed messages
+  
+  • RTP Attack: Hybrid-Shield topology verification
+    - Probes verify MHL authenticity
+    - Blocks fake route advertisements
+    - Validates routing table entries
 
 Common Issues to Check:
 ─────────────────────────────────────────────────────────────
@@ -551,6 +679,20 @@ main() {
     else
         ((failed_tests++))
         print_error "RTP attack not working! Check implementation"
+    fi
+    
+    if test_rtp_with_detection; then
+        ((passed_tests++))
+    else
+        ((failed_tests++))
+        print_error "RTP detection not working!"
+    fi
+    
+    if test_rtp_with_mitigation; then
+        ((passed_tests++))
+    else
+        ((failed_tests++))
+        print_error "RTP mitigation not working!"
     fi
     
     if test_replay_and_rtp_combined; then
