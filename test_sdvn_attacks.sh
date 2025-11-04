@@ -305,7 +305,7 @@ test_blackhole_attack() {
         --blackhole_start_time=10.0 \
         --blackhole_attack_percentage=0.15 \
         --enable_blackhole_mitigation=true \
-        --blackhole_pdr_threshold=0.5" > "$outputDir/logs/blackhole_mitigation.log" 2>&1
+        --blackhole_pdr_threshold=0.5 \
         --blackhole_min_packets=10" \
         > "$output_dir/logs/blackhole_mitigation.log" 2>&1
     
@@ -520,7 +520,7 @@ test_rtp_attack() {
         --rtp_start_time=10.0 \
         --rtp_attack_percentage=0.10 \
         --enable_hybrid_shield_detection=true \
-        --enable_hybrid_shield_mitigation=true" > "$outputDir/logs/rtp_mitigation.log" 2>&1
+        --enable_hybrid_shield_mitigation=true \
         --hybrid_shield_probe_timeout=100 \
         --hybrid_shield_verification_interval=30.0" \
         > "$output_dir/logs/rtp_mitigation.log" 2>&1
