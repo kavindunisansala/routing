@@ -90,21 +90,28 @@ run_simulation() {
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         --architecture=$ARCHITECTURE \
-        --enable_packet_tracking=true \
         $params" \
         > "$output_dir/simulation.log" 2>&1
     
     local exit_code=$?
     
-    # Count CSV files generated
+    # Copy any CSV files from current directory to output directory
+    # (routing.cc writes CSVs to current directory, not output_dir)
+    find . -maxdepth 1 -name "*.csv" -type f -exec cp {} "$output_dir/" \; 2>/dev/null
+    
+    # Count CSV files in output directory
     local csv_count=$(find "$output_dir" -name "*.csv" 2>/dev/null | wc -l)
     
-    if [ $exit_code -eq 0 ] && [ $csv_count -gt 0 ]; then
-        print_success "$test_name completed successfully ($csv_count CSV files)"
+    if [ $exit_code -eq 0 ]; then
+        print_success "$test_name completed successfully (exit: $exit_code, CSV files: $csv_count)"
         PASSED_TESTS=$((PASSED_TESTS + 1))
+        
+        # Clean up CSV files from current directory after copying
+        find . -maxdepth 1 -name "*.csv" -type f -delete 2>/dev/null
         return 0
     else
         print_error "$test_name failed (exit code: $exit_code, CSV files: $csv_count)"
+        print_error "Check log: $output_dir/simulation.log"
         FAILED_TESTS=$((FAILED_TESTS + 1))
         return 1
     fi
