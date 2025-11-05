@@ -1,0 +1,4 @@
+NodeID,Active,DataPacketsDropped,RREPsDropped,FakeRREPsGenerated,RoutesAttracted,StartTime,StopTime,Duration
+16,0,4079,0,0,0,0,100,100
+17,0,1775,0,0,0,0,100,100
+29,0,29,0,0,0,0,100,100

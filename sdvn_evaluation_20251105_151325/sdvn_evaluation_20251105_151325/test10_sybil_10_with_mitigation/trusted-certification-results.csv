@@ -1,0 +1,7 @@
+Metric,Value
+CertificatesIssued,35
+CertificatesRevoked,35
+AuthenticationSuccesses,70
+AuthenticationFailures,0
+AuthenticationSuccessRate,1
+OverheadCost,119

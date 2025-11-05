@@ -1,0 +1,2 @@
+TunnelID,NodeA,NodeB,PacketsIntercepted,PacketsTunneled,PacketsDropped,RoutingAffected,DataAffected,AvgDelay
+TOTAL,ALL,ALL,0,0,0,0,0,0

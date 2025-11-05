@@ -1,0 +1,9 @@
+Metric,Value
+DetectionEnabled,true
+MitigationEnabled,false
+SimilarityThreshold,0.8
+TotalNodesMonitored,0
+SybilNodesDetected,0
+FakeIdentitiesDetected,0
+ClonedIdentitiesDetected,0
+NodesBlacklisted,0

@@ -1,0 +1,13 @@
+Metric,Value
+TotalPacketsProcessed,2340
+ReplaysDetected,73
+ReplaysBlocked,0
+FalsePositives,0
+FalseNegatives,0
+FalsePositiveRate,0
+DetectionAccuracy,0
+BloomFilterInsertions,2267
+BloomFilterQueries,6951
+BloomFilterRotations,19
+AvgProcessingLatency,21.0756
+Throughput,23.8687

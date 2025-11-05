@@ -149408,7 +149408,7 @@ void declare_attackers() {
             // Optionally print
             // std::cout << "Node " << i << " replay state: " << attacking_state << std::endl;
         }
-        }
+    }
     
 
     // For controllers

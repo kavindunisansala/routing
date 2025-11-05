@@ -1,0 +1,13 @@
+Metric,Value
+TotalMHLsDiscovered,0
+FabricatedMHLsDetected,0
+LegitMateMHLsVerified,0
+FalsePositiveRate,0
+DetectionAccuracy,1
+ControllerOverloadEvents,0
+PDR_BeforeMitigation,0
+PDR_AfterMitigation,0
+PDR_RecoveryPercentage,0
+AttackStartTime_s,0
+MitigationStartTime_s,0
+MitigationCompleteTime_s,0
