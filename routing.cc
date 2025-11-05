@@ -152204,6 +152204,7 @@ int main(int argc, char *argv[])
             
             std::cout << "Advanced Sybil mitigation system initialized successfully" << std::endl;
         }
+    }
     
     // ===== Replay Attack Configuration (Independent) =====
     if (enable_replay_attack || enable_replay_detection) {
