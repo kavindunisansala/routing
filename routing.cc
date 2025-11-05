@@ -2777,7 +2777,7 @@ bool wormhole_random_pairing = true;            // Random vs sequential pairing
 bool wormhole_drop_packets = false;             // Drop instead of tunnel
 bool wormhole_tunnel_routing = true;            // Tunnel routing packets
 bool wormhole_tunnel_data = true;               // Tunnel data packets
-double wormhole_start_time = 0.0;               // When to start attack (seconds)
+double wormhole_start_time = 10.0;              // When to start attack (seconds) - FIXED: was 0.0, caused zero stats due to early activation before network ready
 double wormhole_stop_time = 0.0;                // When to stop attack (0 = simTime)
 bool wormhole_enable_verification_flows = true; // Install background verification flows
 uint32_t wormhole_verification_flow_count = 3;  // Number of verification flow pairs
