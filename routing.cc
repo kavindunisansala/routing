@@ -741,6 +741,10 @@ public:
     uint32_t GetBlacklistedNodeCount() const;
     double GetOverallPDR() const;
     
+    // PDR Sampling for mitigation metrics
+    void SamplePreAttackPDR();
+    void SamplePostMitigationPDR();
+    
 private:
     struct NodeStatistics {
         uint32_t nodeId;
@@ -772,6 +776,10 @@ private:
     uint32_t m_totalPacketsDelivered;
     uint32_t m_totalPacketsDropped;
     bool m_detectionTriggered;  // Only detect once
+    
+    // PDR snapshots for mitigation metrics
+    double m_preAttackPDR;
+    double m_postMitigationPDR;
     
     void UpdateNodeStatistics(uint32_t nodeId);
     void DetectBlackholeNodes();  // Correlate with blackhole attack manager
@@ -2004,6 +2012,11 @@ public:
     void PrintComprehensiveReport() const;
     void ExportMitigationResults(std::string filename) const;
     
+    // PDR Sampling for mitigation metrics
+    void SamplePreAttackPDR();
+    void SamplePostMitigationPDR();
+    double CalculateCurrentPDR() const;
+    
 private:
     TrustedCertificationAuthority* m_certAuthority;
     RSSIBasedDetector* m_rssiDetector;
@@ -2018,6 +2031,12 @@ private:
     uint32_t m_totalNodes;
     SybilMitigationMetrics m_metrics;
     std::set<uint32_t> m_mitigatedNodes;
+    
+    // PDR snapshots for mitigation metrics
+    double m_preAttackPDR;
+    double m_postMitigationPDR;
+    uint32_t m_packetsSent;
+    uint32_t m_packetsReceived;
     
     // Behavioral monitoring data
     SybilDetector* m_linkedDetector;
@@ -2327,6 +2346,11 @@ public:
     void PrintComprehensiveReport() const;
     void ExportMitigationResults(std::string filename) const;
     
+    // PDR sampling for mitigation effectiveness
+    void SamplePreAttackPDR();
+    void SamplePostMitigationPDR();
+    double CalculateCurrentPDR() const;
+    
 private:
     ReplayDetector* m_detector;
     uint32_t m_totalNodes;
@@ -2340,6 +2364,12 @@ private:
     Time m_lastPerformanceCheck;
     double m_totalProcessingTime;  // microseconds
     uint32_t m_totalPacketsProcessed;
+    
+    // PDR tracking fields
+    double m_preAttackPDR;
+    double m_postMitigationPDR;
+    uint32_t m_packetsSent;
+    uint32_t m_packetsReceived;
 };
 
 // Forward declaration for struct defined later in file
@@ -2622,6 +2652,11 @@ public:
     void PrintComprehensiveReport() const;
     void ExportMitigationResults(std::string filename) const;
     
+    // PDR sampling for mitigation effectiveness
+    void SamplePreAttackPDR();
+    void SamplePostMitigationPDR();
+    double CalculateCurrentPDR() const;
+    
 private:
     HybridShield* m_shield;
     uint32_t m_totalNodes;
@@ -2631,6 +2666,12 @@ private:
     std::map<uint32_t, uint32_t> m_topologyEventsPerSwitch;
     Time m_lastVerificationTime;
     uint32_t m_controllerOverloadCount;
+    
+    // PDR tracking fields
+    double m_preAttackPDR;
+    double m_postMitigationPDR;
+    uint32_t m_packetsSent;
+    uint32_t m_packetsReceived;
 };
 
 // Global instances for Hybrid-Shield
@@ -99903,7 +99944,9 @@ BlackholeMitigationManager::BlackholeMitigationManager()
       m_totalPacketsSent(0),
       m_totalPacketsDelivered(0),
       m_totalPacketsDropped(0),
-      m_detectionTriggered(false) {
+      m_detectionTriggered(false),
+      m_preAttackPDR(0.0),
+      m_postMitigationPDR(0.0) {
     std::cout << "[MITIGATION] BlackholeMitigationManager created\n";
 }
 
@@ -100081,6 +100124,16 @@ double BlackholeMitigationManager::GetOverallPDR() const {
     return static_cast<double>(m_totalPacketsDelivered) / m_totalPacketsSent;
 }
 
+void BlackholeMitigationManager::SamplePreAttackPDR() {
+    m_preAttackPDR = GetOverallPDR();
+    std::cout << "[BLACKHOLE MIT] PDR before mitigation: " << (m_preAttackPDR * 100) << "%\n";
+}
+
+void BlackholeMitigationManager::SamplePostMitigationPDR() {
+    m_postMitigationPDR = GetOverallPDR();
+    std::cout << "[BLACKHOLE MIT] PDR after mitigation: " << (m_postMitigationPDR * 100) << "%\n";
+}
+
 void BlackholeMitigationManager::PrintStatistics() const {
     std::cout << "\n========== BLACKHOLE MITIGATION STATISTICS ==========\n";
     std::cout << "Mitigation Status: " << (m_mitigationEnabled ? "ACTIVE" : "INACTIVE") << "\n";
@@ -100115,6 +100168,7 @@ void BlackholeMitigationManager::ExportStatistics(const std::string& filename) c
         return;
     }
     
+    // Export per-node statistics
     outFile << "NodeID,PacketsSentVia,PacketsDelivered,PacketsDropped,PDR,Blacklisted,BlacklistTime\n";
     
     for (const auto& pair : m_nodeStats) {
@@ -100129,6 +100183,18 @@ void BlackholeMitigationManager::ExportStatistics(const std::string& filename) c
                     << (stats.isBlacklisted ? stats.blacklistTime.GetSeconds() : 0) << "\n";
         }
     }
+    
+    // Export overall mitigation metrics
+    outFile << "\n# Overall Mitigation Metrics\n";
+    outFile << "PDR_BeforeMitigation," << (m_preAttackPDR * 100) << "\n";
+    outFile << "PDR_AfterMitigation," << (m_postMitigationPDR * 100) << "\n";
+    
+    // Calculate recovery percentage
+    double recovery = 0.0;
+    if (m_preAttackPDR > 0) {
+        recovery = ((m_postMitigationPDR - m_preAttackPDR) / m_preAttackPDR) * 100.0;
+    }
+    outFile << "PDR_RecoveryPercentage," << recovery << "\n";
     
     outFile.close();
     std::cout << "[MITIGATION] Statistics exported to " << filename << "\n";
@@ -102482,7 +102548,9 @@ SybilMitigationManager::SybilMitigationManager()
       m_resourceTester(nullptr), m_incentiveScheme(nullptr),
       m_useTrustedCert(false), m_useRSSI(false),
       m_useResourceTest(false), m_useIncentive(false),
-      m_totalNodes(0), m_linkedDetector(nullptr) {
+      m_totalNodes(0), m_linkedDetector(nullptr),
+      m_preAttackPDR(0.0), m_postMitigationPDR(0.0),
+      m_packetsSent(0), m_packetsReceived(0) {
 }
 
 SybilMitigationManager::~SybilMitigationManager() {
@@ -102714,6 +102782,22 @@ void SybilMitigationManager::ExportMitigationResults(std::string filename) const
         m_incentiveScheme->ExportStatistics("incentive-scheme-results.csv");
         std::cout << "[MITIGATION MGR] Incentive scheme results exported to incentive-scheme-results.csv\n";
     }
+}
+
+void SybilMitigationManager::SamplePreAttackPDR() {
+    m_preAttackPDR = CalculateCurrentPDR();
+    std::cout << "[SYBIL MIT] PDR before mitigation: " << (m_preAttackPDR * 100) << "%\n";
+}
+
+void SybilMitigationManager::SamplePostMitigationPDR() {
+    m_postMitigationPDR = CalculateCurrentPDR();
+    m_metrics.pdrAfterMitigation = m_postMitigationPDR;
+    std::cout << "[SYBIL MIT] PDR after mitigation: " << (m_postMitigationPDR * 100) << "%\n";
+}
+
+double SybilMitigationManager::CalculateCurrentPDR() const {
+    if (m_packetsSent == 0) return 0.0;
+    return static_cast<double>(m_packetsReceived) / m_packetsSent;
 }
 
 // ============================================================================
@@ -103629,7 +103713,14 @@ void ReplayDetector::ExportDetectionResults(std::string filename) const {
 
 // ReplayMitigationManager Implementation
 ReplayMitigationManager::ReplayMitigationManager()
-    : m_detector(nullptr), m_totalNodes(0), m_totalProcessingTime(0.0), m_totalPacketsProcessed(0) {
+    : m_detector(nullptr), 
+      m_totalNodes(0), 
+      m_totalProcessingTime(0.0), 
+      m_totalPacketsProcessed(0),
+      m_preAttackPDR(0.0),
+      m_postMitigationPDR(0.0),
+      m_packetsSent(0),
+      m_packetsReceived(0) {
 }
 
 ReplayMitigationManager::~ReplayMitigationManager() {
@@ -103781,6 +103872,23 @@ void ReplayMitigationManager::ExportMitigationResults(std::string filename) cons
     if (m_detector) {
         m_detector->ExportDetectionResults("replay-detection-results.csv");
     }
+}
+
+void ReplayMitigationManager::SamplePreAttackPDR() {
+    m_preAttackPDR = CalculateCurrentPDR();
+    m_metrics.pdrBeforeMitigation = m_preAttackPDR;
+    std::cout << "[REPLAY MIT] PDR before mitigation: " << (m_preAttackPDR * 100) << "%\n";
+}
+
+void ReplayMitigationManager::SamplePostMitigationPDR() {
+    m_postMitigationPDR = CalculateCurrentPDR();
+    m_metrics.pdrAfterMitigation = m_postMitigationPDR;
+    std::cout << "[REPLAY MIT] PDR after mitigation: " << (m_postMitigationPDR * 100) << "%\n";
+}
+
+double ReplayMitigationManager::CalculateCurrentPDR() const {
+    if (m_packetsSent == 0) return 0.0;
+    return static_cast<double>(m_packetsReceived) / m_packetsSent;
 }
 
 // ============================================================================
@@ -104517,7 +104625,11 @@ HybridShieldMitigationManager::HybridShieldMitigationManager()
     : m_shield(nullptr),
       m_totalNodes(0),
       m_totalSwitches(0),
-      m_controllerOverloadCount(0) {
+      m_controllerOverloadCount(0),
+      m_preAttackPDR(0.0),
+      m_postMitigationPDR(0.0),
+      m_packetsSent(0),
+      m_packetsReceived(0) {
 }
 
 HybridShieldMitigationManager::~HybridShieldMitigationManager() {
@@ -104651,6 +104763,23 @@ void HybridShieldMitigationManager::ExportMitigationResults(std::string filename
     if (m_shield) {
         m_shield->ExportResults("hybrid-shield-detection-results.csv");
     }
+}
+
+void HybridShieldMitigationManager::SamplePreAttackPDR() {
+    m_preAttackPDR = CalculateCurrentPDR();
+    m_metrics.pdrBeforeMitigation = m_preAttackPDR;
+    std::cout << "[HYBRID-SHIELD MIT] PDR before mitigation: " << (m_preAttackPDR * 100) << "%\n";
+}
+
+void HybridShieldMitigationManager::SamplePostMitigationPDR() {
+    m_postMitigationPDR = CalculateCurrentPDR();
+    m_metrics.pdrAfterMitigation = m_postMitigationPDR;
+    std::cout << "[HYBRID-SHIELD MIT] PDR after mitigation: " << (m_postMitigationPDR * 100) << "%\n";
+}
+
+double HybridShieldMitigationManager::CalculateCurrentPDR() const {
+    if (m_packetsSent == 0) return 0.0;
+    return static_cast<double>(m_packetsReceived) / m_packetsSent;
 }
 
 } // namespace ns3
@@ -152131,7 +152260,15 @@ int main(int argc, char *argv[])
         g_blackholeMitigation->Initialize(actual_node_count, blackhole_pdr_threshold);
         g_blackholeMitigation->EnableMitigation(true);
         
+        // Schedule PDR sampling: before attack and after mitigation
+        double blackholeStopTime = (blackhole_stop_time > 0) ? blackhole_stop_time : simTime;
+        ns3::Simulator::Schedule(ns3::Seconds(blackhole_start_time + 10.0), 
+            &ns3::BlackholeMitigationManager::SamplePreAttackPDR, g_blackholeMitigation);
+        ns3::Simulator::Schedule(ns3::Seconds(blackholeStopTime - 5.0), 
+            &ns3::BlackholeMitigationManager::SamplePostMitigationPDR, g_blackholeMitigation);
+        
         std::cout << "Blackhole mitigation system initialized for " << actual_node_count << " nodes" << std::endl;
+        std::cout << "PDR sampling scheduled: " << (blackhole_start_time + 10.0) << "s and " << (blackholeStopTime - 5.0) << "s" << std::endl;
         std::cout << "============================================\n" << std::endl;
     }
     
@@ -152242,9 +152379,22 @@ int main(int argc, char *argv[])
                 std::cout << "[MAIN] SybilMitigationManager integrated with SybilDetector" << std::endl;
             }
 
+            // Schedule PDR sampling for mitigation effectiveness
+            if (sybil_attack_start > 0) {
+                ns3::Simulator::Schedule(ns3::Seconds(sybil_attack_start + 10.0),
+                    &ns3::SybilMitigationManager::SamplePreAttackPDR, g_sybilMitigationManager);
+                std::cout << "[MAIN] Scheduled Sybil PDR pre-attack sampling at t=" << (sybil_attack_start + 10.0) << "s\n";
+            }
+            
+            double sybilStopTime = (sybil_stop_time > 0) ? sybil_stop_time : simTime;
+            if (sybilStopTime > 5.0) {
+                ns3::Simulator::Schedule(ns3::Seconds(sybilStopTime - 5.0),
+                    &ns3::SybilMitigationManager::SamplePostMitigationPDR, g_sybilMitigationManager);
+                std::cout << "[MAIN] Scheduled Sybil PDR post-mitigation sampling at t=" << (sybilStopTime - 5.0) << "s\n";
+            }
+            
             // Schedule periodic runtime re-authentication
             double sybilReauthInterval = 5.0; // REAUTHENTICATION_INTERVAL
-            double sybilStopTime = (sybil_stop_time > 0) ? sybil_stop_time : simTime;
             for (double t = sybilReauthInterval; t < sybilStopTime; t += sybilReauthInterval) {
                 ns3::Simulator::Schedule(ns3::Seconds(t), &ns3::SybilMitigationManager::PeriodicRuntimeCheck, g_sybilMitigationManager);
             }
@@ -152373,6 +152523,20 @@ int main(int argc, char *argv[])
                 ns3::Simulator::Schedule(ns3::Seconds(t), &ns3::ReplayMitigationManager::PeriodicPerformanceCheck, g_replayMitigationManager);
             }
             
+            // Schedule PDR sampling for mitigation effectiveness
+            if (replay_start_time > 0) {
+                ns3::Simulator::Schedule(ns3::Seconds(replay_start_time + 10.0),
+                    &ns3::ReplayMitigationManager::SamplePreAttackPDR, g_replayMitigationManager);
+                std::cout << "[MAIN] Scheduled Replay PDR pre-attack sampling at t=" << (replay_start_time + 10.0) << "s\n";
+            }
+            
+            double replayStopTime = (replay_stop_time > 0) ? replay_stop_time : simTime;
+            if (replayStopTime > 5.0) {
+                ns3::Simulator::Schedule(ns3::Seconds(replayStopTime - 5.0),
+                    &ns3::ReplayMitigationManager::SamplePostMitigationPDR, g_replayMitigationManager);
+                std::cout << "[MAIN] Scheduled Replay PDR post-mitigation sampling at t=" << (replayStopTime - 5.0) << "s\n";
+            }
+            
             std::cout << "Replay detection and mitigation system initialized successfully" << std::endl;
             std::cout << "Bloom filter rotation scheduled every " << bf_rotation_interval << "s" << std::endl;
             std::cout << "Performance checks scheduled every " << performanceCheckInterval << "s" << std::endl;
@@ -152479,6 +152643,20 @@ int main(int argc, char *argv[])
                 }
                 std::cout << "Scheduled periodic topology verification every " 
                           << hybrid_shield_verification_interval << "s" << std::endl;
+            }
+            
+            // Schedule PDR sampling for mitigation effectiveness
+            if (rtp_start_time > 0) {
+                ns3::Simulator::Schedule(ns3::Seconds(rtp_start_time + 10.0),
+                    &ns3::HybridShieldMitigationManager::SamplePreAttackPDR, g_hybridShieldMitigation);
+                std::cout << "[MAIN] Scheduled Hybrid-Shield PDR pre-attack sampling at t=" << (rtp_start_time + 10.0) << "s\n";
+            }
+            
+            double rtpStopTime = (rtp_stop_time > 0) ? rtp_stop_time : simTime;
+            if (rtpStopTime > 5.0) {
+                ns3::Simulator::Schedule(ns3::Seconds(rtpStopTime - 5.0),
+                    &ns3::HybridShieldMitigationManager::SamplePostMitigationPDR, g_hybridShieldMitigation);
+                std::cout << "[MAIN] Scheduled Hybrid-Shield PDR post-mitigation sampling at t=" << (rtpStopTime - 5.0) << "s\n";
             }
             
             // Simulate MHL discovery (in real SDN, controller would discover links via LLDP/BDDP)
@@ -152690,14 +152868,3 @@ int main(int argc, char *argv[])
   //apb.SetFinish();
   return 0;  
 }
-
-
-
-
-
-
-
-
-
-
-
