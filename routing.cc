@@ -12,6 +12,8 @@
 #include "ns3/wave-helper.h"
 #include "ns3/netanim-module.h"
 #include "ns3/point-to-point-helper.h"
+#include "ns3/point-to-point-net-device.h"
+#include "ns3/point-to-point-channel.h"
 #include "ns3/ipv4-global-routing-helper.h"
 #include "ns3/internet-module.h"
 #include "ns3/applications-module.h"
@@ -2032,14 +2034,14 @@ private:
     SybilMitigationMetrics m_metrics;
     std::set<uint32_t> m_mitigatedNodes;
     
+    // Behavioral monitoring data
+    SybilDetector* m_linkedDetector;
+    
     // PDR snapshots for mitigation metrics
     double m_preAttackPDR;
     double m_postMitigationPDR;
     uint32_t m_packetsSent;
     uint32_t m_packetsReceived;
-    
-    // Behavioral monitoring data
-    SybilDetector* m_linkedDetector;
     std::map<uint32_t, uint32_t> m_packetCounts;
     std::map<uint32_t, uint32_t> m_fakePacketCounts;
     std::map<uint32_t, uint32_t> m_routeAdvertisementCounts;
@@ -152516,10 +152518,10 @@ int main(int argc, char *argv[])
             }
 
             // Schedule PDR sampling for mitigation effectiveness
-            if (sybil_attack_start > 0) {
-                ns3::Simulator::Schedule(ns3::Seconds(sybil_attack_start + 10.0),
+            if (sybil_start_time > 0) {
+                ns3::Simulator::Schedule(ns3::Seconds(sybil_start_time + 10.0),
                     &ns3::SybilMitigationManager::SamplePreAttackPDR, g_sybilMitigationManager);
-                std::cout << "[MAIN] Scheduled Sybil PDR pre-attack sampling at t=" << (sybil_attack_start + 10.0) << "s\n";
+                std::cout << "[MAIN] Scheduled Sybil PDR pre-attack sampling at t=" << (sybil_start_time + 10.0) << "s\n";
             }
             
             double sybilStopTime = (sybil_stop_time > 0) ? sybil_stop_time : simTime;
