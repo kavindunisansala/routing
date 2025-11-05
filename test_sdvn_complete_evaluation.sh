@@ -90,6 +90,7 @@ run_simulation() {
         --N_Vehicles=$VEHICLES \
         --N_RSUs=$RSUS \
         --architecture=$ARCHITECTURE \
+        --enable_packet_tracking=true \
         $params" \
         > "$output_dir/simulation.log" 2>&1
     

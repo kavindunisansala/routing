@@ -102796,6 +102796,11 @@ void SybilMitigationManager::SamplePostMitigationPDR() {
 }
 
 double SybilMitigationManager::CalculateCurrentPDR() const {
+    // Use global packet tracker if available for accurate PDR
+    if (g_packetTracker != nullptr) {
+        return g_packetTracker->GetPacketDeliveryRatio();
+    }
+    // Fallback to local counters (may not be accurate if not tracked)
     if (m_packetsSent == 0) return 0.0;
     return static_cast<double>(m_packetsReceived) / m_packetsSent;
 }
@@ -103887,6 +103892,11 @@ void ReplayMitigationManager::SamplePostMitigationPDR() {
 }
 
 double ReplayMitigationManager::CalculateCurrentPDR() const {
+    // Use global packet tracker if available for accurate PDR
+    if (g_packetTracker != nullptr) {
+        return g_packetTracker->GetPacketDeliveryRatio();
+    }
+    // Fallback to local counters (may not be accurate if not tracked)
     if (m_packetsSent == 0) return 0.0;
     return static_cast<double>(m_packetsReceived) / m_packetsSent;
 }
@@ -104778,6 +104788,11 @@ void HybridShieldMitigationManager::SamplePostMitigationPDR() {
 }
 
 double HybridShieldMitigationManager::CalculateCurrentPDR() const {
+    // Use global packet tracker if available for accurate PDR
+    if (g_packetTracker != nullptr) {
+        return g_packetTracker->GetPacketDeliveryRatio();
+    }
+    // Fallback to local counters (may not be accurate if not tracked)
     if (m_packetsSent == 0) return 0.0;
     return static_cast<double>(m_packetsReceived) / m_packetsSent;
 }
