@@ -149922,6 +149922,43 @@ void setup_routing_table_poisoning_attack(
     }
 }
 
+// Global callback for Sybil detection packet monitoring
+bool GlobalSybilDetectionCallback(Ptr<NetDevice> device, Ptr<const Packet> packet,
+                                  uint16_t protocol, const Address& from,
+                                  const Address& to, NetDevice::PacketType packetType) {
+    if (g_sybilDetector == nullptr) {
+        return true;  // No detection enabled
+    }
+    
+    // Monitor all packets to detect fake identities
+    if (packetType == NetDevice::PACKET_HOST || packetType == NetDevice::PACKET_BROADCAST) {
+        Ptr<Node> node = device->GetNode();
+        uint32_t nodeId = node->GetId();
+        
+        // Extract source IP from packet headers
+        Ipv4Address srcIp;
+        Ptr<Packet> copy = packet->Copy();
+        
+        // Try to extract IPv4 header
+        Ipv4Header ipv4Header;
+        if (copy->PeekHeader(ipv4Header)) {
+            srcIp = ipv4Header.GetSource();
+            
+            // Record packet from this node with this IP
+            g_sybilDetector->RecordPacketFromNode(nodeId, srcIp);
+            
+            // Also record the identity if not already known
+            Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+            if (ipv4) {
+                Mac48Address mac = Mac48Address::ConvertFrom(from);
+                g_sybilDetector->RecordNodeIdentity(nodeId, srcIp, mac);
+            }
+        }
+    }
+    
+    return true;  // Always allow packet (detection only)
+}
+
 // Global callback for replay detection packet monitoring
 // Global callback for replay attack packet capture
 bool GlobalReplayCaptureCallback(Ptr<NetDevice> device, Ptr<const Packet> packet,
@@ -149963,21 +150000,35 @@ bool GlobalReplayDetectionCallback(Ptr<NetDevice> device, Ptr<const Packet> pack
     Ptr<Node> node = device->GetNode();
     uint32_t nodeId = node->GetId();
     
-    // Use a combination of packet UID and per-node counter
-    // This creates unique sequence numbers per receiving node
-    static std::map<std::pair<uint32_t, uint64_t>, uint32_t> packetSeqMap;
+    // FIXED: Use packet content hash instead of UID for replay detection
+    // This ensures packets with identical content are detected as replays
+    uint32_t size = packet->GetSize();
+    uint8_t* buffer = new uint8_t[size];
+    packet->CopyData(buffer, size);
+    
+    // Compute content hash (same algorithm as ReplayDetector::ComputePacketHash)
+    uint32_t contentHash = 0;
+    for (uint32_t i = 0; i < size; i++) {
+        contentHash = contentHash * 31 + buffer[i];
+    }
+    delete[] buffer;
+    
+    // Use content hash as basis for sequence number
+    // Map (nodeId, contentHash) to sequence number
+    static std::map<std::pair<uint32_t, uint32_t>, uint32_t> packetSeqMap;
     static std::map<uint32_t, uint32_t> nodePacketCounter;
     
-    uint64_t packetUid = packet->GetUid();
-    std::pair<uint32_t, uint64_t> key = std::make_pair(nodeId, packetUid);
+    std::pair<uint32_t, uint32_t> key = std::make_pair(nodeId, contentHash);
     
     uint32_t seqNo;
     if (packetSeqMap.find(key) != packetSeqMap.end()) {
-        // This exact packet UID was seen before at this node - likely NOT a replay
-        // (packet might be looping or re-received legitimately)
+        // This exact packet content was seen before at this node - LIKELY A REPLAY!
+        // Use the same sequence number so detector can catch it
         seqNo = packetSeqMap[key];
+        std::cout << "[GLOBAL CALLBACK] Potential replay detected (content hash " << std::hex << contentHash 
+                  << std::dec << " seen before) on node " << nodeId << "\n";
     } else {
-        // New packet UID - assign new sequence number
+        // New packet content - assign new sequence number
         seqNo = nodePacketCounter[nodeId]++;
         packetSeqMap[key] = seqNo;
     }
@@ -149989,8 +150040,8 @@ bool GlobalReplayDetectionCallback(Ptr<NetDevice> device, Ptr<const Packet> pack
     bool allowed = g_replayMitigationManager->CheckAndBlockReplay(packet, srcNode, nodeId, seqNo);
     
     if (!allowed) {
-        std::cout << "[GLOBAL CALLBACK] Blocked replay packet UID=" << packetUid 
-                  << " seqNo=" << seqNo << " on node " << nodeId << "\n";
+        std::cout << "[GLOBAL CALLBACK] Blocked replay packet contentHash=" << std::hex << contentHash 
+                  << std::dec << " seqNo=" << seqNo << " on node " << nodeId << "\n";
     }
     
     return allowed;  // Block if replay detected and mitigation enabled
@@ -152345,6 +152396,19 @@ int main(int argc, char *argv[])
                 std::vector<uint32_t> maliciousNodes = g_sybilManager->GetMaliciousNodeIds();
                 g_sybilDetector->SetKnownMaliciousNodes(maliciousNodes);
             }
+            
+            // Install packet monitoring callbacks on all nodes for identity detection
+            for (uint32_t i = 0; i < actual_node_count; ++i) {
+                Ptr<Node> node = ns3::NodeList::GetNode(i);
+                for (uint32_t j = 0; j < node->GetNDevices(); ++j) {
+                    Ptr<NetDevice> device = node->GetDevice(j);
+                    if (!device->IsPointToPoint()) {
+                        device->SetPromiscReceiveCallback(
+                            MakeCallback(&GlobalSybilDetectionCallback));
+                    }
+                }
+            }
+            std::cout << "Installed Sybil detection callbacks on all " << actual_node_count << " nodes" << std::endl;
             
             double sybilStopTime = (sybil_stop_time > 0) ? sybil_stop_time : simTime;
             for (double t = sybil_detection_check_interval; t < sybilStopTime; t += sybil_detection_check_interval) {
