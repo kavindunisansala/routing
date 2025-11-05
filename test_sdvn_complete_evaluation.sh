@@ -195,17 +195,17 @@ print_section "PHASE 5: REPLAY ATTACK (3 tests)"
 run_simulation \
     "Replay Attack 10% (No Mitigation)" \
     "test11_replay_10_no_mitigation" \
-    "--present_replay_attack_nodes=true --enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0"
+    "--enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0"
 
 run_simulation \
     "Replay Attack 10% (With Detection - Bloom Filters)" \
     "test12_replay_10_with_detection" \
-    "--present_replay_attack_nodes=true --enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0 --enable_replay_detection=true"
+    "--enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0 --enable_replay_detection=true"
 
 run_simulation \
     "Replay Attack 10% (With Full Mitigation)" \
     "test13_replay_10_with_mitigation" \
-    "--present_replay_attack_nodes=true --enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0 --enable_replay_detection=true --enable_replay_mitigation=true"
+    "--enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0 --enable_replay_detection=true --enable_replay_mitigation=true"
 
 # ============================================================================
 # PHASE 6: RTP ATTACK (Routing Table Poisoning)
@@ -235,7 +235,7 @@ print_section "PHASE 7: COMBINED ATTACK (1 test)"
 run_simulation \
     "Combined Attack 10% (All Attacks + All Mitigations)" \
     "test17_combined_10_with_all_mitigations" \
-    "--present_wormhole_attack_nodes=true --present_blackhole_attack_nodes=true --present_sybil_attack_nodes=true --present_replay_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --enable_wormhole_detection=true --enable_wormhole_mitigation=true --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --enable_blackhole_mitigation=true --enable_sybil_attack=true --sybil_attack_percentage=0.1 --enable_sybil_detection=true --enable_sybil_mitigation=true --enable_replay_attack=true --replay_attack_percentage=0.1 --enable_replay_detection=true --enable_replay_mitigation=true --enable_rtp_attack=true --rtp_attack_percentage=0.1 --enable_hybrid_shield_detection=true --enable_hybrid_shield_mitigation=true"
+    "--present_wormhole_attack_nodes=true --present_blackhole_attack_nodes=true --present_sybil_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --enable_wormhole_detection=true --enable_wormhole_mitigation=true --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --enable_blackhole_mitigation=true --enable_sybil_attack=true --sybil_attack_percentage=0.1 --enable_sybil_detection=true --enable_sybil_mitigation=true --enable_replay_attack=true --replay_attack_percentage=0.1 --enable_replay_detection=true --enable_replay_mitigation=true --enable_rtp_attack=true --rtp_attack_percentage=0.1 --enable_hybrid_shield_detection=true --enable_hybrid_shield_mitigation=true"
 
 # ============================================================================
 # GENERATE SUMMARY
