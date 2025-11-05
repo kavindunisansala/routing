@@ -97938,6 +97938,8 @@ WormholeStatistics WormholeAttackManager::GetAggregateStatistics() const {
 }
 
 void WormholeAttackManager::ExportStatistics(std::string filename) const {
+	// Refresh live stats from endpoint apps before exporting to avoid stale/zero aggregates
+	const_cast<WormholeAttackManager*>(this)->CollectStatisticsFromApps();
     std::ofstream outFile(filename);
     if (!outFile.is_open()) return;
     outFile << "TunnelID,NodeA,NodeB,PacketsIntercepted,PacketsTunneled,"
@@ -99872,8 +99874,11 @@ void BlackholeAttackManager::ExportStatistics(std::string filename) const {
     
     for (const auto& pair : m_blackholeNodes) {
         const BlackholeStatistics& stats = pair.second;
+        // Node was active if it has non-zero start time (was scheduled) and ran for some duration
+        bool wasActive = (stats.attackStartTime.GetSeconds() > 0 || stats.dataPacketsDropped > 0 
+                         || stats.rrepsDropped > 0 || stats.fakeRrepsGenerated > 0);
         outFile << stats.nodeId << ","
-                << (stats.isActive ? "1" : "0") << ","
+                << (wasActive ? "1" : "0") << ","
                 << stats.dataPacketsDropped << ","
                 << stats.rrepsDropped << ","
                 << stats.fakeRrepsGenerated << ","
@@ -102642,6 +102647,14 @@ void SybilMitigationManager::ExportMitigationResults(std::string filename) const
         std::cerr << "[MITIGATION MGR] Failed to open file: " << filename << std::endl;
         return;
     }
+	// Ensure recovery percentage is consistent with current PDR values at export time
+	if (m_metrics.pdrBeforeMitigation > 0.0) {
+		double delta = (m_metrics.pdrAfterMitigation - m_metrics.pdrBeforeMitigation);
+		// Store as percentage
+		// Note: pdrBefore/After are stored as 0..1 ratios internally
+		const_cast<SybilMitigationManager*>(this)->m_metrics.recoveryPercentage =
+			(delta / m_metrics.pdrBeforeMitigation) * 100.0;
+	}
     
     outFile << "Metric,Value\n";
     outFile << "TotalSybilNodesMitigated," << m_metrics.totalSybilNodesMitigated << "\n";
@@ -103737,6 +103750,12 @@ void ReplayMitigationManager::ExportMitigationResults(std::string filename) cons
         std::cerr << "[REPLAY MITIGATION MGR] Failed to open file: " << filename << std::endl;
         return;
     }
+	// Recompute recovery percentage just before export for robustness
+	if (m_metrics.pdrBeforeMitigation > 0.0) {
+		double delta = (m_metrics.pdrAfterMitigation - m_metrics.pdrBeforeMitigation);
+		const_cast<ReplayMitigationManager*>(this)->m_metrics.recoveryPercentage =
+			(delta / m_metrics.pdrBeforeMitigation) * 100.0;
+	}
     
     outFile << "Metric,Value\n";
     outFile << "TotalPacketsProcessed," << m_totalPacketsProcessed << "\n";
@@ -104602,7 +104621,12 @@ void HybridShieldMitigationManager::ExportMitigationResults(std::string filename
         return;
     }
     
-    HybridShieldMetrics metrics = GetMetrics();
+	HybridShieldMetrics metrics = GetMetrics();
+	// Recompute recovery percentage if possible before writing
+	if (metrics.pdrBeforeMitigation > 0.0) {
+		double delta = (metrics.pdrAfterMitigation - metrics.pdrBeforeMitigation);
+		metrics.recoveryPercentage = (delta / metrics.pdrBeforeMitigation) * 100.0;
+	}
     
     outFile << "Metric,Value\n";
     outFile << "TotalMHLsDiscovered," << metrics.totalMHLsDiscovered << "\n";
@@ -149770,6 +149794,30 @@ void setup_routing_table_poisoning_attack(
 }
 
 // Global callback for replay detection packet monitoring
+// Global callback for replay attack packet capture
+bool GlobalReplayCaptureCallback(Ptr<NetDevice> device, Ptr<const Packet> packet,
+                                 uint16_t protocol, const Address& from,
+                                 const Address& to, NetDevice::PacketType packetType) {
+    if (g_replayAttackManager == nullptr) {
+        return true;  // No attack enabled
+    }
+    
+    // Capture packets received by this node (not sent)
+    if (packetType == NetDevice::PACKET_HOST || packetType == NetDevice::PACKET_BROADCAST) {
+        Ptr<Node> node = device->GetNode();
+        uint32_t nodeId = node->GetId();
+        
+        // Extract source/dest from packet if possible (simplified - use packet UID as proxy)
+        uint32_t srcNode = 0;  // TODO: extract from headers if needed
+        uint32_t dstNode = nodeId;
+        
+        g_replayAttackManager->CapturePacketForReplay(nodeId, packet, srcNode, dstNode);
+    }
+    
+    return true;  // Always allow packet
+}
+
+// Global callback for replay detection and mitigation
 bool GlobalReplayDetectionCallback(Ptr<NetDevice> device, Ptr<const Packet> packet,
                                    uint16_t protocol, const Address& from,
                                    const Address& to, NetDevice::PacketType packetType) {
@@ -152250,6 +152298,21 @@ int main(int argc, char *argv[])
             
             double replayStopTime = (replay_stop_time > 0) ? replay_stop_time : simTime;
             g_replayAttackManager->ActivateAttack(ns3::Seconds(replay_start_time), ns3::Seconds(replayStopTime));
+            
+            // Install promiscuous receive callbacks on malicious nodes to capture packets
+            for (uint32_t i = 0; i < actual_node_count; ++i) {
+                if (replay_malicious_nodes[i]) {
+                    Ptr<Node> node = ns3::NodeList::GetNode(i);
+                    for (uint32_t j = 0; j < node->GetNDevices(); ++j) {
+                        Ptr<NetDevice> device = node->GetDevice(j);
+                        if (!device->IsPointToPoint()) {
+                            device->SetPromiscReceiveCallback(
+                                MakeCallback(&GlobalReplayCaptureCallback));
+                        }
+                    }
+                    std::cout << "[REPLAY ATTACK] Installed capture callback on malicious node " << i << "\n";
+                }
+            }
             
             std::cout << "Configured " << malicious_count << " Replay attack nodes\n";
             std::cout << "============================================\n" << std::endl;
