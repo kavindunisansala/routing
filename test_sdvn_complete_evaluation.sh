@@ -140,12 +140,12 @@ run_simulation \
 run_simulation \
     "Wormhole Attack 10% (With Detection)" \
     "test03_wormhole_10_with_detection" \
-    "--present_wormhole_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --wormhole_bandwidth=1000Mbps --wormhole_delay_us=50000 --wormhole_tunnel_routing=true --wormhole_tunnel_data=true --enable_wormhole_detection=true"
+    "--present_wormhole_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --wormhole_bandwidth=1000Mbps --wormhole_delay_us=50000 --wormhole_tunnel_routing=true --wormhole_tunnel_data=true --enable_wormhole_detection=true --wormhole_enable_verification_flows=true"
 
 run_simulation \
     "Wormhole Attack 10% (With Full Mitigation)" \
     "test04_wormhole_10_with_mitigation" \
-    "--present_wormhole_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --wormhole_bandwidth=1000Mbps --wormhole_delay_us=50000 --wormhole_tunnel_routing=true --wormhole_tunnel_data=true --enable_wormhole_detection=true --enable_wormhole_mitigation=true"
+    "--present_wormhole_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --wormhole_bandwidth=1000Mbps --wormhole_delay_us=50000 --wormhole_tunnel_routing=true --wormhole_tunnel_data=true --enable_wormhole_detection=true --enable_wormhole_mitigation=true --wormhole_enable_verification_flows=true"
 
 # ============================================================================
 # PHASE 3: BLACKHOLE ATTACK
@@ -160,7 +160,7 @@ run_simulation \
 run_simulation \
     "Blackhole Attack 10% (With Detection)" \
     "test06_blackhole_10_with_detection" \
-    "--present_blackhole_attack_nodes=true --attack_percentage=0.1 --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --blackhole_advertise_fake_routes=true --enable_blackhole_detection=true"
+    "--present_blackhole_attack_nodes=true --attack_percentage=0.1 --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --blackhole_advertise_fake_routes=true --enable_blackhole_mitigation=true --blackhole_pdr_threshold=0.99"
 
 run_simulation \
     "Blackhole Attack 10% (With Full Mitigation)" \
@@ -195,17 +195,17 @@ print_section "PHASE 5: REPLAY ATTACK (3 tests)"
 run_simulation \
     "Replay Attack 10% (No Mitigation)" \
     "test11_replay_10_no_mitigation" \
-    "--enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0 --replay_interval=1.0 --replay_count_per_node=5 --replay_max_captured_packets=100"
+    "--enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=1.0 --replay_interval=0.25 --replay_count_per_node=20 --replay_max_captured_packets=500"
 
 run_simulation \
     "Replay Attack 10% (With Detection - Bloom Filters)" \
     "test12_replay_10_with_detection" \
-    "--enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0 --replay_interval=1.0 --replay_count_per_node=5 --enable_replay_detection=true"
+    "--enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=1.0 --replay_interval=0.25 --replay_count_per_node=20 --replay_max_captured_packets=500 --enable_replay_detection=true"
 
 run_simulation \
     "Replay Attack 10% (With Full Mitigation)" \
     "test13_replay_10_with_mitigation" \
-    "--enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=10.0 --replay_interval=1.0 --replay_count_per_node=5 --enable_replay_detection=true --enable_replay_mitigation=true"
+    "--enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=1.0 --replay_interval=0.25 --replay_count_per_node=20 --replay_max_captured_packets=500 --enable_replay_detection=true --enable_replay_mitigation=true"
 
 # ============================================================================
 # PHASE 6: RTP ATTACK (Routing Table Poisoning)
@@ -235,7 +235,7 @@ print_section "PHASE 7: COMBINED ATTACK (1 test)"
 run_simulation \
     "Combined Attack 10% (All Attacks + All Mitigations)" \
     "test17_combined_10_with_all_mitigations" \
-    "--present_wormhole_attack_nodes=true --present_blackhole_attack_nodes=true --present_sybil_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --wormhole_bandwidth=1000Mbps --wormhole_delay_us=50000 --wormhole_tunnel_routing=true --wormhole_tunnel_data=true --enable_wormhole_detection=true --enable_wormhole_mitigation=true --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --enable_blackhole_mitigation=true --enable_sybil_attack=true --sybil_attack_percentage=0.1 --sybil_identities_per_node=3 --sybil_inject_fake_packets=true --enable_sybil_detection=true --enable_sybil_mitigation=true --enable_replay_attack=true --replay_attack_percentage=0.1 --replay_interval=1.0 --replay_count_per_node=5 --enable_replay_detection=true --enable_replay_mitigation=true --enable_rtp_attack=true --rtp_attack_percentage=0.1 --rtp_inject_fake_routes=true --rtp_fabricate_mhls=true --enable_hybrid_shield_detection=true --enable_hybrid_shield_mitigation=true"
+    "--present_wormhole_attack_nodes=true --present_blackhole_attack_nodes=true --present_sybil_attack_nodes=true --use_enhanced_wormhole=true --attack_percentage=0.1 --wormhole_bandwidth=1000Mbps --wormhole_delay_us=50000 --wormhole_tunnel_routing=true --wormhole_tunnel_data=true --enable_wormhole_detection=true --enable_wormhole_mitigation=true --wormhole_enable_verification_flows=true --enable_blackhole_attack=true --blackhole_attack_percentage=0.1 --enable_blackhole_mitigation=true --enable_sybil_attack=true --sybil_attack_percentage=0.1 --sybil_identities_per_node=3 --sybil_inject_fake_packets=true --enable_sybil_detection=true --enable_sybil_mitigation=true --enable_replay_attack=true --replay_attack_percentage=0.1 --replay_start_time=1.0 --replay_interval=0.25 --replay_count_per_node=20 --replay_max_captured_packets=500 --enable_replay_detection=true --enable_replay_mitigation=true --enable_rtp_attack=true --rtp_attack_percentage=0.1 --rtp_inject_fake_routes=true --rtp_fabricate_mhls=true --enable_hybrid_shield_detection=true --enable_hybrid_shield_mitigation=true"
 
 # ============================================================================
 # GENERATE SUMMARY

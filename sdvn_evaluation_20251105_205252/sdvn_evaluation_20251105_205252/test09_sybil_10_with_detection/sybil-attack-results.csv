@@ -1,0 +1,10 @@
+Metric,Value
+TotalSybilNodes,2
+IdentitiesPerNode,3
+TotalFakeIdentities,6
+ClonedIdentities,6
+NewFakeIdentities,0
+FakePacketsInjected,300
+FakeRoutesAdvertised,300
+LegitimatePacketsDropped,0
+AttackDuration_s,100

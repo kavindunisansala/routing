@@ -1,9 +1,0 @@
-Metric,Value
-NumberOfMaliciousNodes,3
-TotalPacketsCaptured,200
-TotalPacketsReplayed,2
-SuccessfulReplays,2
-DetectedReplays,0
-AttackDuration,0
-SuccessRate,1
-DetectionRate,0

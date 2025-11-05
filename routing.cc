@@ -150047,6 +150047,63 @@ bool GlobalReplayDetectionCallback(Ptr<NetDevice> device, Ptr<const Packet> pack
     return allowed;  // Block if replay detected and mitigation enabled
 }
 
+/**
+ * @brief Discover and register legitimate Multi-Hop Links (MHLs) from network topology
+ * This simulates LLDP/BDDP-based topology discovery in SDVN controller
+ */
+void DiscoverAndRegisterLegitimateMHLs(HybridShield* hybridShield, uint32_t numSwitches) {
+    if (hybridShield == nullptr || numSwitches == 0) {
+        return;
+    }
+    
+    std::cout << "\n[TOPOLOGY DISCOVERY] Scanning network for legitimate MHLs...\n";
+    
+    uint32_t mhlCount = 0;
+    
+    // Iterate through all nodes in the network
+    for (uint32_t i = 0; i < NodeList::GetNNodes(); i++) {
+        Ptr<Node> nodeA = NodeList::GetNode(i);
+        
+        // Check each device on this node
+        for (uint32_t devIdx = 0; devIdx < nodeA->GetNDevices(); devIdx++) {
+            Ptr<NetDevice> deviceA = nodeA->GetDevice(devIdx);
+            
+            // Only consider point-to-point links (SDN switches use P2P links)
+            if (deviceA->IsPointToPoint()) {
+                Ptr<PointToPointNetDevice> p2pDeviceA = DynamicCast<PointToPointNetDevice>(deviceA);
+                if (p2pDeviceA) {
+                    // Get the channel and find the other end
+                    Ptr<PointToPointChannel> channel = DynamicCast<PointToPointChannel>(p2pDeviceA->GetChannel());
+                    if (channel) {
+                        // Get the device on the other end
+                        Ptr<NetDevice> deviceB = (channel->GetDevice(0) == deviceA) ? 
+                                                  channel->GetDevice(1) : channel->GetDevice(0);
+                        Ptr<Node> nodeB = deviceB->GetNode();
+                        uint32_t nodeBId = nodeB->GetId();
+                        
+                        // Only register if both nodes are within switch range (RSUs)
+                        // and nodeA < nodeB (to avoid registering same link twice)
+                        if (i < nodeBId && i < numSwitches && nodeBId < numSwitches) {
+                            // Register this as a legitimate MHL
+                            // switchId = nodeId for RSUs, port = device index
+                            hybridShield->RegisterMHLDiscovery(i, devIdx, nodeBId, 
+                                                               deviceB->GetIfIndex());
+                            mhlCount++;
+                            
+                            std::cout << "[TOPOLOGY DISCOVERY] Registered legitimate MHL: "
+                                      << "Switch" << i << ":Port" << devIdx << " <--> "
+                                      << "Switch" << nodeBId << ":Port" << deviceB->GetIfIndex() << "\n";
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    std::cout << "[TOPOLOGY DISCOVERY] Discovered and registered " << mhlCount 
+              << " legitimate MHLs from network topology\n";
+}
+
 int main(int argc, char *argv[])
 {        
     initialize_empty();
@@ -152709,6 +152766,15 @@ int main(int argc, char *argv[])
                           << hybrid_shield_verification_interval << "s" << std::endl;
             }
             
+            // Discover and register legitimate MHLs from actual network topology
+            // This simulates LLDP/BDDP-based topology discovery in SDVN controller
+            // Schedule this slightly after simulation start to ensure topology is stable
+            if (architecture == 0) {  // Only for SDVN architecture
+                ns3::Simulator::Schedule(ns3::Seconds(1.0), 
+                    &DiscoverAndRegisterLegitimateMHLs, g_hybridShield, num_switches);
+                std::cout << "Scheduled legitimate MHL topology discovery at t=1.0s (simulating LLDP/BDDP)\n";
+            }
+            
             // Schedule PDR sampling for mitigation effectiveness
             if (rtp_start_time > 0) {
                 ns3::Simulator::Schedule(ns3::Seconds(rtp_start_time + 10.0),
@@ -152723,16 +152789,34 @@ int main(int argc, char *argv[])
                 std::cout << "[MAIN] Scheduled Hybrid-Shield PDR post-mitigation sampling at t=" << (rtpStopTime - 5.0) << "s\n";
             }
             
-            // Simulate MHL discovery (in real SDN, controller would discover links via LLDP/BDDP)
+            // Simulate MHL discovery including attacker's fake MHLs
+            // In real SDN, controller discovers links via LLDP/BDDP, and attacker injects fake LLDP/BDDP
             if (enable_rtp_attack && rtp_fabricate_mhls && num_switches >= 2) {
-                // Attacker creates fake MHL - Hybrid-Shield should detect this
+                // Attacker creates fake MHL(s) - Hybrid-Shield should detect these
+                // Schedule after legitimate topology discovery
                 ns3::Simulator::Schedule(ns3::Seconds(rtp_start_time + 0.5), 
                     &ns3::HybridShield::RegisterMHLDiscovery, g_hybridShield,
                     0,     // switchA (first RSU)
                     1,     // portA
                     num_switches - 1,  // switchB (last RSU)
                     1);    // portB
-                std::cout << "Scheduled fake MHL discovery for detection testing" << std::endl;
+                std::cout << "Scheduled fake MHL injection at t=" << (rtp_start_time + 0.5) 
+                          << "s for detection testing" << std::endl;
+                
+                // Register additional fake MHLs for each malicious node
+                std::vector<uint32_t> maliciousNodes = g_rtpManager->GetMaliciousNodeIds();
+                for (size_t i = 0; i < maliciousNodes.size() && i < 3; i++) {
+                    // Create different fake MHLs for variety
+                    uint32_t sw1 = i % num_switches;
+                    uint32_t sw2 = (sw1 + 2) % num_switches;
+                    if (sw1 != sw2) {
+                        ns3::Simulator::Schedule(ns3::Seconds(rtp_start_time + 1.0 + i * 0.2), 
+                            &ns3::HybridShield::RegisterMHLDiscovery, g_hybridShield,
+                            sw1, 2, sw2, 2);
+                        std::cout << "Scheduled fake MHL " << (i+1) << ": Switch" << sw1 
+                                  << " <--> Switch" << sw2 << " at t=" << (rtp_start_time + 1.0 + i * 0.2) << "s\n";
+                    }
+                }
             }
             
             std::cout << "Hybrid-Shield system initialized successfully" << std::endl;

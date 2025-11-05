@@ -1,0 +1,4 @@
+            std::cout << "Advanced Sybil mitigation system initialized successfully" << std::endl;
+        }
+    
+    // ===== Replay Attack Configuration (Independent) =====

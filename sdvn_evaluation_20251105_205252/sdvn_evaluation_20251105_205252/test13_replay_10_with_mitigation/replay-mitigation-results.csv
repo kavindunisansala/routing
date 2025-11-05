@@ -1,0 +1,14 @@
+Metric,Value
+TotalPacketsProcessed,2330
+TotalReplaysBlocked,68
+UniqueBlockedPackets,68
+FalsePositiveRate,0
+DetectionAccuracy,0
+AvgProcessingLatency,20.1281
+Throughput,23.8055
+PDR_BeforeMitigation,0
+PDR_AfterMitigation,0
+PDR_RecoveryPercentage,0
+AttackStartTime_s,0
+MitigationStartTime_s,0
+MitigationCompleteTime_s,0
