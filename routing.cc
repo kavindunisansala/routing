@@ -2841,6 +2841,7 @@ int mobility_scenario = 0;// 0 - urban, 1 - non-urban, 2 - highway
 int architecture = 0; // 0 - centralized, 1 - distributed, 2 - hybrid
 int attack_number = 2; //1 - blackhole, 2 - wormhole, 3 - sybil, 4 - reply, 5 - routing-table-poisioning
 double attack_percentage=0.2; //percentage of attackers (20%)
+uint32_t random_seed = 12345;  // Fixed seed for reproducible attack node selection (0 = use time-based seed)
 
 // Attack presence flags
 bool present_blackhole_attack_nodes = false;
@@ -150022,30 +150023,61 @@ void declare_attackers() {
     // Get ACTUAL node count instead of using MAX_NODES constant
     uint32_t actual_node_count = ns3::NodeList::GetNNodes();
     
+    // REPRODUCIBILITY: Set fixed seed for attack node selection
+    // This ensures consistent results across test runs
+    if (random_seed != 0) {
+        srand(random_seed);
+        std::cout << "[ATTACK-SETUP] Using fixed seed " << random_seed 
+                  << " for reproducible attack node selection\n";
+    } else {
+        srand(time(0));
+        std::cout << "[ATTACK-SETUP] Using time-based seed for random attack node selection\n";
+    }
+    
+    // CRITICAL INFRASTRUCTURE PROTECTION
+    // RSUs are typically the last N_RSUs nodes in the network
+    // Avoid making RSUs into attackers as they're critical for connectivity
+    uint32_t first_rsu_id = actual_node_count - N_RSUs;  // RSUs start here
+    uint32_t max_vehicle_id = first_rsu_id - 1;           // Vehicles end here
+    
+    std::cout << "[ATTACK-SETUP] Protecting infrastructure: RSU nodes [" 
+              << first_rsu_id << "-" << (actual_node_count-1) 
+              << "] excluded from attacks\n";
+    
     // For nodes
     if (present_wormhole_attack_nodes) {
         for (uint32_t i = 0; i < actual_node_count; ++i) {
+            // Protect RSU nodes from being attackers
+            if (i >= first_rsu_id) {
+                wormhole_malicious_nodes[i] = false;
+                continue;
+            }
             bool attacking_state = GetBooleanWithProbability(attack_percentage);
             wormhole_malicious_nodes[i] = attacking_state;
-            // Optionally print
-            // std::cout << "Node " << i << " wormhole state: " << attacking_state << std::endl;
         }
     }
     if (present_blackhole_attack_nodes) {
         for (uint32_t i = 0; i < actual_node_count; ++i) {
+            // CRITICAL FIX: Protect RSU nodes from being blackhole attackers
+            // RSUs are infrastructure nodes critical for network connectivity
+            if (i >= first_rsu_id) {
+                blackhole_malicious_nodes[i] = false;
+                continue;
+            }
             bool attacking_state = GetBooleanWithProbability(attack_percentage);
             blackhole_malicious_nodes[i] = attacking_state;
-            // Optionally print
-            // std::cout << "Node " << i << " blackhole state: " << attacking_state << std::endl;
         }
     }
 
     if (present_reply_attack_nodes) {
         for (uint32_t i = 0; i < actual_node_count; ++i) {
+            // Protect RSU nodes from being attackers
+            if (i >= first_rsu_id) {
+                reply_malicious_nodes[i] = false;
+                continue;
+            }
             bool attacking_state = GetBooleanWithProbability(attack_percentage);
             reply_malicious_nodes[i] = attacking_state;
-            // Optionally print
-            // std::cout << "Node " << i << " replay state: " << attacking_state << std::endl;
         }
     }
     
@@ -150696,6 +150728,9 @@ int main(int argc, char *argv[])
 	cmd.AddValue ("enable_replay_detection", "Enable Replay detection with Bloom Filters", enable_replay_detection);
 	cmd.AddValue ("enable_replay_mitigation", "Enable automatic Replay mitigation", enable_replay_mitigation);
 	cmd.AddValue ("bf_filter_size", "Bloom filter size in bits", bf_filter_size);
+	
+	// General Attack Configuration
+	cmd.AddValue ("random_seed", "Random seed for attack node selection (0=time-based)", random_seed);
 	cmd.AddValue ("bf_num_hash_functions", "Number of hash functions for Bloom filter", bf_num_hash_functions);
 	cmd.AddValue ("bf_num_filters", "Number of rotating Bloom filters", bf_num_filters);
 	cmd.AddValue ("bf_rotation_interval", "Bloom filter rotation interval (seconds)", bf_rotation_interval);
