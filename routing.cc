@@ -103113,6 +103113,10 @@ void ReplayAttackApp::SetReplayCount(uint32_t count) {
 
 void ReplayAttackApp::CapturePacket(Ptr<const Packet> packet, uint32_t srcNode, uint32_t dstNode) {
     if (m_capturedPackets.size() >= m_maxCapturedPackets) {
+        if (m_capturedPackets.size() == m_maxCapturedPackets) {
+            std::cout << "[REPLAY ATTACK] Node " << m_node->GetId() 
+                      << " reached max capture limit (" << m_maxCapturedPackets << " packets)" << std::endl;
+        }
         return;  // Limit memory usage
     }
     
@@ -103130,21 +103134,37 @@ void ReplayAttackApp::CapturePacket(Ptr<const Packet> packet, uint32_t srcNode, 
     m_packetDigests.push_back(digest);
     m_stats.totalPacketsCaptured++;
     
-    std::cout << "[REPLAY ATTACK] Node " << m_node->GetId() 
-              << " captured packet " << m_stats.totalPacketsCaptured 
-              << " from " << srcNode << " to " << dstNode << "\n";
+    if (m_stats.totalPacketsCaptured <= 5 || m_stats.totalPacketsCaptured % 50 == 0) {
+        std::cout << "[REPLAY ATTACK] Node " << m_node->GetId() 
+                  << " captured packet #" << m_stats.totalPacketsCaptured 
+                  << " (size=" << packet->GetSize() << " bytes, "
+                  << "from node " << srcNode << " to node " << dstNode 
+                  << ", time=" << Simulator::Now().GetSeconds() << "s)" << std::endl;
+    }
 }
 
 bool ReplayAttackApp::InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> packet,
                                       uint16_t protocol, const Address& from,
                                       const Address& to, NetDevice::PacketType packetType) {
     static uint64_t interceptCount = 0;
+    static uint64_t totalCallCount = 0;
     static bool firstCall = true;
     
+    totalCallCount++;
+    
     if (firstCall) {
-        std::cout << "[REPLAY ATTACK] InterceptPacket callback is working on node " 
-                  << m_node->GetId() << "!\n";
+        std::cout << "[REPLAY ATTACK] InterceptPacket callback is ACTIVE on node " 
+                  << m_node->GetId() << " (application started successfully)" << std::endl;
         firstCall = false;
+    }
+    
+    // Log first few packets with full details
+    if (totalCallCount <= 5) {
+        std::cout << "[REPLAY ATTACK DEBUG] Call #" << totalCallCount 
+                  << " on node " << m_node->GetId()
+                  << " - PacketType=" << packetType 
+                  << " (HOST=" << NetDevice::PACKET_HOST 
+                  << ", BROADCAST=" << NetDevice::PACKET_BROADCAST << ")" << std::endl;
     }
     
     // Only capture broadcast and unicast packets (ignore promiscuous sniffing of others' packets)
@@ -103153,9 +103173,10 @@ bool ReplayAttackApp::InterceptPacket(Ptr<NetDevice> device, Ptr<const Packet> p
     }
     
     interceptCount++;
-    if (interceptCount % 10 == 1) {  // Log every 10th packet
-        std::cout << "[REPLAY ATTACK] Intercepted packet #" << interceptCount 
-                  << " on node " << m_node->GetId() << "\n";
+    if (interceptCount % 10 == 1) {  // Log every 10th captured packet
+        std::cout << "[REPLAY ATTACK] Captured packet #" << interceptCount 
+                  << " on node " << m_node->GetId() 
+                  << " (total callbacks=" << totalCallCount << ")" << std::endl;
     }
     
     // Get source and destination node IDs
@@ -103218,7 +103239,7 @@ void ReplayAttackApp::StartApplication() {
     // Get node from Application base class
     Ptr<Node> node = GetNode();
     if (!node) {
-        std::cerr << "[REPLAY ATTACK] ERROR: No node attached to application!\n";
+        std::cerr << "[REPLAY ATTACK] ERROR: No node attached to application!" << std::endl;
         return;
     }
     
@@ -103227,17 +103248,33 @@ void ReplayAttackApp::StartApplication() {
         m_node = node;
     }
     
-    std::cout << "[REPLAY ATTACK] Starting replay attack on node " << node->GetId() << "\n";
+    std::cout << "[REPLAY ATTACK] Starting replay attack application on node " << node->GetId() 
+              << " at simulation time " << Simulator::Now().GetSeconds() << "s" << std::endl;
+    std::cout << "[REPLAY ATTACK] Configuration: interval=" << m_replayInterval 
+              << "s, count=" << m_replayCount 
+              << ", maxCapture=" << m_maxCapturedPackets << std::endl;
     
     // Enable promiscuous mode to capture packets
+    uint32_t callbacksInstalled = 0;
     for (uint32_t i = 0; i < node->GetNDevices(); ++i) {
         Ptr<NetDevice> device = node->GetDevice(i);
         if (!device->IsPointToPoint()) {
             device->SetPromiscReceiveCallback(
                 MakeCallback(&ReplayAttackApp::InterceptPacket, this));
+            callbacksInstalled++;
             std::cout << "[REPLAY ATTACK] Installed promiscuous callback on device " << i 
-                      << " of node " << node->GetId() << "\n";
+                      << " (" << device->GetInstanceTypeId().GetName() << ") of node " << node->GetId() << std::endl;
+        } else {
+            std::cout << "[REPLAY ATTACK] Skipped P2P device " << i << " on node " << node->GetId() << std::endl;
         }
+    }
+    
+    if (callbacksInstalled == 0) {
+        std::cerr << "[REPLAY ATTACK] WARNING: No callbacks installed on node " << node->GetId() 
+                  << " - no non-P2P devices found!" << std::endl;
+    } else {
+        std::cout << "[REPLAY ATTACK] Successfully installed " << callbacksInstalled 
+                  << " promiscuous callbacks on node " << node->GetId() << std::endl;
     }
     
     ScheduleNextReplay();
@@ -152587,20 +152624,11 @@ int main(int argc, char *argv[])
             double replayStopTime = (replay_stop_time > 0) ? replay_stop_time : simTime;
             g_replayAttackManager->ActivateAttack(ns3::Seconds(replay_start_time), ns3::Seconds(replayStopTime));
             
-            // Install promiscuous receive callbacks on malicious nodes to capture packets
-            for (uint32_t i = 0; i < actual_node_count; ++i) {
-                if (replay_malicious_nodes[i]) {
-                    Ptr<Node> node = ns3::NodeList::GetNode(i);
-                    for (uint32_t j = 0; j < node->GetNDevices(); ++j) {
-                        Ptr<NetDevice> device = node->GetDevice(j);
-                        if (!device->IsPointToPoint()) {
-                            device->SetPromiscReceiveCallback(
-                                MakeCallback(&GlobalReplayCaptureCallback));
-                        }
-                    }
-                    std::cout << "[REPLAY ATTACK] Installed capture callback on malicious node " << i << "\n";
-                }
-            }
+            // NOTE: Promiscuous callbacks are installed by ReplayAttackApp::StartApplication()
+            // when each app starts. No need to install GlobalReplayCaptureCallback here as it
+            // would be overwritten anyway (only one callback per device allowed).
+            std::cout << "[REPLAY ATTACK] Callbacks will be installed by ReplayAttackApp when apps start at t=" 
+                      << replay_start_time << "s" << std::endl;
             
             std::cout << "Configured " << malicious_count << " Replay attack nodes\n";
             std::cout << "============================================\n" << std::endl;
