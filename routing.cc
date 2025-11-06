@@ -131,6 +131,10 @@ class ReplayAttackManager;
 class ReplayDetector;
 class ReplayMitigationManager;
 
+// Forward declaration for Mitigation Coordination
+class MitigationCoordinator;
+enum MitigationType;
+
 /**
  * @brief Statistics for wormhole attack monitoring
  */
@@ -2549,6 +2553,89 @@ struct RTPStatistics {
 };
 
 /**
+ * @brief Mitigation Coordination System
+ * 
+ * Coordinates multiple mitigation systems to prevent interference under combined attacks.
+ * Implements priority-based decision making and prevents routing loops from multiple blacklists.
+ */
+enum MitigationType {
+    MITIGATION_BLACKHOLE = 0,    // Highest priority - drops all traffic
+    MITIGATION_WORMHOLE = 1,     // High priority - tunneling attacks
+    MITIGATION_SYBIL = 2,        // Medium priority - identity attacks
+    MITIGATION_REPLAY = 3,       // Low priority - packet replay
+    MITIGATION_RTP = 4           // Lowest priority - route manipulation
+};
+
+struct MitigationDecision {
+    uint32_t nodeId;
+    MitigationType type;
+    bool shouldBlacklist;
+    std::string reason;
+    Time timestamp;
+    
+    MitigationDecision() 
+        : nodeId(0), type(MITIGATION_BLACKHOLE), shouldBlacklist(false) {}
+};
+
+struct CoordinationMetrics {
+    uint32_t totalDecisions;
+    uint32_t conflictsResolved;
+    uint32_t blacklistsPrevented;    // Prevented redundant blacklists
+    uint32_t routingLoopsPrevented;  // Prevented potential routing loops
+    std::map<MitigationType, uint32_t> decisionsPerType;
+    
+    CoordinationMetrics() 
+        : totalDecisions(0), conflictsResolved(0), 
+          blacklistsPrevented(0), routingLoopsPrevented(0) {}
+};
+
+class MitigationCoordinator {
+public:
+    MitigationCoordinator();
+    ~MitigationCoordinator();
+    
+    void Initialize(uint32_t totalNodes);
+    void EnableCoordination(bool enable);
+    
+    // Decision Making
+    bool RequestBlacklist(uint32_t nodeId, MitigationType type, const std::string& reason);
+    bool IsNodeBlacklisted(uint32_t nodeId);
+    MitigationType GetBlacklistReason(uint32_t nodeId);
+    
+    // Conflict Resolution
+    bool CheckRoutingLoop(uint32_t nodeId, const std::vector<uint32_t>& currentBlacklist);
+    bool WouldCausePartition(uint32_t nodeId, uint32_t totalNodes);
+    MitigationType ResolveConflict(MitigationType type1, MitigationType type2);
+    
+    // Priority Management
+    bool HasHigherPriority(MitigationType type1, MitigationType type2);
+    std::string GetTypeName(MitigationType type);
+    
+    // Coordination State
+    void ClearBlacklist(uint32_t nodeId);
+    void ResetAllBlacklists();
+    uint32_t GetBlacklistedCount();
+    std::vector<uint32_t> GetBlacklistedNodes();
+    
+    // Metrics
+    CoordinationMetrics GetMetrics() const { return m_metrics; }
+    void PrintReport() const;
+    void ExportResults(std::string filename) const;
+    
+private:
+    bool m_coordinationEnabled;
+    uint32_t m_totalNodes;
+    uint32_t m_maxBlacklistPercentage;  // Max % of nodes to blacklist (safety limit)
+    
+    // Blacklist tracking by priority
+    std::map<uint32_t, MitigationDecision> m_blacklistedNodes;  // nodeId -> decision
+    std::map<uint32_t, std::vector<MitigationDecision>> m_decisionHistory;  // nodeId -> history
+    
+    CoordinationMetrics m_metrics;
+    Time m_lastDecisionTime;
+};
+
+/**
  * @brief Routing Table Poisoning Attack Manager with MHL Fabrication
  */
 class RoutingTablePoisoningAttackManager {
@@ -2926,6 +3013,9 @@ ns3::SybilDetector* g_sybilDetector = nullptr;
 
 // Global Sybil mitigation manager instance
 ns3::SybilMitigationManager* g_sybilMitigationManager = nullptr;
+
+// Global Mitigation Coordinator instance
+ns3::MitigationCoordinator* g_mitigationCoordinator = nullptr;
 
 // Global Replay attack manager instance
 ns3::ReplayAttackManager* g_replayAttackManager = nullptr;
@@ -104533,6 +104623,274 @@ void HybridShield::ExportResults(std::string filename) const {
     
     outFile.close();
     std::cout << "[HYBRID-SHIELD] Results exported to " << filename << "\n";
+}
+
+// ============================================================================
+// MITIGATION COORDINATOR IMPLEMENTATION
+// ============================================================================
+
+MitigationCoordinator::MitigationCoordinator()
+    : m_coordinationEnabled(false),
+      m_totalNodes(0),
+      m_maxBlacklistPercentage(30) {  // Safety limit: max 30% of nodes can be blacklisted
+}
+
+MitigationCoordinator::~MitigationCoordinator() {
+    m_blacklistedNodes.clear();
+    m_decisionHistory.clear();
+}
+
+void MitigationCoordinator::Initialize(uint32_t totalNodes) {
+    m_totalNodes = totalNodes;
+    std::cout << "[MITIGATION COORDINATOR] Initialized for " << totalNodes << " nodes" << std::endl;
+    std::cout << "[MITIGATION COORDINATOR] Max blacklist limit: " 
+              << m_maxBlacklistPercentage << "% (" 
+              << (m_totalNodes * m_maxBlacklistPercentage / 100) << " nodes)" << std::endl;
+}
+
+void MitigationCoordinator::EnableCoordination(bool enable) {
+    m_coordinationEnabled = enable;
+    std::cout << "[MITIGATION COORDINATOR] Coordination " 
+              << (enable ? "ENABLED" : "DISABLED") << std::endl;
+}
+
+bool MitigationCoordinator::RequestBlacklist(uint32_t nodeId, MitigationType type, const std::string& reason) {
+    if (!m_coordinationEnabled) {
+        return true;  // Allow all requests if coordination disabled
+    }
+    
+    m_metrics.totalDecisions++;
+    m_metrics.decisionsPerType[type]++;
+    m_lastDecisionTime = Simulator::Now();
+    
+    // Safety check: prevent blacklisting too many nodes
+    uint32_t maxAllowed = (m_totalNodes * m_maxBlacklistPercentage) / 100;
+    if (m_blacklistedNodes.size() >= maxAllowed) {
+        std::cout << "[MITIGATION COORDINATOR] DENIED: Blacklist limit reached (" 
+                  << m_blacklistedNodes.size() << "/" << maxAllowed << " nodes)" << std::endl;
+        m_metrics.blacklistsPrevented++;
+        return false;
+    }
+    
+    // Check if node is already blacklisted
+    auto it = m_blacklistedNodes.find(nodeId);
+    if (it != m_blacklistedNodes.end()) {
+        // Node already blacklisted - check priority
+        MitigationType existing = it->second.type;
+        
+        if (HasHigherPriority(type, existing)) {
+            // New request has higher priority - allow override
+            std::cout << "[MITIGATION COORDINATOR] OVERRIDE: Node " << nodeId 
+                      << " - " << GetTypeName(type) << " supersedes " << GetTypeName(existing) 
+                      << " (reason: " << reason << ")" << std::endl;
+            
+            MitigationDecision decision;
+            decision.nodeId = nodeId;
+            decision.type = type;
+            decision.shouldBlacklist = true;
+            decision.reason = reason;
+            decision.timestamp = Simulator::Now();
+            
+            m_blacklistedNodes[nodeId] = decision;
+            m_decisionHistory[nodeId].push_back(decision);
+            m_metrics.conflictsResolved++;
+            return true;
+        } else {
+            // Existing blacklist has higher priority - deny new request
+            std::cout << "[MITIGATION COORDINATOR] DENIED: Node " << nodeId 
+                      << " already blacklisted by " << GetTypeName(existing) 
+                      << " (higher priority than " << GetTypeName(type) << ")" << std::endl;
+            m_metrics.blacklistsPrevented++;
+            return false;
+        }
+    }
+    
+    // New blacklist - check for potential routing issues
+    std::vector<uint32_t> currentBlacklist;
+    for (const auto& pair : m_blacklistedNodes) {
+        currentBlacklist.push_back(pair.first);
+    }
+    
+    if (CheckRoutingLoop(nodeId, currentBlacklist)) {
+        std::cout << "[MITIGATION COORDINATOR] DENIED: Node " << nodeId 
+                  << " would cause routing loop (type: " << GetTypeName(type) << ")" << std::endl;
+        m_metrics.routingLoopsPrevented++;
+        return false;
+    }
+    
+    if (WouldCausePartition(nodeId, m_totalNodes)) {
+        std::cout << "[MITIGATION COORDINATOR] DENIED: Node " << nodeId 
+                  << " critical for network connectivity (type: " << GetTypeName(type) << ")" << std::endl;
+        m_metrics.routingLoopsPrevented++;
+        return false;
+    }
+    
+    // All checks passed - approve blacklist
+    MitigationDecision decision;
+    decision.nodeId = nodeId;
+    decision.type = type;
+    decision.shouldBlacklist = true;
+    decision.reason = reason;
+    decision.timestamp = Simulator::Now();
+    
+    m_blacklistedNodes[nodeId] = decision;
+    m_decisionHistory[nodeId].push_back(decision);
+    
+    std::cout << "[MITIGATION COORDINATOR] APPROVED: Node " << nodeId 
+              << " blacklisted by " << GetTypeName(type) 
+              << " (reason: " << reason << ", total blacklisted: " 
+              << m_blacklistedNodes.size() << "/" << m_totalNodes << ")" << std::endl;
+    
+    return true;
+}
+
+bool MitigationCoordinator::IsNodeBlacklisted(uint32_t nodeId) {
+    return m_blacklistedNodes.find(nodeId) != m_blacklistedNodes.end();
+}
+
+MitigationType MitigationCoordinator::GetBlacklistReason(uint32_t nodeId) {
+    auto it = m_blacklistedNodes.find(nodeId);
+    if (it != m_blacklistedNodes.end()) {
+        return it->second.type;
+    }
+    return MITIGATION_RTP;  // Default lowest priority
+}
+
+bool MitigationCoordinator::CheckRoutingLoop(uint32_t nodeId, const std::vector<uint32_t>& currentBlacklist) {
+    // Simple heuristic: if more than 3 consecutive nodes are blacklisted, likely causes loop
+    // In a real implementation, this would analyze actual topology
+    if (currentBlacklist.size() < 3) {
+        return false;
+    }
+    
+    // Check if nodeId is adjacent to multiple blacklisted nodes
+    uint32_t adjacentCount = 0;
+    for (uint32_t id : currentBlacklist) {
+        if (std::abs(static_cast<int>(nodeId) - static_cast<int>(id)) <= 2) {
+            adjacentCount++;
+        }
+    }
+    
+    return adjacentCount >= 3;  // Potential loop if 3+ adjacent nodes blacklisted
+}
+
+bool MitigationCoordinator::WouldCausePartition(uint32_t nodeId, uint32_t totalNodes) {
+    // Heuristic: controller nodes (0-2) are critical for SDVN connectivity
+    if (nodeId <= 2) {
+        return true;  // Don't blacklist controller/management nodes
+    }
+    
+    // If more than 20% of nodes already blacklisted, be more cautious
+    double blacklistRatio = static_cast<double>(m_blacklistedNodes.size()) / totalNodes;
+    if (blacklistRatio > 0.20) {
+        // Check if node is in a critical range (RSU nodes typically)
+        if (nodeId >= (totalNodes - 15) && nodeId < totalNodes) {
+            return true;  // RSU nodes are important for connectivity
+        }
+    }
+    
+    return false;
+}
+
+MitigationType MitigationCoordinator::ResolveConflict(MitigationType type1, MitigationType type2) {
+    return HasHigherPriority(type1, type2) ? type1 : type2;
+}
+
+bool MitigationCoordinator::HasHigherPriority(MitigationType type1, MitigationType type2) {
+    // Lower enum value = higher priority
+    return static_cast<int>(type1) < static_cast<int>(type2);
+}
+
+std::string MitigationCoordinator::GetTypeName(MitigationType type) {
+    switch (type) {
+        case MITIGATION_BLACKHOLE: return "BLACKHOLE";
+        case MITIGATION_WORMHOLE: return "WORMHOLE";
+        case MITIGATION_SYBIL: return "SYBIL";
+        case MITIGATION_REPLAY: return "REPLAY";
+        case MITIGATION_RTP: return "RTP";
+        default: return "UNKNOWN";
+    }
+}
+
+void MitigationCoordinator::ClearBlacklist(uint32_t nodeId) {
+    auto it = m_blacklistedNodes.find(nodeId);
+    if (it != m_blacklistedNodes.end()) {
+        std::cout << "[MITIGATION COORDINATOR] Cleared blacklist for node " << nodeId 
+                  << " (was: " << GetTypeName(it->second.type) << ")" << std::endl;
+        m_blacklistedNodes.erase(it);
+    }
+}
+
+void MitigationCoordinator::ResetAllBlacklists() {
+    std::cout << "[MITIGATION COORDINATOR] Resetting all blacklists (total: " 
+              << m_blacklistedNodes.size() << " nodes)" << std::endl;
+    m_blacklistedNodes.clear();
+}
+
+uint32_t MitigationCoordinator::GetBlacklistedCount() {
+    return m_blacklistedNodes.size();
+}
+
+std::vector<uint32_t> MitigationCoordinator::GetBlacklistedNodes() {
+    std::vector<uint32_t> nodes;
+    for (const auto& pair : m_blacklistedNodes) {
+        nodes.push_back(pair.first);
+    }
+    return nodes;
+}
+
+void MitigationCoordinator::PrintReport() const {
+    std::cout << "\n========== MITIGATION COORDINATION REPORT ==========" << std::endl;
+    std::cout << "Coordination Enabled: " << (m_coordinationEnabled ? "YES" : "NO") << std::endl;
+    std::cout << "Total Nodes: " << m_totalNodes << std::endl;
+    std::cout << "Currently Blacklisted: " << m_blacklistedNodes.size() << " nodes" << std::endl;
+    std::cout << "\nDecision Statistics:" << std::endl;
+    std::cout << "  Total Decisions: " << m_metrics.totalDecisions << std::endl;
+    std::cout << "  Conflicts Resolved: " << m_metrics.conflictsResolved << std::endl;
+    std::cout << "  Blacklists Prevented: " << m_metrics.blacklistsPrevented << std::endl;
+    std::cout << "  Routing Loops Prevented: " << m_metrics.routingLoopsPrevented << std::endl;
+    
+    std::cout << "\nDecisions by Mitigation Type:" << std::endl;
+    for (const auto& pair : m_metrics.decisionsPerType) {
+        std::cout << "  " << GetTypeName(pair.first) << ": " << pair.second << std::endl;
+    }
+    
+    if (!m_blacklistedNodes.empty()) {
+        std::cout << "\nCurrently Blacklisted Nodes:" << std::endl;
+        for (const auto& pair : m_blacklistedNodes) {
+            std::cout << "  Node " << pair.second.nodeId 
+                      << " - Type: " << GetTypeName(pair.second.type)
+                      << " - Reason: " << pair.second.reason
+                      << " - Time: " << pair.second.timestamp.GetSeconds() << "s" << std::endl;
+        }
+    }
+    
+    std::cout << "====================================================" << std::endl;
+}
+
+void MitigationCoordinator::ExportResults(std::string filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "[MITIGATION COORDINATOR] Failed to open file: " << filename << std::endl;
+        return;
+    }
+    
+    outFile << "Metric,Value\n";
+    outFile << "CoordinationEnabled," << (m_coordinationEnabled ? 1 : 0) << "\n";
+    outFile << "TotalNodes," << m_totalNodes << "\n";
+    outFile << "BlacklistedNodes," << m_blacklistedNodes.size() << "\n";
+    outFile << "TotalDecisions," << m_metrics.totalDecisions << "\n";
+    outFile << "ConflictsResolved," << m_metrics.conflictsResolved << "\n";
+    outFile << "BlacklistsPrevented," << m_metrics.blacklistsPrevented << "\n";
+    outFile << "RoutingLoopsPrevented," << m_metrics.routingLoopsPrevented << "\n";
+    outFile << "BlackholeDecisions," << m_metrics.decisionsPerType.at(MITIGATION_BLACKHOLE) << "\n";
+    outFile << "WormholeDecisions," << m_metrics.decisionsPerType.at(MITIGATION_WORMHOLE) << "\n";
+    outFile << "SybilDecisions," << m_metrics.decisionsPerType.at(MITIGATION_SYBIL) << "\n";
+    outFile << "ReplayDecisions," << m_metrics.decisionsPerType.at(MITIGATION_REPLAY) << "\n";
+    outFile << "RTPDecisions," << m_metrics.decisionsPerType.at(MITIGATION_RTP) << "\n";
+    
+    outFile.close();
+    std::cout << "[MITIGATION COORDINATOR] Results exported to " << filename << "\n";
 }
 
 // ============================================================================
