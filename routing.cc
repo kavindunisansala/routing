@@ -133,7 +133,6 @@ class ReplayMitigationManager;
 
 // Forward declaration for Mitigation Coordination
 class MitigationCoordinator;
-enum MitigationType;
 
 /**
  * @brief Statistics for wormhole attack monitoring
@@ -2610,7 +2609,7 @@ public:
     
     // Priority Management
     bool HasHigherPriority(MitigationType type1, MitigationType type2);
-    std::string GetTypeName(MitigationType type);
+    std::string GetTypeName(MitigationType type) const;
     
     // Coordination State
     void ClearBlacklist(uint32_t nodeId);
@@ -104876,7 +104875,7 @@ bool MitigationCoordinator::HasHigherPriority(MitigationType type1, MitigationTy
     return static_cast<int>(type1) < static_cast<int>(type2);
 }
 
-std::string MitigationCoordinator::GetTypeName(MitigationType type) {
+std::string MitigationCoordinator::GetTypeName(MitigationType type) const {
     switch (type) {
         case MITIGATION_BLACKHOLE: return "BLACKHOLE";
         case MITIGATION_WORMHOLE: return "WORMHOLE";
