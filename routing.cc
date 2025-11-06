@@ -150046,15 +150046,37 @@ void declare_attackers() {
     
     // For nodes
     if (present_wormhole_attack_nodes) {
-        for (uint32_t i = 0; i < actual_node_count; ++i) {
-            // Protect RSU nodes from being attackers
-            if (i >= first_rsu_id) {
-                wormhole_malicious_nodes[i] = false;
-                continue;
-            }
-            bool attacking_state = GetBooleanWithProbability(attack_percentage);
-            wormhole_malicious_nodes[i] = attacking_state;
+        // FIX: Use deterministic selection instead of probabilistic
+        // Calculate exact number of attackers based on percentage
+        uint32_t num_vehicle_attackers = static_cast<uint32_t>(
+            std::ceil(max_vehicle_id * attack_percentage));
+        
+        // Cap at maximum number of vehicles
+        if (num_vehicle_attackers > max_vehicle_id) {
+            num_vehicle_attackers = max_vehicle_id;
         }
+        
+        std::cout << "[WORMHOLE-SETUP] Deterministic attacker selection: "
+                  << num_vehicle_attackers << " of " << max_vehicle_id 
+                  << " vehicles (" << (attack_percentage * 100) << "%)\n";
+        
+        // Initialize all nodes as non-malicious
+        for (uint32_t i = 0; i < actual_node_count; ++i) {
+            wormhole_malicious_nodes[i] = false;
+        }
+        
+        // Select first N vehicles as attackers (deterministic)
+        for (uint32_t i = 0; i < num_vehicle_attackers; ++i) {
+            wormhole_malicious_nodes[i] = true;
+        }
+        
+        // Verify: Count selected attackers
+        uint32_t count = 0;
+        for (uint32_t i = 0; i < max_vehicle_id; ++i) {
+            if (wormhole_malicious_nodes[i]) count++;
+        }
+        std::cout << "[WORMHOLE-SETUP] Selected " << count << " attacker vehicles, "
+                  << "Expected tunnels: " << (count / 2) << "\n";
     }
     if (present_blackhole_attack_nodes) {
         for (uint32_t i = 0; i < actual_node_count; ++i) {
