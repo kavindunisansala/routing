@@ -104,22 +104,46 @@ run_test() {
     print_message "$YELLOW" "  Nodes: $TOTAL_NODES ($VEHICLES vehicles + $RSUS RSUs)"
     print_message "$YELLOW" "  Attack: ${attack_percentage}%, Detection: $enable_detection, Mitigation: $enable_mitigation"
     
-    # Build command
-    local cmd="./ns3 run \"scratch/routing"
-    cmd+=" --nodes=$TOTAL_NODES"
-    cmd+=" --pause=$PAUSE_TIME"
-    cmd+=" --time=$SIMULATION_TIME"
-    cmd+=" --seed=$SEED"
-    cmd+=" --attack_percentage=$attack_percentage"
-    cmd+=" --present_wormhole_attack_nodes=$enable_wormhole"
-    cmd+=" --enable_wormhole_detection=$enable_detection"
-    cmd+=" --enable_wormhole_mitigation=$enable_mitigation"
-    cmd+=" --output_dir=$test_dir"
-    cmd+="\""
+    # Build simulation command (matching test_sdvn_complete_evaluation.sh format)
+    local sim_params=""
+    sim_params+="--simTime=$SIMULATION_TIME "
+    sim_params+="--routing_test=false "
+    sim_params+="--N_Vehicles=$VEHICLES "
+    sim_params+="--N_RSUs=$RSUS "
+    sim_params+="--architecture=0 "
+    sim_params+="--enable_packet_tracking=true "
+    sim_params+="--attack_percentage=$attack_percentage "
+    
+    # Wormhole-specific parameters
+    if [ "$enable_wormhole" = true ]; then
+        sim_params+="--present_wormhole_attack_nodes=true "
+        sim_params+="--use_enhanced_wormhole=true "
+        sim_params+="--wormhole_bandwidth=1000Mbps "
+        sim_params+="--wormhole_delay_us=50000 "
+        sim_params+="--wormhole_tunnel_routing=true "
+        sim_params+="--wormhole_tunnel_data=true "
+        sim_params+="--wormhole_enable_verification_flows=true "
+    fi
+    
+    if [ "$enable_detection" = true ]; then
+        sim_params+="--enable_wormhole_detection=true "
+    fi
+    
+    if [ "$enable_mitigation" = true ]; then
+        sim_params+="--enable_wormhole_mitigation=true "
+    fi
     
     # Run simulation
     local start_time=$(date +%s)
-    if eval $cmd > "${test_dir}/simulation.log" 2>&1; then
+    if ./waf --run "scratch/routing $sim_params" > "${test_dir}/simulation.log" 2>&1; then
+        # Copy CSV files from current directory to test directory
+        find . -maxdepth 1 -name "*.csv" -type f -exec cp {} "$test_dir/" \; 2>/dev/null
+    # Run simulation
+    local start_time=$(date +%s)
+    if ./waf --run "scratch/routing $sim_params" > "${test_dir}/simulation.log" 2>&1; then
+        # Copy CSV files from current directory to test directory
+        find . -maxdepth 1 -name "*.csv" -type f -exec cp {} "$test_dir/" \; 2>/dev/null
+        
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         
@@ -129,6 +153,9 @@ run_test() {
         
         print_message "$GREEN" "  ✓ Completed in ${duration}s"
         print_message "$GREEN" "    PDR: ${pdr}%, Avg Latency: ${latency}ms, Delivered: ${delivered}"
+        
+        # Clean up CSV files from current directory after copying
+        find . -maxdepth 1 -name "*.csv" -type f -delete 2>/dev/null
         
         # Save metrics to summary
         echo "${test_name},${pdr},${latency},${delivered},${duration}" >> "${RESULTS_DIR}/metrics_summary.csv"
