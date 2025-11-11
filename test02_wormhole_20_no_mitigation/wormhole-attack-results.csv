@@ -1,0 +1,9 @@
+TunnelID,NodeA,NodeB,PacketsIntercepted,PacketsTunneled,PacketsDropped,RoutingAffected,DataAffected,AvgDelay
+0,10,8,0,0,0,0,0,0
+1,12,9,0,0,0,2,0,0
+2,14,5,0,0,0,2,0,0
+3,11,2,0,0,0,2,0,0
+4,6,13,0,0,0,2,0,0
+5,15,4,0,0,0,2,0,0
+6,7,3,0,0,0,2,0,0
+TOTAL,ALL,ALL,0,0,0,12,0,0

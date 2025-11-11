@@ -1,0 +1,629 @@
+/home/eie/ns-allinone-3.35/ns-3.35/bindings/python/wscript:321: SyntaxWarning: invalid escape sequence '\d'
+  m = re.match( "^castxml version (\d\.\d)(-)?(\w+)?", castxml_version_line)
+Waf: Entering directory `/home/eie/ns-allinone-3.35/ns-3.35/build'
+Waf: Leaving directory `/home/eie/ns-allinone-3.35/ns-3.35/build'
+Build commands will be stored in build/compile_commands.json
+'build' finished successfully (0.838s)
+Network configuration: N_Vehicles=15, N_RSUs=5, actual_total_nodes=20, ns3::total_size=80 (compile-time max)
+Solution at controller cleared
+[SDN-HYBRID] Installed static routing on infrastructure (RSUs, controller, management)
+[SDN-HYBRID] Populated static routing tables for infrastructure backbone
+[SDN-HYBRID] Installed AODV+Internet stack on Vehicles for data plane
+[SDN-HYBRID] Enabling data plane DSRC broadcasts for peer-to-peer communication
+[AODV-DATA-PLANE] destination id: 3
+[AODV-DATA-PLANE] destination id: 8
+[AODV-DATA-PLANE] destination id: 14
+[AODV-DATA-PLANE] destination id: 9
+[AODV-DATA-PLANE] destination id: 9
+[AODV-DATA-PLANE] destination id: 11
+[AODV-DATA-PLANE] destination id: 11
+[AODV-DATA-PLANE] destination id: 6
+[SDN-HYBRID] Architecture 0 configured: DSRC for data plane + LTE for control plane
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 9destination is 5
+Poisson flow size is 29
+flow id 2source is 25destination is 11
+Poisson flow size is 29
+flow id 3source is 12destination is 10
+Poisson flow size is 30
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 16destination is 5
+Poisson flow size is 29
+flow id 2source is 1destination is 12
+Poisson flow size is 33
+flow id 3source is 7destination is 11
+Poisson flow size is 30
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 12destination is 10
+Poisson flow size is 30
+flow id 2source is 1destination is 7
+Poisson flow size is 30
+flow id 3source is 15destination is 4
+Poisson flow size is 28
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 1destination is 12
+Poisson flow size is 33
+flow id 2source is 15destination is 9
+Poisson flow size is 30
+flow id 3source is 10destination is 5
+Poisson flow size is 33
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 15destination is 7
+Poisson flow size is 29
+flow id 2source is 9destination is 17
+Poisson flow size is 25
+flow id 3source is 5destination is 13
+Poisson flow size is 33
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 1destination is 7
+Poisson flow size is 30
+flow id 2source is 10destination is 5
+Poisson flow size is 33
+flow id 3source is 17destination is 11
+Poisson flow size is 25
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 16destination is 9
+Poisson flow size is 27
+flow id 2source is 4destination is 12
+Poisson flow size is 30
+flow id 3source is 19destination is 5
+Poisson flow size is 31
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 15destination is 9
+Poisson flow size is 30
+flow id 2source is 18destination is 11
+Poisson flow size is 31
+flow id 3source is 17destination is 8
+Poisson flow size is 26
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 15destination is 4
+Poisson flow size is 28
+flow id 2source is 11destination is 7
+Poisson flow size is 25
+flow id 3source is 16destination is 13
+Poisson flow size is 25
+[ATTACK-SETUP] Using fixed seed 12345 for reproducible attack node selection
+[ATTACK-SETUP] Protecting infrastructure: RSU nodes [22-26] excluded from attacks
+[WORMHOLE-SETUP] Deterministic attacker selection: 21 of 21 vehicles (100%)
+[WORMHOLE-SETUP] Selected 21 attacker vehicles, Expected tunnels: 10
+
+=== Enhanced Wormhole Attack Configuration ===
+Total Nodes (actual): 27
+Malicious Nodes Selected: 21
+Attack Percentage: 100%
+Tunnel Bandwidth: 1000Mbps
+Tunnel Delay: 50000 microseconds
+Random Pairing: Yes
+Drop Packets: No
+Tunnel Routing Packets: Yes
+Tunnel Data Packets: Yes
+=== ACTIVATING 13 WORMHOLE TUNNELS ===
+Start time: 10s, Stop time: 10s
+[WORMHOLE] Skipping verification traffic (not enough non-malicious nodes).
+Created 13 wormhole tunnels
+Attack active from 10s to 10s
+============================================
+
+
+=== Wormhole Detection System Configuration ===
+Detection: ENABLED
+Mitigation: ENABLED
+Latency Threshold Multiplier: 2x
+Detection Check Interval: 1 seconds
+[DETECTOR] Wormhole detector initialized for 27 nodes with threshold multiplier 2
+[DETECTOR] Detection ENABLED
+[DETECTOR] Mitigation ENABLED
+[DETECTOR] Attempting to connect with attack manager...
+[DETECTOR] g_wormholeManager = NOT NULL
+[DETECTOR] GetMaliciousNodeIds() returned 27 nodes
+[DETECTOR]   Malicious node: 0
+[DETECTOR]   Malicious node: 1
+[DETECTOR]   Malicious node: 2
+[DETECTOR]   Malicious node: 3
+[DETECTOR]   Malicious node: 4
+[DETECTOR]   Malicious node: 5
+[DETECTOR]   Malicious node: 6
+[DETECTOR]   Malicious node: 7
+[DETECTOR]   Malicious node: 8
+[DETECTOR]   Malicious node: 9
+[DETECTOR]   Malicious node: 10
+[DETECTOR]   Malicious node: 11
+[DETECTOR]   Malicious node: 12
+[DETECTOR]   Malicious node: 13
+[DETECTOR]   Malicious node: 14
+[DETECTOR]   Malicious node: 15
+[DETECTOR]   Malicious node: 16
+[DETECTOR]   Malicious node: 17
+[DETECTOR]   Malicious node: 18
+[DETECTOR]   Malicious node: 19
+[DETECTOR]   Malicious node: 20
+[DETECTOR]   Malicious node: 21
+[DETECTOR]   Malicious node: 22
+[DETECTOR]   Malicious node: 23
+[DETECTOR]   Malicious node: 24
+[DETECTOR]   Malicious node: 25
+[DETECTOR]   Malicious node: 26
+[DETECTOR] SetKnownMaliciousNodes called with 27 nodes
+[DETECTOR]   - Node 0 marked as malicious
+[DETECTOR]   - Node 1 marked as malicious
+[DETECTOR]   - Node 2 marked as malicious
+[DETECTOR]   - Node 3 marked as malicious
+[DETECTOR]   - Node 4 marked as malicious
+[DETECTOR]   - Node 5 marked as malicious
+[DETECTOR]   - Node 6 marked as malicious
+[DETECTOR]   - Node 7 marked as malicious
+[DETECTOR]   - Node 8 marked as malicious
+[DETECTOR]   - Node 9 marked as malicious
+[DETECTOR]   - Node 10 marked as malicious
+[DETECTOR]   - Node 11 marked as malicious
+[DETECTOR]   - Node 12 marked as malicious
+[DETECTOR]   - Node 13 marked as malicious
+[DETECTOR]   - Node 14 marked as malicious
+[DETECTOR]   - Node 15 marked as malicious
+[DETECTOR]   - Node 16 marked as malicious
+[DETECTOR]   - Node 17 marked as malicious
+[DETECTOR]   - Node 18 marked as malicious
+[DETECTOR]   - Node 19 marked as malicious
+[DETECTOR]   - Node 20 marked as malicious
+[DETECTOR]   - Node 21 marked as malicious
+[DETECTOR]   - Node 22 marked as malicious
+[DETECTOR]   - Node 23 marked as malicious
+[DETECTOR]   - Node 24 marked as malicious
+[DETECTOR]   - Node 25 marked as malicious
+[DETECTOR]   - Node 26 marked as malicious
+[DETECTOR] Loaded 27 known malicious nodes for reference
+Detector linked with attack manager: 27 known malicious nodes
+Detection system initialized successfully
+================================================
+
+
+=== Packet Tracking System Configuration ===
+[TRACKER] PacketTracker created
+Packet tracking ENABLED - detailed per-packet metrics will be recorded
+CSV output will be generated at simulation end
+============================================
+
+current time is 0
+DSRC data Broadcasting from node 2
+dsrc total size is 54180
+DSRC data Broadcasting from node 3
+dsrc total size is 54320
+Received data broadcasted packet from 2to node 3of size 84 at position 658.4:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4s with delay 156us
+Received data broadcasted packet from 2to node 17of size 84 at position 658.4:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4s with delay 156us
+DSRC data Broadcasting from node 4
+dsrc total size is 54804
+DSRC data Broadcasting from node 5
+dsrc total size is 54944
+Received data broadcasted packet from 4to node 3of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+Received data broadcasted packet from 4to node 5of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+Received data broadcasted packet from 4to node 18of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+Received data broadcasted packet from 4to node 17of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+DSRC data Broadcasting from node 6
+dsrc total size is 55772
+DSRC data Broadcasting from node 7
+dsrc total size is 55912
+Received data broadcasted packet from 6to node 5of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 161us
+Received data broadcasted packet from 6to node 7of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 161us
+Received data broadcasted packet from 6to node 19of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 162us
+Received data broadcasted packet from 6to node 18of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 162us
+DSRC data Broadcasting from node 8
+dsrc total size is 56740
+DSRC data Broadcasting from node 9
+dsrc total size is 56880
+Received data broadcasted packet from 3to node 2of size 84 at position 798.402:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4001s with delay 630us
+Received data broadcasted packet from 3to node 4of size 84 at position 798.402:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4001s with delay 630us
+Received data broadcasted packet from 3to node 17of size 84 at position 798.402:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4001s with delay 631us
+Received data broadcasted packet from 8to node 14of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 15of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 7of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 9of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 20of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 157us
+Received data broadcasted packet from 8to node 19of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 157us
+DSRC data Broadcasting from node 10
+dsrc total size is 58568
+DSRC data Broadcasting from node 11
+dsrc total size is 58708
+Received data broadcasted packet from 5to node 4of size 84 at position 1078.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4003s with delay 628us
+Received data broadcasted packet from 5to node 6of size 84 at position 1078.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4003s with delay 628us
+Received data broadcasted packet from 5to node 18of size 84 at position 1078.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4003s with delay 628us
+Received data broadcasted packet from 10to node 9of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 163us
+Received data broadcasted packet from 10to node 11of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 163us
+Received data broadcasted packet from 10to node 21of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+Received data broadcasted packet from 10to node 14of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+Received data broadcasted packet from 10to node 15of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+Received data broadcasted packet from 10to node 20of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+DSRC data Broadcasting from node 12
+dsrc total size is 60396
+DSRC data Broadcasting from node 13
+dsrc total size is 60536
+Received data broadcasted packet from 7to node 6of size 84 at position 1358.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4005s with delay 636us
+Received data broadcasted packet from 7to node 19of size 84 at position 1358.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4005s with delay 636us
+Received data broadcasted packet from 12to node 11of size 84 at position 2058.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.401s with delay 156us
+Received data broadcasted packet from 12to node 13of size 84 at position 2058.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.401s with delay 156us
+DSRC data Broadcasting from node 14
+dsrc total size is 61364
+Received data broadcasted packet from 9to node 10of size 84 at position 1638.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4007s with delay 565us
+Received data broadcasted packet from 9to node 20of size 84 at position 1638.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4007s with delay 565us
+DSRC data Broadcasting from node 15
+dsrc total size is 61848
+DSRC data Broadcasting from node 16
+dsrc total size is 61988
+Received data broadcasted packet from 11to node 10of size 84 at position 1918.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4009s with delay 597us
+Received data broadcasted packet from 11to node 21of size 84 at position 1918.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4009s with delay 597us
+DSRC data Broadcasting from node 17
+dsrc total size is 62472
+Received data broadcasted packet from 16to node 17of size 84 at position 658.429:1288.43:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4014s with delay 159us
+DSRC data Broadcasting from node 18
+dsrc total size is 62784
+DSRC data Broadcasting from node 19
+dsrc total size is 62924
+Received data broadcasted packet from 18to node 5of size 84 at position 1030:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4016s with delay 163us
+Received data broadcasted packet from 17to node 16of size 84 at position 750:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4015s with delay 295us
+Received data broadcasted packet from 17to node 3of size 84 at position 750:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4015s with delay 296us
+Received data broadcasted packet from 17to node 2of size 84 at position 750:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4015s with delay 296us
+DSRC data Broadcasting from node 20
+dsrc total size is 63752
+Received data broadcasted packet from 19to node 7of size 84 at position 1310:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4017s with delay 154us
+DSRC data Broadcasting from node 21
+dsrc total size is 64064
+Received data broadcasted packet from 20to node 9of size 84 at position 1590:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4018s with delay 157us
+Received data broadcasted packet from 20to node 14of size 84 at position 1590:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4018s with delay 157us
+Received data broadcasted packet from 20to node 15of size 84 at position 1590:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4018s with delay 157us
+Received data broadcasted packet from 21to node 11of size 84 at position 1870:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4019s with delay 159us
+Received data broadcasted packet from 21to node 12of size 84 at position 1870:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4019s with delay 159us
+lte total packet size is 80
+RSU total packet size is 88
+lte total packet size is 164
+lte total packet size is 244
+case 3RSU total packet size is 172
+lte total packet size is 328
+
+Current neighbor size is 3Received packet from 18 of size 28packet timestamp 0.40705s with delay 1ms
+lte total packet size is 408
+case 3RSU total packet size is 256
+lte total packet size is 492
+lte total packet size is 560
+case 3RSU total packet size is 340
+lte total packet size is 644
+lte total packet size is 724
+case 2RSU total packet size is 420
+lte total packet size is 808
+lte total packet size is 884
+lte total packet size is 960
+lte total packet size is 1044
+lte total packet size is 1128
+lte total packet size is 1204
+
+Current neighbor size is 2Received packet from 21 of size 24packet timestamp 0.4072s with delay 1ms
+
+Current neighbor size is 4Received packet from 17 of size 32packet timestamp 0.407s with delay 1ms
+
+Current neighbor size is 3Received packet from 19 of size 28packet timestamp 0.4071s with delay 1ms
+
+Current neighbor size is 3Received packet from 20 of size 28packet timestamp 0.40715s with delay 1ms
+/home/eie/ns-allinone-3.35/ns-3.35/bindings/python/wscript:321: SyntaxWarning: invalid escape sequence '\d'
+  m = re.match( "^castxml version (\d\.\d)(-)?(\w+)?", castxml_version_line)
+Waf: Entering directory `/home/eie/ns-allinone-3.35/ns-3.35/build'
+Waf: Leaving directory `/home/eie/ns-allinone-3.35/ns-3.35/build'
+Build commands will be stored in build/compile_commands.json
+'build' finished successfully (0.838s)
+Network configuration: N_Vehicles=15, N_RSUs=5, actual_total_nodes=20, ns3::total_size=80 (compile-time max)
+Solution at controller cleared
+[SDN-HYBRID] Installed static routing on infrastructure (RSUs, controller, management)
+[SDN-HYBRID] Populated static routing tables for infrastructure backbone
+[SDN-HYBRID] Installed AODV+Internet stack on Vehicles for data plane
+[SDN-HYBRID] Enabling data plane DSRC broadcasts for peer-to-peer communication
+[AODV-DATA-PLANE] destination id: 3
+[AODV-DATA-PLANE] destination id: 8
+[AODV-DATA-PLANE] destination id: 14
+[AODV-DATA-PLANE] destination id: 9
+[AODV-DATA-PLANE] destination id: 9
+[AODV-DATA-PLANE] destination id: 11
+[AODV-DATA-PLANE] destination id: 11
+[AODV-DATA-PLANE] destination id: 6
+[SDN-HYBRID] Architecture 0 configured: DSRC for data plane + LTE for control plane
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 9destination is 5
+Poisson flow size is 29
+flow id 2source is 25destination is 11
+Poisson flow size is 29
+flow id 3source is 12destination is 10
+Poisson flow size is 30
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 16destination is 5
+Poisson flow size is 29
+flow id 2source is 1destination is 12
+Poisson flow size is 33
+flow id 3source is 7destination is 11
+Poisson flow size is 30
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 12destination is 10
+Poisson flow size is 30
+flow id 2source is 1destination is 7
+Poisson flow size is 30
+flow id 3source is 15destination is 4
+Poisson flow size is 28
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 1destination is 12
+Poisson flow size is 33
+flow id 2source is 15destination is 9
+Poisson flow size is 30
+flow id 3source is 10destination is 5
+Poisson flow size is 33
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 15destination is 7
+Poisson flow size is 29
+flow id 2source is 9destination is 17
+Poisson flow size is 25
+flow id 3source is 5destination is 13
+Poisson flow size is 33
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 1destination is 7
+Poisson flow size is 30
+flow id 2source is 10destination is 5
+Poisson flow size is 33
+flow id 3source is 17destination is 11
+Poisson flow size is 25
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 16destination is 9
+Poisson flow size is 27
+flow id 2source is 4destination is 12
+Poisson flow size is 30
+flow id 3source is 19destination is 5
+Poisson flow size is 31
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 15destination is 9
+Poisson flow size is 30
+flow id 2source is 18destination is 11
+Poisson flow size is 31
+flow id 3source is 17destination is 8
+Poisson flow size is 26
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 15destination is 4
+Poisson flow size is 28
+flow id 2source is 11destination is 7
+Poisson flow size is 25
+flow id 3source is 16destination is 13
+Poisson flow size is 25
+[ATTACK-SETUP] Using fixed seed 12345 for reproducible attack node selection
+[ATTACK-SETUP] Protecting infrastructure: RSU nodes [22-26] excluded from attacks
+[WORMHOLE-SETUP] Deterministic attacker selection: 21 of 21 vehicles (100%)
+[WORMHOLE-SETUP] Selected 21 attacker vehicles, Expected tunnels: 10
+
+=== Enhanced Wormhole Attack Configuration ===
+Total Nodes (actual): 27
+Malicious Nodes Selected: 21
+Attack Percentage: 100%
+Tunnel Bandwidth: 1000Mbps
+Tunnel Delay: 50000 microseconds
+Random Pairing: Yes
+Drop Packets: No
+Tunnel Routing Packets: Yes
+Tunnel Data Packets: Yes
+=== ACTIVATING 13 WORMHOLE TUNNELS ===
+Start time: 10s, Stop time: 10s
+[WORMHOLE] Skipping verification traffic (not enough non-malicious nodes).
+Created 13 wormhole tunnels
+Attack active from 10s to 10s
+============================================
+
+
+=== Wormhole Detection System Configuration ===
+Detection: ENABLED
+Mitigation: ENABLED
+Latency Threshold Multiplier: 2x
+Detection Check Interval: 1 seconds
+[DETECTOR] Wormhole detector initialized for 27 nodes with threshold multiplier 2
+[DETECTOR] Detection ENABLED
+[DETECTOR] Mitigation ENABLED
+[DETECTOR] Attempting to connect with attack manager...
+[DETECTOR] g_wormholeManager = NOT NULL
+[DETECTOR] GetMaliciousNodeIds() returned 27 nodes
+[DETECTOR]   Malicious node: 0
+[DETECTOR]   Malicious node: 1
+[DETECTOR]   Malicious node: 2
+[DETECTOR]   Malicious node: 3
+[DETECTOR]   Malicious node: 4
+[DETECTOR]   Malicious node: 5
+[DETECTOR]   Malicious node: 6
+[DETECTOR]   Malicious node: 7
+[DETECTOR]   Malicious node: 8
+[DETECTOR]   Malicious node: 9
+[DETECTOR]   Malicious node: 10
+[DETECTOR]   Malicious node: 11
+[DETECTOR]   Malicious node: 12
+[DETECTOR]   Malicious node: 13
+[DETECTOR]   Malicious node: 14
+[DETECTOR]   Malicious node: 15
+[DETECTOR]   Malicious node: 16
+[DETECTOR]   Malicious node: 17
+[DETECTOR]   Malicious node: 18
+[DETECTOR]   Malicious node: 19
+[DETECTOR]   Malicious node: 20
+[DETECTOR]   Malicious node: 21
+[DETECTOR]   Malicious node: 22
+[DETECTOR]   Malicious node: 23
+[DETECTOR]   Malicious node: 24
+[DETECTOR]   Malicious node: 25
+[DETECTOR]   Malicious node: 26
+[DETECTOR] SetKnownMaliciousNodes called with 27 nodes
+[DETECTOR]   - Node 0 marked as malicious
+[DETECTOR]   - Node 1 marked as malicious
+[DETECTOR]   - Node 2 marked as malicious
+[DETECTOR]   - Node 3 marked as malicious
+[DETECTOR]   - Node 4 marked as malicious
+[DETECTOR]   - Node 5 marked as malicious
+[DETECTOR]   - Node 6 marked as malicious
+[DETECTOR]   - Node 7 marked as malicious
+[DETECTOR]   - Node 8 marked as malicious
+[DETECTOR]   - Node 9 marked as malicious
+[DETECTOR]   - Node 10 marked as malicious
+[DETECTOR]   - Node 11 marked as malicious
+[DETECTOR]   - Node 12 marked as malicious
+[DETECTOR]   - Node 13 marked as malicious
+[DETECTOR]   - Node 14 marked as malicious
+[DETECTOR]   - Node 15 marked as malicious
+[DETECTOR]   - Node 16 marked as malicious
+[DETECTOR]   - Node 17 marked as malicious
+[DETECTOR]   - Node 18 marked as malicious
+[DETECTOR]   - Node 19 marked as malicious
+[DETECTOR]   - Node 20 marked as malicious
+[DETECTOR]   - Node 21 marked as malicious
+[DETECTOR]   - Node 22 marked as malicious
+[DETECTOR]   - Node 23 marked as malicious
+[DETECTOR]   - Node 24 marked as malicious
+[DETECTOR]   - Node 25 marked as malicious
+[DETECTOR]   - Node 26 marked as malicious
+[DETECTOR] Loaded 27 known malicious nodes for reference
+Detector linked with attack manager: 27 known malicious nodes
+Detection system initialized successfully
+================================================
+
+
+=== Packet Tracking System Configuration ===
+[TRACKER] PacketTracker created
+Packet tracking ENABLED - detailed per-packet metrics will be recorded
+CSV output will be generated at simulation end
+============================================
+
+current time is 0
+DSRC data Broadcasting from node 2
+dsrc total size is 54180
+DSRC data Broadcasting from node 3
+dsrc total size is 54320
+Received data broadcasted packet from 2to node 3of size 84 at position 658.4:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4s with delay 156us
+Received data broadcasted packet from 2to node 17of size 84 at position 658.4:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4s with delay 156us
+DSRC data Broadcasting from node 4
+dsrc total size is 54804
+DSRC data Broadcasting from node 5
+dsrc total size is 54944
+Received data broadcasted packet from 4to node 3of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+Received data broadcasted packet from 4to node 5of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+Received data broadcasted packet from 4to node 18of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+Received data broadcasted packet from 4to node 17of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+DSRC data Broadcasting from node 6
+dsrc total size is 55772
+DSRC data Broadcasting from node 7
+dsrc total size is 55912
+Received data broadcasted packet from 6to node 5of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 161us
+Received data broadcasted packet from 6to node 7of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 161us
+Received data broadcasted packet from 6to node 19of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 162us
+Received data broadcasted packet from 6to node 18of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 162us
+DSRC data Broadcasting from node 8
+dsrc total size is 56740
+DSRC data Broadcasting from node 9
+dsrc total size is 56880
+Received data broadcasted packet from 3to node 2of size 84 at position 798.402:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4001s with delay 630us
+Received data broadcasted packet from 3to node 4of size 84 at position 798.402:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4001s with delay 630us
+Received data broadcasted packet from 3to node 17of size 84 at position 798.402:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4001s with delay 631us
+Received data broadcasted packet from 8to node 14of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 15of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 7of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 9of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 20of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 157us
+Received data broadcasted packet from 8to node 19of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 157us
+DSRC data Broadcasting from node 10
+dsrc total size is 58568
+DSRC data Broadcasting from node 11
+dsrc total size is 58708
+Received data broadcasted packet from 5to node 4of size 84 at position 1078.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4003s with delay 628us
+Received data broadcasted packet from 5to node 6of size 84 at position 1078.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4003s with delay 628us
+Received data broadcasted packet from 5to node 18of size 84 at position 1078.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4003s with delay 628us
+Received data broadcasted packet from 10to node 9of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 163us
+Received data broadcasted packet from 10to node 11of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 163us
+Received data broadcasted packet from 10to node 21of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+Received data broadcasted packet from 10to node 14of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+Received data broadcasted packet from 10to node 15of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+Received data broadcasted packet from 10to node 20of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+DSRC data Broadcasting from node 12
+dsrc total size is 60396
+DSRC data Broadcasting from node 13
+dsrc total size is 60536
+Received data broadcasted packet from 7to node 6of size 84 at position 1358.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4005s with delay 636us
+Received data broadcasted packet from 7to node 19of size 84 at position 1358.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4005s with delay 636us
+Received data broadcasted packet from 12to node 11of size 84 at position 2058.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.401s with delay 156us
+Received data broadcasted packet from 12to node 13of size 84 at position 2058.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.401s with delay 156us
+DSRC data Broadcasting from node 14
+dsrc total size is 61364
+Received data broadcasted packet from 9to node 10of size 84 at position 1638.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4007s with delay 565us
+Received data broadcasted packet from 9to node 20of size 84 at position 1638.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4007s with delay 565us
+DSRC data Broadcasting from node 15
+dsrc total size is 61848
+DSRC data Broadcasting from node 16
+dsrc total size is 61988
+Received data broadcasted packet from 11to node 10of size 84 at position 1918.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4009s with delay 597us
+Received data broadcasted packet from 11to node 21of size 84 at position 1918.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4009s with delay 597us
+DSRC data Broadcasting from node 17
+dsrc total size is 62472
+Received data broadcasted packet from 16to node 17of size 84 at position 658.429:1288.43:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4014s with delay 159us
+DSRC data Broadcasting from node 18
+dsrc total size is 62784
+DSRC data Broadcasting from node 19
+dsrc total size is 62924
+Received data broadcasted packet from 18to node 5of size 84 at position 1030:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4016s with delay 163us
+Received data broadcasted packet from 17to node 16of size 84 at position 750:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4015s with delay 295us
+Received data broadcasted packet from 17to node 3of size 84 at position 750:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4015s with delay 296us
+Received data broadcasted packet from 17to node 2of size 84 at position 750:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4015s with delay 296us
+DSRC data Broadcasting from node 20
+dsrc total size is 63752
+Received data broadcasted packet from 19to node 7of size 84 at position 1310:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4017s with delay 154us
+DSRC data Broadcasting from node 21
+dsrc total size is 64064
+Received data broadcasted packet from 20to node 9of size 84 at position 1590:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4018s with delay 157us
+Received data broadcasted packet from 20to node 14of size 84 at position 1590:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4018s with delay 157us
+Received data broadcasted packet from 20to node 15of size 84 at position 1590:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4018s with delay 157us
+Received data broadcasted packet from 21to node 11of size 84 at position 1870:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4019s with delay 159us
+Received data broadcasted packet from 21to node 12of size 84 at position 1870:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4019s with delay 159us
+lte total packet size is 80
+RSU total packet size is 88
+lte total packet size is 164
+lte total packet size is 244
+case 3RSU total packet size is 172
+lte total packet size is 328
+
+Current neighbor size is 3Received packet from 18 of size 28packet timestamp 0.40705s with delay 1ms
+lte total packet size is 408
+case 3RSU total packet size is 256
+lte total packet size is 492
+lte total packet size is 560
+case 3RSU total packet size is 340
+lte total packet size is 644
+lte total packet size is 724
+case 2RSU total packet size is 420
+lte total packet size is 808
+lte total packet size is 884
+lte total packet size is 960
+lte total packet size is 1044
+lte total packet size is 1128
+lte total packet size is 1204
+
+Current neighbor size is 2Received packet from 21 of size 24packet timestamp 0.4072s with delay 1ms
+
+Current neighbor size is 4Received packet from 17 of size 32packet timestamp 0.407s with delay 1ms
+
+Current neighbor size is 3Received packet from 19 of size 28packet timestamp 0.4071s with delay 1ms
+
+Current neighbor size is 3Received packet from 20 of size 28packet timestamp 0.40715s with delay 1ms
+current average cost is 3.54565
+average cost per node is 3.54565
+lte final timestamp is :0DSRC uti: 1.80241Ethernet uti 0.918354LTE utilization -40.7
+average_latency 0.664596 ms
+packet delivery ratio is 6.25

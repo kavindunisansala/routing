@@ -1,0 +1,2234 @@
+/home/eie/ns-allinone-3.35/ns-3.35/bindings/python/wscript:321: SyntaxWarning: invalid escape sequence '\d'
+  m = re.match( "^castxml version (\d\.\d)(-)?(\w+)?", castxml_version_line)
+Waf: Entering directory `/home/eie/ns-allinone-3.35/ns-3.35/build'
+Waf: Leaving directory `/home/eie/ns-allinone-3.35/ns-3.35/build'
+Build commands will be stored in build/compile_commands.json
+'build' finished successfully (0.836s)
+Network configuration: N_Vehicles=15, N_RSUs=5, actual_total_nodes=20, ns3::total_size=80 (compile-time max)
+Solution at controller cleared
+[SDN-HYBRID] Installed static routing on infrastructure (RSUs, controller, management)
+[SDN-HYBRID] Populated static routing tables for infrastructure backbone
+[SDN-HYBRID] Installed AODV+Internet stack on Vehicles for data plane
+[SDN-HYBRID] Enabling data plane DSRC broadcasts for peer-to-peer communication
+[AODV-DATA-PLANE] destination id: 3
+[AODV-DATA-PLANE] destination id: 8
+[AODV-DATA-PLANE] destination id: 14
+[AODV-DATA-PLANE] destination id: 9
+[AODV-DATA-PLANE] destination id: 9
+[AODV-DATA-PLANE] destination id: 11
+[AODV-DATA-PLANE] destination id: 11
+[AODV-DATA-PLANE] destination id: 6
+[SDN-HYBRID] Architecture 0 configured: DSRC for data plane + LTE for control plane
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 9destination is 5
+Poisson flow size is 29
+flow id 2source is 25destination is 11
+Poisson flow size is 29
+flow id 3source is 12destination is 10
+Poisson flow size is 30
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 16destination is 5
+Poisson flow size is 29
+flow id 2source is 1destination is 12
+Poisson flow size is 33
+flow id 3source is 7destination is 11
+Poisson flow size is 30
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 12destination is 10
+Poisson flow size is 30
+flow id 2source is 1destination is 7
+Poisson flow size is 30
+flow id 3source is 15destination is 4
+Poisson flow size is 28
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 1destination is 12
+Poisson flow size is 33
+flow id 2source is 15destination is 9
+Poisson flow size is 30
+flow id 3source is 10destination is 5
+Poisson flow size is 33
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 15destination is 7
+Poisson flow size is 29
+flow id 2source is 9destination is 17
+Poisson flow size is 25
+flow id 3source is 5destination is 13
+Poisson flow size is 33
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 1destination is 7
+Poisson flow size is 30
+flow id 2source is 10destination is 5
+Poisson flow size is 33
+flow id 3source is 17destination is 11
+Poisson flow size is 25
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 16destination is 9
+Poisson flow size is 27
+flow id 2source is 4destination is 12
+Poisson flow size is 30
+flow id 3source is 19destination is 5
+Poisson flow size is 31
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 15destination is 9
+Poisson flow size is 30
+flow id 2source is 18destination is 11
+Poisson flow size is 31
+flow id 3source is 17destination is 8
+Poisson flow size is 26
+flow id 0source is 3destination is 1
+Poisson flow size is 29
+flow id 1source is 15destination is 4
+Poisson flow size is 28
+flow id 2source is 11destination is 7
+Poisson flow size is 25
+flow id 3source is 16destination is 13
+Poisson flow size is 25
+[ATTACK-SETUP] Using fixed seed 12345 for reproducible attack node selection
+[ATTACK-SETUP] Protecting infrastructure: RSU nodes [22-26] excluded from attacks
+[WORMHOLE-SETUP] Deterministic attacker selection: 5 of 21 vehicles (20%)
+[WORMHOLE-SETUP] Selected 5 attacker vehicles, Expected tunnels: 2
+Info: Increasing malicious nodes to 6 for better coverage...
+
+=== Enhanced Wormhole Attack Configuration ===
+Total Nodes (actual): 27
+Malicious Nodes Selected: 6
+Attack Percentage: 20%
+Tunnel Bandwidth: 1000Mbps
+Tunnel Delay: 50000 microseconds
+Random Pairing: Yes
+Drop Packets: No
+Tunnel Routing Packets: Yes
+Tunnel Data Packets: Yes
+=== ACTIVATING 3 WORMHOLE TUNNELS ===
+Start time: 10s, Stop time: 10s
+[WORMHOLE] Verification flow 0: node 0 -> node 15 targeting 7.0.0.15:50000
+[WORMHOLE] Verification flow 1: node 2 -> node 16 targeting 7.0.0.16:50001
+[WORMHOLE] Verification flow 2: node 5 -> node 18 targeting 10.1.1.2:50002
+[WORMHOLE] Installed 3 verification flow(s) to stimulate routing activity.
+Created 3 wormhole tunnels
+Attack active from 10s to 10s
+============================================
+
+
+=== Wormhole Detection System Configuration ===
+Detection: ENABLED
+Mitigation: ENABLED
+Latency Threshold Multiplier: 2x
+Detection Check Interval: 1 seconds
+[DETECTOR] Wormhole detector initialized for 27 nodes with threshold multiplier 2
+[DETECTOR] Detection ENABLED
+[DETECTOR] Mitigation ENABLED
+[DETECTOR] Attempting to connect with attack manager...
+[DETECTOR] g_wormholeManager = NOT NULL
+[DETECTOR] GetMaliciousNodeIds() returned 7 nodes
+[DETECTOR]   Malicious node: 1
+[DETECTOR]   Malicious node: 3
+[DETECTOR]   Malicious node: 4
+[DETECTOR]   Malicious node: 6
+[DETECTOR]   Malicious node: 13
+[DETECTOR]   Malicious node: 17
+[DETECTOR]   Malicious node: 19
+[DETECTOR] SetKnownMaliciousNodes called with 7 nodes
+[DETECTOR]   - Node 1 marked as malicious
+[DETECTOR]   - Node 3 marked as malicious
+[DETECTOR]   - Node 4 marked as malicious
+[DETECTOR]   - Node 6 marked as malicious
+[DETECTOR]   - Node 13 marked as malicious
+[DETECTOR]   - Node 17 marked as malicious
+[DETECTOR]   - Node 19 marked as malicious
+[DETECTOR] Loaded 7 known malicious nodes for reference
+Detector linked with attack manager: 7 known malicious nodes
+Detection system initialized successfully
+================================================
+
+
+=== Packet Tracking System Configuration ===
+[TRACKER] PacketTracker created
+Packet tracking ENABLED - detailed per-packet metrics will be recorded
+CSV output will be generated at simulation end
+============================================
+
+current time is 0
+DSRC data Broadcasting from node 2
+dsrc total size is 54600
+DSRC data Broadcasting from node 3
+dsrc total size is 54740
+Received data broadcasted packet from 2to node 3of size 84 at position 658.4:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4s with delay 156us
+Received data broadcasted packet from 2to node 17of size 84 at position 658.4:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4s with delay 156us
+DSRC data Broadcasting from node 4
+dsrc total size is 55224
+DSRC data Broadcasting from node 5
+dsrc total size is 55364
+Received data broadcasted packet from 4to node 3of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+Received data broadcasted packet from 4to node 5of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+Received data broadcasted packet from 4to node 18of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+Received data broadcasted packet from 4to node 17of size 84 at position 938.404:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4002s with delay 164us
+DSRC data Broadcasting from node 6
+dsrc total size is 56192
+DSRC data Broadcasting from node 7
+dsrc total size is 56332
+Received data broadcasted packet from 6to node 5of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 161us
+Received data broadcasted packet from 6to node 7of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 161us
+Received data broadcasted packet from 6to node 19of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 162us
+Received data broadcasted packet from 6to node 18of size 84 at position 1218.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4004s with delay 162us
+DSRC data Broadcasting from node 8
+dsrc total size is 57160
+DSRC data Broadcasting from node 9
+dsrc total size is 57300
+Received data broadcasted packet from 3to node 2of size 84 at position 798.402:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4001s with delay 630us
+Received data broadcasted packet from 3to node 4of size 84 at position 798.402:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4001s with delay 630us
+Received data broadcasted packet from 3to node 17of size 84 at position 798.402:1008.4:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4001s with delay 631us
+Received data broadcasted packet from 8to node 14of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 15of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 7of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 9of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 156us
+Received data broadcasted packet from 8to node 20of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 157us
+Received data broadcasted packet from 8to node 19of size 84 at position 1498.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4006s with delay 157us
+DSRC data Broadcasting from node 10
+dsrc total size is 58988
+DSRC data Broadcasting from node 11
+dsrc total size is 59128
+Received data broadcasted packet from 5to node 4of size 84 at position 1078.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4003s with delay 628us
+Received data broadcasted packet from 5to node 6of size 84 at position 1078.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4003s with delay 628us
+Received data broadcasted packet from 5to node 18of size 84 at position 1078.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4003s with delay 628us
+Received data broadcasted packet from 10to node 9of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 163us
+Received data broadcasted packet from 10to node 11of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 163us
+Received data broadcasted packet from 10to node 21of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+Received data broadcasted packet from 10to node 14of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+Received data broadcasted packet from 10to node 15of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+Received data broadcasted packet from 10to node 20of size 84 at position 1778.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4008s with delay 164us
+DSRC data Broadcasting from node 12
+dsrc total size is 60816
+DSRC data Broadcasting from node 13
+dsrc total size is 60956
+Received data broadcasted packet from 7to node 6of size 84 at position 1358.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4005s with delay 636us
+Received data broadcasted packet from 7to node 19of size 84 at position 1358.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4005s with delay 636us
+Received data broadcasted packet from 12to node 11of size 84 at position 2058.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.401s with delay 156us
+Received data broadcasted packet from 12to node 13of size 84 at position 2058.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.401s with delay 156us
+DSRC data Broadcasting from node 14
+dsrc total size is 61784
+Received data broadcasted packet from 9to node 10of size 84 at position 1638.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4007s with delay 565us
+Received data broadcasted packet from 9to node 20of size 84 at position 1638.41:1008.41:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4007s with delay 565us
+DSRC data Broadcasting from node 15
+dsrc total size is 62268
+DSRC data Broadcasting from node 16
+dsrc total size is 62408
+Received data broadcasted packet from 11to node 10of size 84 at position 1918.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4009s with delay 597us
+Received data broadcasted packet from 11to node 21of size 84 at position 1918.42:1008.42:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4009s with delay 597us
+DSRC data Broadcasting from node 17
+dsrc total size is 62892
+Received data broadcasted packet from 16to node 17of size 84 at position 658.429:1288.43:0with velocity 21:21:0with acceleration 21:21:0packet timestamp 0.4014s with delay 159us
+DSRC data Broadcasting from node 18
+dsrc total size is 63204
+DSRC data Broadcasting from node 19
+dsrc total size is 63344
+Received data broadcasted packet from 18to node 5of size 84 at position 1030:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4016s with delay 163us
+Received data broadcasted packet from 17to node 16of size 84 at position 750:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4015s with delay 295us
+Received data broadcasted packet from 17to node 3of size 84 at position 750:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4015s with delay 296us
+Received data broadcasted packet from 17to node 2of size 84 at position 750:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4015s with delay 296us
+DSRC data Broadcasting from node 20
+dsrc total size is 64172
+Received data broadcasted packet from 19to node 7of size 84 at position 1310:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4017s with delay 154us
+DSRC data Broadcasting from node 21
+dsrc total size is 64484
+Received data broadcasted packet from 20to node 9of size 84 at position 1590:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4018s with delay 157us
+Received data broadcasted packet from 20to node 14of size 84 at position 1590:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4018s with delay 157us
+Received data broadcasted packet from 20to node 15of size 84 at position 1590:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4018s with delay 157us
+Received data broadcasted packet from 21to node 11of size 84 at position 1870:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4019s with delay 159us
+Received data broadcasted packet from 21to node 12of size 84 at position 1870:1200:0with velocity 0:0:0with acceleration 0:0:0packet timestamp 0.4019s with delay 159us
+lte total packet size is 80
+RSU total packet size is 88
+lte total packet size is 164
+lte total packet size is 244
+case 3RSU total packet size is 172
+lte total packet size is 328
+
+Current neighbor size is 3Received packet from 18 of size 28packet timestamp 0.40705s with delay 1ms
+lte total packet size is 408
+case 3RSU total packet size is 256
+lte total packet size is 492
+lte total packet size is 560
+case 3RSU total packet size is 340
+lte total packet size is 644
+lte total packet size is 724
+case 2RSU total packet size is 420
+lte total packet size is 808
+lte total packet size is 884
+lte total packet size is 960
+lte total packet size is 1044
+lte total packet size is 1128
+lte total packet size is 1204
+
+Current neighbor size is 2Received packet from 21 of size 24packet timestamp 0.4072s with delay 1ms
+
+Current neighbor size is 4Received packet from 17 of size 32packet timestamp 0.407s with delay 1ms
+
+Current neighbor size is 3Received packet from 19 of size 28packet timestamp 0.4071s with delay 1ms
+
+Current neighbor size is 3Received packet from 20 of size 28packet timestamp 0.40715s with delay 1ms
+current average cost is 3.53481
+average cost per node is 3.53481
+lte final timestamp is :0DSRC uti: 1.78824Ethernet uti 0.918354LTE utilization -40.7
+average_latency 0.664596 ms
+packet delivery ratio is 6.25
+Solution at nodes cleared at 1
+current time is 1
+[DETECTOR] Periodic check - Flows monitored: 5, Suspicious flows: 0
+sent all flow data from node 19
+
+
+
+
+
+At controller: updated flow source 3to destination 1flow size 29packet size 750QoS 1
+At controller: updated flow source 9to destination 5flow size 29packet size 750QoS 1
+At controller: updated flow source 25to destination 11flow size 29packet size 750QoS 1
+At controller: updated flow source 12to destination 10flow size 30packet size 750QoS 1
+
+link lifetime optimization beginning at 1.0345
+finished writing link lifetime status at1.0345
+python3: can't open file '/home/eie/ns-allinone-3.35/ns-3.35/scratch/optimization_lifetime.py': [Errno 2] No such file or directory
+reading lifetime from csv at1.0346
+link lifetime conversion finished at+1.0346e+09ns
+updating flows - path finding at1.0348
+DEBUG: flows=2, ns3::total_size=80, 2*flows=4
+ERROR: RSU index=5 exceeds RSU_Nodes count=5
+ERROR: RSU index=6 exceeds RSU_Nodes count=5
+ERROR: RSU index=7 exceeds RSU_Nodes count=5
+ERROR: RSU index=8 exceeds RSU_Nodes count=5
+ERROR: RSU index=9 exceeds RSU_Nodes count=5
+ERROR: RSU index=10 exceeds RSU_Nodes count=5
+ERROR: RSU index=11 exceeds RSU_Nodes count=5
+ERROR: RSU index=12 exceeds RSU_Nodes count=5
+ERROR: RSU index=13 exceeds RSU_Nodes count=5
+ERROR: RSU index=14 exceeds RSU_Nodes count=5
+ERROR: RSU index=15 exceeds RSU_Nodes count=5
+ERROR: RSU index=16 exceeds RSU_Nodes count=5
+ERROR: RSU index=17 exceeds RSU_Nodes count=5
+ERROR: RSU index=18 exceeds RSU_Nodes count=5
+ERROR: RSU index=19 exceeds RSU_Nodes count=5
+ERROR: RSU index=20 exceeds RSU_Nodes count=5
+ERROR: RSU index=21 exceeds RSU_Nodes count=5
+ERROR: RSU index=22 exceeds RSU_Nodes count=5
+ERROR: RSU index=23 exceeds RSU_Nodes count=5
+ERROR: RSU index=24 exceeds RSU_Nodes count=5
+ERROR: RSU index=25 exceeds RSU_Nodes count=5
+ERROR: RSU index=26 exceeds RSU_Nodes count=5
+ERROR: RSU index=27 exceeds RSU_Nodes count=5
+ERROR: RSU index=28 exceeds RSU_Nodes count=5
+ERROR: RSU index=29 exceeds RSU_Nodes count=5
+ERROR: RSU index=30 exceeds RSU_Nodes count=5
+ERROR: RSU index=31 exceeds RSU_Nodes count=5
+ERROR: RSU index=32 exceeds RSU_Nodes count=5
+ERROR: RSU index=33 exceeds RSU_Nodes count=5
+ERROR: RSU index=34 exceeds RSU_Nodes count=5
+ERROR: RSU index=35 exceeds RSU_Nodes count=5
+ERROR: RSU index=36 exceeds RSU_Nodes count=5
+ERROR: RSU index=37 exceeds RSU_Nodes count=5
+ERROR: RSU index=38 exceeds RSU_Nodes count=5
+ERROR: RSU index=39 exceeds RSU_Nodes count=5
+ERROR: RSU index=40 exceeds RSU_Nodes count=5
+ERROR: RSU index=41 exceeds RSU_Nodes count=5
+ERROR: RSU index=42 exceeds RSU_Nodes count=5
+ERROR: RSU index=43 exceeds RSU_Nodes count=5
+ERROR: RSU index=44 exceeds RSU_Nodes count=5
+ERROR: RSU index=45 exceeds RSU_Nodes count=5
+ERROR: RSU index=46 exceeds RSU_Nodes count=5
+ERROR: RSU index=47 exceeds RSU_Nodes count=5
+ERROR: RSU index=48 exceeds RSU_Nodes count=5
+ERROR: RSU index=49 exceeds RSU_Nodes count=5
+ERROR: RSU index=50 exceeds RSU_Nodes count=5
+ERROR: RSU index=51 exceeds RSU_Nodes count=5
+ERROR: RSU index=52 exceeds RSU_Nodes count=5
+ERROR: RSU index=53 exceeds RSU_Nodes count=5
+ERROR: RSU index=54 exceeds RSU_Nodes count=5
+ERROR: RSU index=55 exceeds RSU_Nodes count=5
+ERROR: RSU index=56 exceeds RSU_Nodes count=5
+ERROR: RSU index=57 exceeds RSU_Nodes count=5
+ERROR: RSU index=58 exceeds RSU_Nodes count=5
+ERROR: RSU index=59 exceeds RSU_Nodes count=5
+ERROR: RSU index=60 exceeds RSU_Nodes count=5
+ERROR: RSU index=61 exceeds RSU_Nodes count=5
+ERROR: RSU index=62 exceeds RSU_Nodes count=5
+ERROR: RSU index=63 exceeds RSU_Nodes count=5
+ERROR: RSU index=64 exceeds RSU_Nodes count=5
+adjacency matrix generatedat timestampt 1.0348
+DEBUG: Scheduling run_distance_path_finding for flow_id=0
+DEBUG: Scheduling run_distance_path_finding for flow_id=1
+DEBUG: Scheduling run_distance_path_finding for flow_id=2
+DEBUG: Scheduling run_distance_path_finding for flow_id=3
+DEBUG run_distance_path_finding: Entered with flow_id=0, flows=2, 2*flows=4
+DEBUG run_distance_path_finding: About to access demanding_flow_struct_controller_inst[0]
+DEBUG run_distance_path_finding: source=3, destination=1
+Routing distance-based: Number of paths from source: 3to destination 1is 301 at timestamp 1.0348
+DEBUG run_distance_path_finding: Entered with flow_id=1, flows=2, 2*flows=4
+DEBUG run_distance_path_finding: About to access demanding_flow_struct_controller_inst[1]
+DEBUG run_distance_path_finding: source=9, destination=5
+Routing distance-based: Number of paths from source: 9to destination 5is 425 at timestamp 1.03481
+DEBUG run_distance_path_finding: Entered with flow_id=2, flows=2, 2*flows=4
+DEBUG run_distance_path_finding: About to access demanding_flow_struct_controller_inst[2]
+DEBUG run_distance_path_finding: source=25, destination=11
+Routing distance-based: Number of paths from source: 25to destination 11is 115 at timestamp 1.03482
+DEBUG run_distance_path_finding: Entered with flow_id=3, flows=2, 2*flows=4
+DEBUG run_distance_path_finding: About to access demanding_flow_struct_controller_inst[3]
+DEBUG run_distance_path_finding: source=12, destination=10
+Routing distance-based: Number of paths from source: 12to destination 10is 249 at timestamp 1.03482
+Number of connected flows 4
+Running DCMR started at 1.0359
+
+Least cost hop is 0
+
+
+Second least cost hop is 0
+
+
+Least cost hop is 1
+
+
+Second least cost hop is 1
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 2next hop 36
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.0672355
+PUF_local is 0.661608
+distance is 2e+09
+cost_local is 79999999
+
+Least cost hop is 2
+
+
+Second least cost hop is 2
+
+
+Least cost hop is 3
+
+
+Second least cost hop is 3
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 4next hop 12
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 325.923
+PUF_local is 3207.13
+distance is 2e+09
+cost_local is 79996792
+packet delay is 0.00105467latency constraint is 0.05
+current hop 4next hop 25
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.97934
+PUF_local is 19.477
+distance is 1e+09
+cost_local is 39999980
+packet delay is 0.00210933latency constraint is 0.05
+current hop 4next hop 27
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 5.00306
+PUF_local is 49.2309
+distance is 2e+09
+cost_local is 79999950
+
+Least cost hop is 4
+
+
+Second least cost hop is 4
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 5next hop 6
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 5.21917
+PUF_local is 51.3574
+distance is 3e+09
+cost_local is 119999948
+packet delay is 0.00210933latency constraint is 0.05
+current hop 5next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 87.8215
+PUF_local is 864.177
+distance is 2e+09
+cost_local is 79999135
+packet delay is 0.003164latency constraint is 0.05
+current hop 5next hop 33
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.27851
+PUF_local is 12.5808
+distance is 3e+09
+cost_local is 119999987
+packet delay is 0.00210933latency constraint is 0.05
+current hop 5next hop 34
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.894
+PUF_local is 107.199
+distance is 2e+09
+cost_local is 79999892
+packet delay is 0.00210933latency constraint is 0.05
+current hop 5next hop 40
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 3.67119
+PUF_local is 36.1251
+distance is 2e+09
+cost_local is 79999963
+packet delay is 0.003164latency constraint is 0.05
+current hop 5next hop 41
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 12.6311
+PUF_local is 124.292
+distance is 3e+09
+cost_local is 119999875
+packet delay is 0.00210933latency constraint is 0.05
+current hop 5next hop 48
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 56.5135
+PUF_local is 556.102
+distance is 2e+09
+cost_local is 79999443
+packet delay is 0.003164latency constraint is 0.05
+current hop 5next hop 49
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 28.4447
+PUF_local is 279.9
+distance is 3e+09
+cost_local is 119999720
+packet delay is 0.003164latency constraint is 0.05
+current hop 5next hop 54
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 57.9809
+PUF_local is 570.542
+distance is 3e+09
+cost_local is 119999429
+packet delay is 0.003164latency constraint is 0.05
+current hop 5next hop 55
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 38.4835
+PUF_local is 378.684
+distance is 3e+09
+cost_local is 119999621
+
+Least cost hop is 5
+
+
+Second least cost hop is 5
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 6next hop 21
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 52.6176
+PUF_local is 517.766
+distance is 2e+09
+cost_local is 79999482
+
+Least cost hop is 6
+
+
+Second least cost hop is 6
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 7next hop 44
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 5.21917
+PUF_local is 51.3574
+distance is 3e+09
+cost_local is 119999948
+packet delay is 0.003164latency constraint is 0.05
+current hop 7next hop 71
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.152284
+PUF_local is 1.4985
+distance is 3e+09
+cost_local is 119999998
+packet delay is 0.003164latency constraint is 0.05
+current hop 7next hop 74
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.99514
+PUF_local is 29.4727
+distance is 3e+09
+cost_local is 119999970
+
+Least cost hop is 7
+
+
+Second least cost hop is 7
+
+packet delay is 0latency constraint is 0.05
+current hop 8next hop 1
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.63134
+PUF_local is 16.0527
+distance is 1e-09
+cost_local is -16
+packet delay is 0.00210933latency constraint is 0.05
+current hop 8next hop 12
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.3608
+PUF_local is 101.952
+distance is 2e+09
+cost_local is 79999898
+
+Least cost hop is 1
+
+
+Second least cost hop is 8
+
+
+Least cost hop is 9
+
+
+Second least cost hop is 9
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 10next hop 15
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 45.1995
+PUF_local is 444.771
+distance is 3e+09
+cost_local is 119999555
+packet delay is 0.003164latency constraint is 0.05
+current hop 10next hop 50
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 6.50388
+PUF_local is 63.9992
+distance is 3e+09
+cost_local is 119999936
+packet delay is 0.003164latency constraint is 0.05
+current hop 10next hop 51
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 7.56224
+PUF_local is 74.4137
+distance is 3e+09
+cost_local is 119999925
+packet delay is 0.003164latency constraint is 0.05
+current hop 10next hop 53
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.38361
+PUF_local is 3.77478
+distance is 3e+09
+cost_local is 119999996
+packet delay is 0.003164latency constraint is 0.05
+current hop 10next hop 78
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 13.8694
+PUF_local is 136.477
+distance is 3e+09
+cost_local is 119999863
+
+Least cost hop is 10
+
+
+Second least cost hop is 10
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 11next hop 6
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.7216
+PUF_local is 105.502
+distance is 3e+09
+cost_local is 119999894
+packet delay is 0.00210933latency constraint is 0.05
+current hop 11next hop 76
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 60.1638
+PUF_local is 592.021
+distance is 2e+09
+cost_local is 79999407
+
+Least cost hop is 11
+
+
+Second least cost hop is 11
+
+
+Least cost hop is 12
+
+
+Second least cost hop is 12
+
+packet delay is 0.00105467latency constraint is 0.05
+current hop 13next hop 25
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 6.54276
+PUF_local is 64.3818
+distance is 1e+09
+cost_local is 39999935
+
+Least cost hop is 13
+
+
+Second least cost hop is 13
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 14next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.4487
+PUF_local is 102.817
+distance is 2e+09
+cost_local is 79999897
+
+Least cost hop is 14
+
+
+Second least cost hop is 14
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 13
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 63.1196
+PUF_local is 621.107
+distance is 2e+09
+cost_local is 79999378
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 21
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 7.19874
+PUF_local is 70.8367
+distance is 2e+09
+cost_local is 79999929
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 6.99171
+PUF_local is 68.7995
+distance is 2e+09
+cost_local is 79999931
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 26
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 101.831
+PUF_local is 1002.04
+distance is 2e+09
+cost_local is 79998997
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 27
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 8.76286
+PUF_local is 86.228
+distance is 2e+09
+cost_local is 79999913
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 29
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 85.6938
+PUF_local is 843.241
+distance is 2e+09
+cost_local is 79999156
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 13.0804
+PUF_local is 128.713
+distance is 2e+09
+cost_local is 79999871
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 35
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 7.71983
+PUF_local is 75.9644
+distance is 2e+09
+cost_local is 79999924
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 36
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.97145
+PUF_local is 19.3994
+distance is 2e+09
+cost_local is 79999980
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 39
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 11.1188
+PUF_local is 109.411
+distance is 2e+09
+cost_local is 79999890
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 42
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.972
+PUF_local is 29.2449
+distance is 2e+09
+cost_local is 79999970
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 48
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 13.8067
+PUF_local is 135.86
+distance is 2e+09
+cost_local is 79999864
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 76
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 23.4232
+PUF_local is 230.488
+distance is 2e+09
+cost_local is 79999769
+packet delay is 0.00210933latency constraint is 0.05
+current hop 15next hop 77
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 14.7157
+PUF_local is 144.805
+distance is 2e+09
+cost_local is 79999855
+
+Least cost hop is 15
+
+
+Second least cost hop is 15
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 16next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 4.9897
+PUF_local is 49.0994
+distance is 2e+09
+cost_local is 79999950
+packet delay is 0.00210933latency constraint is 0.05
+current hop 16next hop 40
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.6633
+PUF_local is 95.0884
+distance is 2e+09
+cost_local is 79999904
+packet delay is 0.00210933latency constraint is 0.05
+current hop 16next hop 42
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.78918
+PUF_local is 96.3271
+distance is 2e+09
+cost_local is 79999903
+
+Least cost hop is 16
+
+
+Second least cost hop is 16
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 17next hop 76
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.518561
+PUF_local is 5.10272
+distance is 2e+09
+cost_local is 79999994
+
+Least cost hop is 17
+
+
+Second least cost hop is 17
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 18next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 8.70622
+PUF_local is 85.6706
+distance is 2e+09
+cost_local is 79999914
+
+Least cost hop is 18
+
+
+Second least cost hop is 18
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 19next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 3.34841
+PUF_local is 32.9489
+distance is 2e+09
+cost_local is 79999967
+packet delay is 0.00210933latency constraint is 0.05
+current hop 19next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.03436
+PUF_local is 88.8995
+distance is 2e+09
+cost_local is 79999911
+
+Least cost hop is 19
+
+
+Second least cost hop is 19
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 20next hop 21
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 5.82333
+PUF_local is 57.3025
+distance is 2e+09
+cost_local is 79999942
+packet delay is 0.00210933latency constraint is 0.05
+current hop 20next hop 76
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 14.7342
+PUF_local is 144.987
+distance is 2e+09
+cost_local is 79999855
+
+Least cost hop is 20
+
+
+Second least cost hop is 20
+
+
+Least cost hop is 21
+
+
+Second least cost hop is 21
+
+
+Least cost hop is 22
+
+
+Second least cost hop is 22
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 23next hop 29
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 6.99154
+PUF_local is 68.7978
+distance is 2e+09
+cost_local is 79999931
+packet delay is 0.00210933latency constraint is 0.05
+current hop 23next hop 35
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 26.9241
+PUF_local is 264.937
+distance is 2e+09
+cost_local is 79999735
+packet delay is 0.00210933latency constraint is 0.05
+current hop 23next hop 36
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 12.2802
+PUF_local is 120.839
+distance is 2e+09
+cost_local is 79999879
+
+Least cost hop is 23
+
+
+Second least cost hop is 23
+
+packet delay is 0.00421867latency constraint is 0.05
+current hop 24next hop 7
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 55.4482
+PUF_local is 545.619
+distance is 3e+09
+cost_local is 119999493
+packet delay is 0.00210933latency constraint is 0.05
+current hop 24next hop 42
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.06928
+PUF_local is 10.5219
+distance is 2e+09
+cost_local is 79999989
+packet delay is 0.00210933latency constraint is 0.05
+current hop 24next hop 48
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.46778
+PUF_local is 24.2833
+distance is 2e+09
+cost_local is 79999975
+packet delay is 0.003164latency constraint is 0.05
+current hop 24next hop 49
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 15.2757
+PUF_local is 150.315
+distance is 3e+09
+cost_local is 119999849
+
+Least cost hop is 24
+
+
+Second least cost hop is 24
+
+
+Least cost hop is 25
+
+
+Second least cost hop is 25
+
+
+Least cost hop is 26
+
+
+Second least cost hop is 26
+
+
+Least cost hop is 27
+
+
+Second least cost hop is 27
+
+
+Least cost hop is 28
+
+
+Second least cost hop is 28
+
+
+Least cost hop is 29
+
+
+Second least cost hop is 29
+
+
+Least cost hop is 30
+
+
+Second least cost hop is 30
+
+
+Least cost hop is 31
+
+
+Second least cost hop is 31
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 32next hop 12
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 16.6659
+PUF_local is 163.995
+distance is 2e+09
+cost_local is 79999836
+packet delay is 0.00210933latency constraint is 0.05
+current hop 32next hop 76
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.1271
+PUF_local is 99.6521
+distance is 2e+09
+cost_local is 79999900
+
+Least cost hop is 32
+
+
+Second least cost hop is 32
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 33next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.06105
+PUF_local is 20.2811
+distance is 2e+09
+cost_local is 79999979
+
+Least cost hop is 33
+
+
+Second least cost hop is 33
+
+packet delay is 0latency constraint is 0.05
+current hop 34next hop 1
+RBW_local is 0.97
+congestion_local is 0.2001
+link lifetime is 5.35957
+PUF_local is 25.9809
+distance is 1e-09
+cost_local is -25
+
+Least cost hop is 1
+
+
+Second least cost hop is 34
+
+
+Least cost hop is 35
+
+
+Second least cost hop is 35
+
+
+Least cost hop is 36
+
+
+Second least cost hop is 36
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 37next hop 16
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 18.2842
+PUF_local is 179.919
+distance is 3e+09
+cost_local is 119999820
+packet delay is 0.003164latency constraint is 0.05
+current hop 37next hop 17
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 4.85166
+PUF_local is 47.7411
+distance is 3e+09
+cost_local is 119999952
+packet delay is 0.00210933latency constraint is 0.05
+current hop 37next hop 42
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.2595
+PUF_local is 100.955
+distance is 2e+09
+cost_local is 79999899
+
+Least cost hop is 37
+
+
+Second least cost hop is 37
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 38next hop 48
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.0412
+PUF_local is 98.8067
+distance is 2e+09
+cost_local is 79999901
+
+Least cost hop is 38
+
+
+Second least cost hop is 38
+
+packet delay is 0latency constraint is 0.05
+current hop 39next hop 1
+RBW_local is 0.955
+congestion_local is 0.3001
+link lifetime is 49.777
+PUF_local is 158.404
+distance is 1e-09
+cost_local is -158
+
+Least cost hop is 1
+
+
+Second least cost hop is 39
+
+
+Least cost hop is 40
+
+
+Second least cost hop is 40
+
+packet delay is 0latency constraint is 0.05
+current hop 41next hop 1
+RBW_local is 0.94
+congestion_local is 0.4001
+link lifetime is 21.6365
+PUF_local is 50.833
+distance is 1e-09
+cost_local is -50
+packet delay is 0.00210933latency constraint is 0.05
+current hop 41next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.93334
+PUF_local is 19.0244
+distance is 2e+09
+cost_local is 79999980
+
+Least cost hop is 1
+
+
+Second least cost hop is 41
+
+
+Least cost hop is 42
+
+
+Second least cost hop is 42
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 43next hop 0
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 4.41416
+PUF_local is 43.4361
+distance is 3e+09
+cost_local is 119999956
+packet delay is 0latency constraint is 0.05
+current hop 43next hop 1
+RBW_local is 0.925
+congestion_local is 0.5001
+link lifetime is 173.787
+PUF_local is 321.441
+distance is 1e-09
+cost_local is -321
+packet delay is 0.003164latency constraint is 0.05
+current hop 43next hop 8
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.6945
+PUF_local is 105.236
+distance is 3e+09
+cost_local is 119999894
+packet delay is 0.003164latency constraint is 0.05
+current hop 43next hop 9
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.3128
+PUF_local is 91.6395
+distance is 3e+09
+cost_local is 119999908
+packet delay is 0.003164latency constraint is 0.05
+current hop 43next hop 14
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 12.1493
+PUF_local is 119.551
+distance is 3e+09
+cost_local is 119999880
+packet delay is 0.003164latency constraint is 0.05
+current hop 43next hop 15
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 8.05636
+PUF_local is 79.2759
+distance is 3e+09
+cost_local is 119999920
+packet delay is 0.00210933latency constraint is 0.05
+current hop 43next hop 36
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 13.7793
+PUF_local is 135.591
+distance is 2e+09
+cost_local is 79999864
+packet delay is 0.003164latency constraint is 0.05
+current hop 43next hop 44
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 16.5803
+PUF_local is 163.153
+distance is 3e+09
+cost_local is 119999836
+packet delay is 0.003164latency constraint is 0.05
+current hop 43next hop 72
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 7.71983
+PUF_local is 75.9644
+distance is 3e+09
+cost_local is 119999924
+packet delay is 0.003164latency constraint is 0.05
+current hop 43next hop 73
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.02383
+PUF_local is 88.796
+distance is 3e+09
+cost_local is 119999911
+
+Least cost hop is 1
+
+
+Second least cost hop is 43
+
+packet delay is 0latency constraint is 0.05
+current hop 44next hop 1
+RBW_local is 0.91
+congestion_local is 0.6001
+link lifetime is 82.7632
+PUF_local is 125.503
+distance is 1e-09
+cost_local is -125
+packet delay is 0.00210933latency constraint is 0.05
+current hop 44next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.16145
+PUF_local is 21.269
+distance is 2e+09
+cost_local is 79999978
+
+Least cost hop is 1
+
+
+Second least cost hop is 44
+
+packet delay is 0.00421867latency constraint is 0.05
+current hop 45next hop 11
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 7.28903
+PUF_local is 71.7252
+distance is 3e+09
+cost_local is 119999965
+packet delay is 0.00210933latency constraint is 0.05
+current hop 45next hop 12
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.97145
+PUF_local is 19.3994
+distance is 2e+09
+cost_local is 79999980
+packet delay is 0.00210933latency constraint is 0.05
+current hop 45next hop 13
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 6.09781
+PUF_local is 60.0034
+distance is 2e+09
+cost_local is 79999939
+packet delay is 0.003164latency constraint is 0.05
+current hop 45next hop 14
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.518561
+PUF_local is 5.10272
+distance is 3e+09
+cost_local is 119999994
+packet delay is 0.003164latency constraint is 0.05
+current hop 45next hop 15
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.0785
+PUF_local is 99.1736
+distance is 3e+09
+cost_local is 119999900
+packet delay is 0.003164latency constraint is 0.05
+current hop 45next hop 20
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 12.116
+PUF_local is 119.224
+distance is 3e+09
+cost_local is 119999880
+packet delay is 0.00210933latency constraint is 0.05
+current hop 45next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 13.9742
+PUF_local is 137.509
+distance is 2e+09
+cost_local is 79999862
+packet delay is 0.003164latency constraint is 0.05
+current hop 45next hop 23
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 14.211
+PUF_local is 139.839
+distance is 3e+09
+cost_local is 119999860
+packet delay is 0.00210933latency constraint is 0.05
+current hop 45next hop 26
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.1271
+PUF_local is 99.6521
+distance is 2e+09
+cost_local is 79999900
+packet delay is 0.00210933latency constraint is 0.05
+current hop 45next hop 35
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 3.67437
+PUF_local is 36.1563
+distance is 2e+09
+cost_local is 79999963
+packet delay is 0.00210933latency constraint is 0.05
+current hop 45next hop 39
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 5.65126
+PUF_local is 55.6093
+distance is 2e+09
+cost_local is 79999944
+packet delay is 0.00210933latency constraint is 0.05
+current hop 45next hop 42
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 310.784
+PUF_local is 3058.16
+distance is 2e+09
+cost_local is 79996941
+packet delay is 0.003164latency constraint is 0.05
+current hop 45next hop 71
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.45563
+PUF_local is 93.0449
+distance is 3e+09
+cost_local is 119999906
+packet delay is 0.00210933latency constraint is 0.05
+current hop 45next hop 77
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.0853
+PUF_local is 99.2406
+distance is 2e+09
+cost_local is 79999900
+packet delay is 0.003164latency constraint is 0.05
+current hop 45next hop 78
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 26.5356
+PUF_local is 261.114
+distance is 3e+09
+cost_local is 119999738
+
+Least cost hop is 45
+
+
+Second least cost hop is 45
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 46next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 12.5945
+PUF_local is 123.932
+distance is 2e+09
+cost_local is 79999876
+packet delay is 0.00210933latency constraint is 0.05
+current hop 46next hop 35
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 12.2512
+PUF_local is 120.553
+distance is 2e+09
+cost_local is 79999879
+
+Least cost hop is 46
+
+
+Second least cost hop is 46
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 47next hop 12
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 11.578
+PUF_local is 113.93
+distance is 2e+09
+cost_local is 79999886
+packet delay is 0.00210933latency constraint is 0.05
+current hop 47next hop 77
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 7.39859
+PUF_local is 72.8033
+distance is 2e+09
+cost_local is 79999927
+
+Least cost hop is 47
+
+
+Second least cost hop is 47
+
+
+Least cost hop is 48
+
+
+Second least cost hop is 48
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 49next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 5.02662
+PUF_local is 49.4627
+distance is 2e+09
+cost_local is 79999950
+
+Least cost hop is 49
+
+
+Second least cost hop is 49
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 50next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.10055
+PUF_local is 20.6698
+distance is 2e+09
+cost_local is 79999979
+packet delay is 0.00210933latency constraint is 0.05
+current hop 50next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.66623
+PUF_local is 16.3959
+distance is 2e+09
+cost_local is 79999983
+packet delay is 0.00210933latency constraint is 0.05
+current hop 50next hop 34
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 4.41416
+PUF_local is 43.4361
+distance is 2e+09
+cost_local is 79999956
+packet delay is 0.00210933latency constraint is 0.05
+current hop 50next hop 39
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.89913
+PUF_local is 18.6877
+distance is 2e+09
+cost_local is 79999981
+packet delay is 0.00210933latency constraint is 0.05
+current hop 50next hop 42
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.60635
+PUF_local is 94.5281
+distance is 2e+09
+cost_local is 79999905
+packet delay is 0.00210933latency constraint is 0.05
+current hop 50next hop 48
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.4182
+PUF_local is 23.7955
+distance is 2e+09
+cost_local is 79999976
+packet delay is 0.00210933latency constraint is 0.05
+current hop 50next hop 77
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.94838
+PUF_local is 19.1723
+distance is 2e+09
+cost_local is 79999980
+
+Least cost hop is 50
+
+
+Second least cost hop is 50
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 51next hop 26
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.63134
+PUF_local is 16.0527
+distance is 2e+09
+cost_local is 79999983
+
+Least cost hop is 51
+
+
+Second least cost hop is 51
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 52next hop 76
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 310.784
+PUF_local is 3058.16
+distance is 2e+09
+cost_local is 79996941
+
+Least cost hop is 52
+
+
+Second least cost hop is 52
+
+
+Least cost hop is 53
+
+
+Second least cost hop is 53
+
+
+Least cost hop is 54
+
+
+Second least cost hop is 54
+
+
+Least cost hop is 55
+
+
+Second least cost hop is 55
+
+packet delay is 0latency constraint is 0.05
+current hop 56next hop 1
+RBW_local is 0.895
+congestion_local is 0.7001
+link lifetime is 3.35645
+PUF_local is 4.29085
+distance is 1e-09
+cost_local is -4
+packet delay is 0.00210933latency constraint is 0.05
+current hop 56next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 3.16337
+PUF_local is 31.128
+distance is 2e+09
+cost_local is 79999968
+
+Least cost hop is 1
+
+
+Second least cost hop is 56
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 57next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.47314
+PUF_local is 93.2173
+distance is 2e+09
+cost_local is 79999906
+
+Least cost hop is 57
+
+
+Second least cost hop is 57
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 58next hop 13
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.645039
+PUF_local is 6.34728
+distance is 2e+09
+cost_local is 79999993
+
+Least cost hop is 58
+
+
+Second least cost hop is 58
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 59next hop 13
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 41.4795
+PUF_local is 408.165
+distance is 2e+09
+cost_local is 79999591
+packet delay is 0.00210933latency constraint is 0.05
+current hop 59next hop 21
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.910059
+PUF_local is 8.95513
+distance is 2e+09
+cost_local is 79999991
+packet delay is 0.00105467latency constraint is 0.05
+current hop 59next hop 25
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 5.51057
+PUF_local is 54.2249
+distance is 1e+09
+cost_local is 39999945
+packet delay is 0.00210933latency constraint is 0.05
+current hop 59next hop 35
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.01919
+PUF_local is 10.029
+distance is 2e+09
+cost_local is 79999989
+
+Least cost hop is 59
+
+
+Second least cost hop is 59
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 12
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 13.8067
+PUF_local is 135.86
+distance is 2e+09
+cost_local is 79999864
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 21
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 65.1646
+PUF_local is 641.23
+distance is 2e+09
+cost_local is 79999358
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 4.16891
+PUF_local is 41.0227
+distance is 2e+09
+cost_local is 79999958
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 29
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 12.7602
+PUF_local is 125.562
+distance is 2e+09
+cost_local is 79999874
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 295.921
+PUF_local is 2911.91
+distance is 2e+09
+cost_local is 79997088
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 34
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.6945
+PUF_local is 105.236
+distance is 2e+09
+cost_local is 79999894
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 35
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 46.7997
+PUF_local is 460.516
+distance is 2e+09
+cost_local is 79999539
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 39
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 92.7637
+PUF_local is 912.81
+distance is 2e+09
+cost_local is 79999087
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 40
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.4182
+PUF_local is 23.7955
+distance is 2e+09
+cost_local is 79999976
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 42
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.06621
+PUF_local is 20.3319
+distance is 2e+09
+cost_local is 79999979
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 76
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 19.4035
+PUF_local is 190.933
+distance is 2e+09
+cost_local is 79999809
+packet delay is 0.00210933latency constraint is 0.05
+current hop 60next hop 77
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.22071
+PUF_local is 90.7333
+distance is 2e+09
+cost_local is 79999909
+
+Least cost hop is 60
+
+
+Second least cost hop is 60
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 61next hop 26
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.0729
+PUF_local is 99.1192
+distance is 2e+09
+cost_local is 79999900
+
+Least cost hop is 61
+
+
+Second least cost hop is 61
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 62next hop 23
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 24.5832
+PUF_local is 241.903
+distance is 3e+09
+cost_local is 119999758
+packet delay is 0.003164latency constraint is 0.05
+current hop 62next hop 30
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.7984
+PUF_local is 106.258
+distance is 3e+09
+cost_local is 119999893
+packet delay is 0.00210933latency constraint is 0.05
+current hop 62next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 5.43035
+PUF_local is 53.4355
+distance is 2e+09
+cost_local is 79999946
+packet delay is 0.00210933latency constraint is 0.05
+current hop 62next hop 48
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 6.50388
+PUF_local is 63.9992
+distance is 2e+09
+cost_local is 79999936
+packet delay is 0.003164latency constraint is 0.05
+current hop 62next hop 55
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.58223
+PUF_local is 5.72924
+distance is 3e+09
+cost_local is 119999994
+
+Least cost hop is 62
+
+
+Second least cost hop is 62
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 63next hop 13
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 5.07824
+PUF_local is 49.9707
+distance is 2e+09
+cost_local is 79999950
+
+Least cost hop is 63
+
+
+Second least cost hop is 63
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 64next hop 22
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.54594
+PUF_local is 93.9336
+distance is 2e+09
+cost_local is 79999906
+
+Least cost hop is 64
+
+
+Second least cost hop is 64
+
+
+Least cost hop is 65
+
+
+Second least cost hop is 65
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 66next hop 76
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.448272
+PUF_local is 4.41106
+distance is 2e+09
+cost_local is 79999995
+
+Least cost hop is 66
+
+
+Second least cost hop is 66
+
+packet delay is 0.00105467latency constraint is 0.05
+current hop 67next hop 25
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.44787
+PUF_local is 92.9686
+distance is 1e+09
+cost_local is 39999907
+packet delay is 0.00210933latency constraint is 0.05
+current hop 67next hop 31
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 11.6283
+PUF_local is 114.425
+distance is 2e+09
+cost_local is 79999885
+
+Least cost hop is 67
+
+
+Second least cost hop is 67
+
+packet delay is 0latency constraint is 0.05
+current hop 68next hop 1
+RBW_local is 0.88
+congestion_local is 0.8001
+link lifetime is 14.0682
+PUF_local is 15.4731
+distance is 1e-09
+cost_local is -15
+packet delay is 0.00210933latency constraint is 0.05
+current hop 68next hop 12
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.700784
+PUF_local is 6.89582
+distance is 2e+09
+cost_local is 79999993
+
+Least cost hop is 1
+
+
+Second least cost hop is 68
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 69next hop 13
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 3.53856
+PUF_local is 34.82
+distance is 2e+09
+cost_local is 79999965
+packet delay is 0.00210933latency constraint is 0.05
+current hop 69next hop 21
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 9.77525
+PUF_local is 96.19
+distance is 2e+09
+cost_local is 79999903
+packet delay is 0.00210933latency constraint is 0.05
+current hop 69next hop 27
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.01919
+PUF_local is 10.029
+distance is 2e+09
+cost_local is 79999989
+packet delay is 0.00210933latency constraint is 0.05
+current hop 69next hop 29
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 8.88416
+PUF_local is 87.4216
+distance is 2e+09
+cost_local is 79999912
+packet delay is 0.00210933latency constraint is 0.05
+current hop 69next hop 34
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 27.6354
+PUF_local is 271.937
+distance is 2e+09
+cost_local is 79999728
+
+Least cost hop is 69
+
+
+Second least cost hop is 69
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 70next hop 9
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 60.1638
+PUF_local is 592.021
+distance is 3e+09
+cost_local is 119999407
+packet delay is 0.003164latency constraint is 0.05
+current hop 70next hop 53
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.448272
+PUF_local is 4.41106
+distance is 3e+09
+cost_local is 119999995
+
+Least cost hop is 70
+
+
+Second least cost hop is 70
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 71next hop 12
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 13.0006
+PUF_local is 127.928
+distance is 2e+09
+cost_local is 79999872
+
+Least cost hop is 71
+
+
+Second least cost hop is 71
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 72next hop 35
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 19.6764
+PUF_local is 193.619
+distance is 2e+09
+cost_local is 79999806
+packet delay is 0.00210933latency constraint is 0.05
+current hop 72next hop 42
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.54076
+PUF_local is 15.1614
+distance is 2e+09
+cost_local is 79999984
+
+Least cost hop is 72
+
+
+Second least cost hop is 72
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 73next hop 42
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 4.40993
+PUF_local is 43.3944
+distance is 2e+09
+cost_local is 79999956
+packet delay is 0.00210933latency constraint is 0.05
+current hop 73next hop 48
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 2.8854
+PUF_local is 28.3928
+distance is 2e+09
+cost_local is 79999971
+
+Least cost hop is 73
+
+
+Second least cost hop is 73
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 74next hop 77
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 14.6043
+PUF_local is 143.709
+distance is 2e+09
+cost_local is 79999856
+
+Least cost hop is 74
+
+
+Second least cost hop is 74
+
+
+Least cost hop is 75
+
+
+Second least cost hop is 75
+
+
+Least cost hop is 76
+
+
+Second least cost hop is 76
+
+
+Least cost hop is 77
+
+
+Second least cost hop is 77
+
+
+Least cost hop is 78
+
+
+Second least cost hop is 78
+
+
+Least cost hop is 79
+
+
+Second least cost hop is 79
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 0next hop 7
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 0.00161137
+PUF_local is 0.0158562
+distance is 1122.91
+cost_local is 44
+
+Least cost hop is 7
+
+
+Second least cost hop is 0
+
+packet delay is 0.003164latency constraint is 0.05
+current hop 1next hop 25
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 52.6176
+PUF_local is 517.766
+distance is 1e+09
+cost_local is 39999499
+
+Least cost hop is 1
+
+
+Second least cost hop is 1
+
+
+Least cost hop is 2
+
+
+Second least cost hop is 2
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 3next hop 4
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 6.14233
+PUF_local is 60.4415
+distance is 421.285
+cost_local is -43
+packet delay is 0latency constraint is 0.05
+current hop 3next hop 5
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 3.16337
+PUF_local is 31.128
+distance is 1e-09
+cost_local is -31
+
+Least cost hop is 4
+
+
+Second least cost hop is 5
+
+
+Least cost hop is 4
+
+
+Second least cost hop is 4
+
+
+Least cost hop is 5
+
+
+Second least cost hop is 5
+
+
+Least cost hop is 6
+
+
+Second least cost hop is 6
+
+
+Least cost hop is 7
+
+
+Second least cost hop is 7
+
+packet delay is 0.00210933latency constraint is 0.05
+current hop 8next hop 0
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 3.62595
+PUF_local is 35.6799
+distance is 2e+09
+cost_local is 79999964
+packet delay is 0.00210933latency constraint is 0.05
+current hop 8next hop 1
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 1.63134
+PUF_local is 16.0527
+distance is 2e+09
+cost_local is 79999983
+packet delay is 0.00105467latency constraint is 0.05
+current hop 8next hop 6
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 78.2985
+PUF_local is 770.47
+distance is 140.038
+cost_local is -764
+packet delay is 0.003164latency constraint is 0.05
+current hop 8next hop 12
+RBW_local is 0.985
+congestion_local is 0.1001
+link lifetime is 10.3608
+PUF_local is 101.952
+distance is 739.423
+cost_local is -72
+packet delay is 0.

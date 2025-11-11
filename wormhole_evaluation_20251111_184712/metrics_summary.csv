@@ -1,0 +1,16 @@
+TestName,PDR,AvgLatency,Delivered,Throughput,Duration
+test01_baseline,FAILED,FAILED,FAILED,FAILED,16
+test02_wormhole_20_no_mitigation,FAILED,FAILED,FAILED,FAILED,16
+test02_wormhole_40_no_mitigation,FAILED,FAILED,FAILED,FAILED,21
+test02_wormhole_60_no_mitigation,FAILED,FAILED,FAILED,FAILED,18
+test02_wormhole_80_no_mitigation,FAILED,FAILED,FAILED,FAILED,18
+test02_wormhole_100_no_mitigation,FAILED,FAILED,FAILED,FAILED,20
+test03_wormhole_20_with_detection,FAILED,FAILED,FAILED,FAILED,14
+test03_wormhole_40_with_detection,FAILED,FAILED,FAILED,FAILED,17
+test03_wormhole_60_with_detection,FAILED,FAILED,FAILED,FAILED,17
+test03_wormhole_80_with_detection,FAILED,FAILED,FAILED,FAILED,18
+test03_wormhole_100_with_detection,FAILED,FAILED,FAILED,FAILED,17
+test04_wormhole_20_with_mitigation,FAILED,FAILED,FAILED,FAILED,15
+test04_wormhole_40_with_mitigation,FAILED,FAILED,FAILED,FAILED,19
+test04_wormhole_60_with_mitigation,FAILED,FAILED,FAILED,FAILED,15
+test04_wormhole_80_with_mitigation,FAILED,FAILED,FAILED,FAILED,17

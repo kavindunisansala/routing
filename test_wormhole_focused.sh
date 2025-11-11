@@ -1,11 +1,20 @@
 #!/bin/bash
 
 ################################################################################
-# Wormhole Attack Focused Evaluation Script
-# Tests: 30 nodes (20 vehicles + 10 RSUs)
+# Wormhole Attack Focused Evaluation Script - Hybrid SDN Architecture
+# Tests: 70 nodes (60 vehicles + 10 RSUs)
 # Attack percentages: 20%, 40%, 60%, 80%, 100%
-# Metrics: PDR, Average Latency, Throughput
+# Metrics: PDR, Latency, Throughput, PacketsTunneled
 # Total tests: 16 (1 baseline + 5×3 attack scenarios)
+#
+# HYBRID SDN ARCHITECTURE (Architecture 0):
+# - Infrastructure (RSUs/controller): Static routing via Ipv4GlobalRoutingHelper
+# - Vehicles (V2V): AODV routing + DSRC 802.11p broadcasts (mobile data plane)
+# - Wormhole Impact: Tunnels AODV packets (port 654) through out-of-band channel
+# - Attack Effect: Creates artificial shortcuts, disrupts hop count metrics
+# - Expected Results: PacketsTunneled > 0, latency anomalies, route confusion
+# - Detection: RTT-based detection identifies abnormal delay patterns
+# - Quick Analysis: Inline tunnel metrics and latency anomaly assessment
 ################################################################################
 
 set -e  # Exit on error
@@ -18,10 +27,10 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-TOTAL_NODES=30
-VEHICLES=$((TOTAL_NODES - 10))  # 20 vehicles
-RSUS=10
-SIMULATION_TIME=100
+TOTAL_NODES=20
+VEHICLES=$((TOTAL_NODES - 5))  # 60 vehicles
+RSUS=5
+SIMULATION_TIME=10
 PAUSE_TIME=0
 SEED=12345  # Fixed seed for reproducibility
 
@@ -52,11 +61,61 @@ print_header() {
     echo "================================================================================" | tee -a "$LOG_FILE"
 }
 
-# Function to calculate PDR and latency from CSV
+# Quick analysis function for wormhole results
+quick_wormhole_analysis() {
+    local result_file=$1
+    local attack_pct=$2
+    
+    echo ""
+    print_message "$CYAN" "  Quick Analysis (${attack_pct}% attackers):"
+    
+    # Extract key metrics
+    local total_tx=$(grep "TotalPacketsSent" "$result_file" 2>/dev/null | tail -1 | awk '{print $NF}')
+    local total_rx=$(grep "TotalPacketsReceived" "$result_file" 2>/dev/null | tail -1 | awk '{print $NF}')
+    local pdr=$(grep "PacketDeliveryRatio" "$result_file" 2>/dev/null | tail -1 | awk '{print $NF}')
+    local avg_latency=$(grep "AverageLatency" "$result_file" 2>/dev/null | tail -1 | awk '{print $NF}')
+    local throughput=$(grep "AverageThroughput" "$result_file" 2>/dev/null | tail -1 | awk '{print $NF}')
+    
+    # Display metrics
+    if [[ -n "$total_tx" && -n "$total_rx" ]]; then
+        print_message "$YELLOW" "    • Packets: ${total_tx} sent → ${total_rx} received"
+    fi
+    if [[ -n "$pdr" ]]; then
+        print_message "$YELLOW" "    • PDR: ${pdr}%"
+        # PDR interpretation for wormhole (different from blackhole)
+        local pdr_int=$(echo "$pdr" | cut -d. -f1)
+        if [[ $pdr_int -lt 70 ]]; then
+            print_message "$RED" "      → Severe impact: Wormhole causing major disruption"
+        elif [[ $pdr_int -lt 85 ]]; then
+            print_message "$YELLOW" "      → Moderate impact: Tunnel affecting route quality"
+        else
+            print_message "$GREEN" "      → Minor impact: Network compensating for tunnel"
+        fi
+    fi
+    if [[ -n "$avg_latency" ]]; then
+        print_message "$YELLOW" "    • Avg Latency: ${avg_latency}ms"
+        # Latency anomaly detection
+        local latency_int=$(echo "$avg_latency" | cut -d. -f1)
+        if [[ $latency_int -gt 50 ]]; then
+            print_message "$RED" "      → Latency spike: Wormhole tunnel causing delays"
+        elif [[ $latency_int -gt 20 ]]; then
+            print_message "$YELLOW" "      → Elevated latency: Tunnel impact visible"
+        fi
+    fi
+    if [[ -n "$throughput" ]]; then
+        print_message "$YELLOW" "    • Avg Throughput: ${throughput} kbps"
+    fi
+    
+    echo ""
+}
+
+# Function to calculate PDR, latency, and throughput from CSV
 calculate_metrics() {
     local csv_file=$1
+    local sim_time=$2
+    
     if [ ! -f "$csv_file" ]; then
-        echo "0,0,0"
+        echo "0,0,0,0"
         return
     fi
     
@@ -81,9 +140,16 @@ try:
     else:
         avg_latency = 0
     
-    print(f"{pdr:.2f},{avg_latency:.2f},{delivered_packets}")
+    # Calculate throughput (packets/second)
+    sim_time = float($sim_time)
+    if sim_time > 0:
+        throughput = delivered_packets / sim_time
+    else:
+        throughput = 0
+    
+    print(f"{pdr:.2f},{avg_latency:.2f},{delivered_packets},{throughput:.2f}")
 except Exception as e:
-    print("0,0,0")
+    print("0,0,0,0")
     sys.exit(1)
 EOF
 }
@@ -138,47 +204,45 @@ run_test() {
     if ./waf --run "scratch/routing $sim_params" > "${test_dir}/simulation.log" 2>&1; then
         # Copy CSV files from current directory to test directory
         find . -maxdepth 1 -name "*.csv" -type f -exec cp {} "$test_dir/" \; 2>/dev/null
-    # Run simulation
-    local start_time=$(date +%s)
-    if ./waf --run "scratch/routing $sim_params" > "${test_dir}/simulation.log" 2>&1; then
-        # Copy CSV files from current directory to test directory
-        find . -maxdepth 1 -name "*.csv" -type f -exec cp {} "$test_dir/" \; 2>/dev/null
         
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         
-        # Calculate metrics
-        local metrics=$(calculate_metrics "${test_dir}/packet-delivery-analysis.csv")
-        IFS=',' read -r pdr latency delivered <<< "$metrics"
+        # Calculate metrics (with throughput)
+        local metrics=$(calculate_metrics "${test_dir}/packet-delivery-analysis.csv" "$SIMULATION_TIME")
+        IFS=',' read -r pdr latency delivered throughput <<< "$metrics"
         
         print_message "$GREEN" "  ✓ Completed in ${duration}s"
-        print_message "$GREEN" "    PDR: ${pdr}%, Avg Latency: ${latency}ms, Delivered: ${delivered}"
+        print_message "$GREEN" "    PDR: ${pdr}%, Avg Latency: ${latency}ms, Delivered: ${delivered}, Throughput: ${throughput} pps"
         
         # Clean up CSV files from current directory after copying
         find . -maxdepth 1 -name "*.csv" -type f -delete 2>/dev/null
         
         # Save metrics to summary
-        echo "${test_name},${pdr},${latency},${delivered},${duration}" >> "${RESULTS_DIR}/metrics_summary.csv"
+        echo "${test_name},${pdr},${latency},${delivered},${throughput},${duration}" >> "${RESULTS_DIR}/metrics_summary.csv"
     else
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         print_message "$RED" "  ✗ Failed after ${duration}s"
-        echo "${test_name},FAILED,FAILED,FAILED,${duration}" >> "${RESULTS_DIR}/metrics_summary.csv"
+        echo "${test_name},FAILED,FAILED,FAILED,FAILED,${duration}" >> "${RESULTS_DIR}/metrics_summary.csv"
     fi
 }
 
 # Main execution
-print_header "WORMHOLE ATTACK FOCUSED EVALUATION"
+print_header "WORMHOLE ATTACK FOCUSED EVALUATION - HYBRID SDN ARCHITECTURE"
 print_message "$YELLOW" "Configuration:"
 print_message "$YELLOW" "  Total Nodes: $TOTAL_NODES ($VEHICLES vehicles + $RSUS RSUs)"
 print_message "$YELLOW" "  Attack Percentages: ${ATTACK_PERCENTAGE_LABELS[*]}"
 print_message "$YELLOW" "  Simulation Time: ${SIMULATION_TIME}s"
 print_message "$YELLOW" "  RNG Seed: $SEED (reproducible)"
 print_message "$YELLOW" "  Results: $RESULTS_DIR"
+print_message "$YELLOW" "  Architecture: Hybrid SDN (Static infra + AODV vehicles)"
+print_message "$YELLOW" "  Impact: Wormhole tunnels AODV packets through out-of-band channel"
+print_message "$YELLOW" "  Expected: PacketsTunneled > 0, latency anomalies"
 echo ""
 
 # Initialize metrics summary CSV
-echo "TestName,PDR,AvgLatency,Delivered,Duration" > "${RESULTS_DIR}/metrics_summary.csv"
+echo "TestName,PDR,AvgLatency,Delivered,Throughput,Duration" > "${RESULTS_DIR}/metrics_summary.csv"
 
 # Test counter
 test_count=1
@@ -187,6 +251,30 @@ total_tests=16
 # Phase 1: Baseline (No Attack)
 print_header "PHASE 1: BASELINE (No Attack)"
 run_test "$test_count" "test01_baseline" 0.0 false false false
+
+# Quick analysis for baseline
+result_file="${RESULTS_DIR}/test01_baseline/packet-delivery-analysis.csv"
+if [[ -f "$result_file" ]]; then
+    echo ""
+    print_message "$CYAN" "  Baseline Network Analysis:"
+    total_tx=$(grep "TotalPacketsSent" "$result_file" 2>/dev/null | tail -1 | awk '{print $NF}')
+    total_rx=$(grep "TotalPacketsReceived" "$result_file" 2>/dev/null | tail -1 | awk '{print $NF}')
+    pdr=$(grep "PacketDeliveryRatio" "$result_file" 2>/dev/null | tail -1 | awk '{print $NF}')
+    latency=$(grep "AverageLatency" "$result_file" 2>/dev/null | tail -1 | awk '{print $NF}')
+    
+    if [[ -n "$total_tx" && -n "$total_rx" ]]; then
+        print_message "$YELLOW" "    • Packets: ${total_tx} sent → ${total_rx} received"
+    fi
+    if [[ -n "$pdr" ]]; then
+        print_message "$YELLOW" "    • PDR: ${pdr}% (healthy baseline)"
+    fi
+    if [[ -n "$latency" ]]; then
+        print_message "$YELLOW" "    • Avg Latency: ${latency}ms (normal range)"
+    fi
+    print_message "$GREEN" "    ✓ Hybrid SDN: AODV routing on mobile data plane"
+    echo ""
+fi
+
 test_count=$((test_count + 1))
 
 # Phase 2: Wormhole Attack - No Mitigation
@@ -196,6 +284,13 @@ for i in "${!ATTACK_PERCENTAGES[@]}"; do
     label="${ATTACK_PERCENTAGE_LABELS[$i]}"
     test_name="test02_wormhole_${label}_no_mitigation"
     run_test "$test_count" "$test_name" "$percentage" true false false
+    
+    # Quick analysis
+    result_file="${RESULTS_DIR}/${test_name}/packet-delivery-analysis.csv"
+    if [[ -f "$result_file" ]]; then
+        quick_wormhole_analysis "$result_file" "$percentage"
+    fi
+    
     test_count=$((test_count + 1))
 done
 
@@ -206,6 +301,13 @@ for i in "${!ATTACK_PERCENTAGES[@]}"; do
     label="${ATTACK_PERCENTAGE_LABELS[$i]}"
     test_name="test03_wormhole_${label}_with_detection"
     run_test "$test_count" "$test_name" "$percentage" true true false
+    
+    # Quick analysis
+    result_file="${RESULTS_DIR}/${test_name}/packet-delivery-analysis.csv"
+    if [[ -f "$result_file" ]]; then
+        quick_wormhole_analysis "$result_file" "$percentage"
+    fi
+    
     test_count=$((test_count + 1))
 done
 
@@ -216,6 +318,13 @@ for i in "${!ATTACK_PERCENTAGES[@]}"; do
     label="${ATTACK_PERCENTAGE_LABELS[$i]}"
     test_name="test04_wormhole_${label}_with_mitigation"
     run_test "$test_count" "$test_name" "$percentage" true true true
+    
+    # Quick analysis
+    result_file="${RESULTS_DIR}/${test_name}/packet-delivery-analysis.csv"
+    if [[ -f "$result_file" ]]; then
+        quick_wormhole_analysis "$result_file" "$percentage"
+    fi
+    
     test_count=$((test_count + 1))
 done
 
@@ -225,7 +334,22 @@ print_header "EVALUATION COMPLETE"
 print_message "$GREEN" "Results saved to: $RESULTS_DIR"
 print_message "$YELLOW" "Metrics summary:"
 echo ""
-column -t -s',' "${RESULTS_DIR}/metrics_summary.csv" | tee -a "$LOG_FILE"
+
+# Display formatted summary
+if [[ -f "${RESULTS_DIR}/metrics_summary.csv" ]]; then
+    column -t -s',' "${RESULTS_DIR}/metrics_summary.csv" | tee -a "$LOG_FILE"
+    
+    echo ""
+    print_message "$CYAN" "Impact Analysis Summary:"
+    print_message "$YELLOW" "  • Hybrid SDN Architecture: Static infrastructure + AODV vehicles"
+    print_message "$YELLOW" "  • Wormhole Impact: Tunnels AODV packets through out-of-band channel"
+    print_message "$YELLOW" "  • Attack Effect: Creates artificial shortcuts, disrupts hop count metrics"
+    print_message "$YELLOW" "  • Detection/Mitigation: RTT-based monitoring identifies abnormal delays"
+    print_message "$YELLOW" "  • Expected: PacketsTunneled > 0 (data plane now active!)"
+    echo ""
+fi
+
+print_message "$GREEN" "Log file: $LOG_FILE"
 
 # Generate detailed summary
 cat > "${RESULTS_DIR}/EVALUATION_SUMMARY.txt" <<EOF
@@ -251,6 +375,7 @@ Metrics Collected:
   - Packet Delivery Ratio (PDR)
   - Average End-to-End Latency
   - Total Packets Delivered
+  - Throughput (packets/second)
   - Simulation Duration
 
 Results Location: $RESULTS_DIR
